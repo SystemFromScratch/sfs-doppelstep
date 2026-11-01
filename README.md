@@ -35,6 +35,7 @@ this repository.
 - [Flashing and debugging](#flashing-and-debugging)
 - [Logs (RTT)](#logs-rtt)
 - [DYNAMIXEL emulation](#dynamixel-emulation)
+- [Simulated motor](#simulated-motor)
 - [Configuration](#configuration)
 - [GUI](#gui)
 - [Documentation and PDF manual](#documentation-and-pdf-manual)
@@ -91,11 +92,16 @@ doppelstep/                             west manifest repository (this repo)
 │   ├── doppelstep/                     Zephyr application (west build -s apps/doppelstep)
 │   │   ├── CMakeLists.txt              BOARD_ROOT, DTS_ROOT, EXTRA_ZEPHYR_MODULES
 │   │   ├── Kconfig                     motor, power stage, control, DYNAMIXEL options
-│   │   ├── prj.conf
+│   │   ├── prj.conf                    options common to every board
+│   │   ├── sim.conf                    simulated motor on the board (EXTRA_CONF_FILE)
 │   │   ├── boards/b_g431b_esc1.overlay power stage node, DYNAMIXEL UART (1 Mbps)
+│   │   ├── boards/b_g431b_esc1.conf    FPU, zero-latency IRQ, OPAMP, RTT
+│   │   ├── boards/native_sim_native_64.* native_sim: bus on uart1 (PTY), 1 ms tick, stdout logs
 │   │   └── src/
 │   │       ├── main.c                  startup, STATUS LED
 │   │       ├── power_stage.[ch]        TIM1 + ADC1/ADC2 (LL) + OPAMPs, fast-loop ISR
+│   │       ├── power_stage_native.c    native_sim: same API, timer-driven, model always on
+│   │       ├── sim_plant.[ch]          simulated motor (sfs-stepper-sim model, RK4)
 │   │       ├── motor.[ch]              Stepper-C instance, slow-loop thread, commands
 │   │       ├── dxl_bus.[ch]            UART, X430 bus/device, hooks, events
 │   │       ├── joint.[ch]              microsteps <-> DYNAMIXEL units, profiles
@@ -110,6 +116,7 @@ doppelstep/                             west manifest repository (this repo)
 │       └── dynamixel-x430/zephyr/      module.yml, Kconfig (sources Kconfig.x430), CMakeLists.txt
 ├── tools/
 │   ├── gui/                            host GUI (planned, see tools/gui/README.md)
+│   ├── sim/                            native_sim launcher (PTY link, TCP bridge), Protocol 2.0 smoke test
 │   └── docs/                           PDF manual builder, MkDocs hooks, cover page
 ├── docs/                               MkDocs sources (index, development, GUI, NAMING.md)
 ├── scripts/
@@ -411,6 +418,99 @@ host sees one joint; set `CONFIG_SFS_DXL_ID` to the joint's ID (for example
 
 ---
 
+## Simulated motor
+
+For development without a motor, `CONFIG_SFS_SIM_PLANT=y` puts a motor model
+behind the power stage, so the whole chain ROS 2 → Protocol 2.0 → X430
+emulator → Stepper-C runs as it will with the motor. Two ways:
+
+| | A: on the board | B: on the PC (`native_sim`) |
+|---|---|---|
+| Hardware | B-G431B-ESC1, no motor needed | none |
+| Timing | real: 20 kHz interrupt, UART 1 Mbps | simulated time, kept to real time |
+| Bus | ST-LINK VCP (COM port) | pseudoterminal, or TCP 5555 from Docker |
+| Debugging | J-Link / OpenOCD, RTT | gdb on `zephyr.exe`, logs on stdout |
+| Use it for | interrupt load, priorities, final check | protocol and motion logic, ROS 2 integration, CI |
+
+### A: on the board
+
+```bash
+west build -p always -b b_g431b_esc1 -s apps/doppelstep -d build -- -DEXTRA_CONF_FILE=sim.conf
+```
+
+(task **Zephyr: Pristine Build (simulated motor)**; `sim.conf` stays in the
+CMake cache, so **Zephyr: Build** keeps the simulated motor until the next
+**Zephyr: Pristine Build**.)
+
+```text
+ TIM1 TRGO2 → ADC → zero-latency interrupt, 20 kHz (real timing)
+   sim_plant_sample()   ADC counts of the model (iA, iB, VBUS)    ─┐
+   sstep_fast_loop()    Stepper-C, unchanged                       │ instead of the
+   sim_plant_step()     one PWM period of the model (RK4)         ─┘ ADC readings
+ power_stage_pwm_write() → compare values → model;  MOE stays 0 (gate drivers off)
+```
+
+- **Model:** the averaged shared-leg power stage and the two-phase hybrid
+  stepper of [sfs-stepper-sim](https://github.com/AntonVynohradov/sfs-stepper-sim)
+  (`sstep_xcos_plant`, same equations), in single precision for the FPU, one
+  PWM period of computation delay as on the hardware. Parameters:
+  `CONFIG_SFS_SIM_*` (R, L, Kt default to the controller's motor values;
+  inertia, friction, detent torque, load torque, locked rotor). The switching
+  stage of sfs-stepper-sim (dead time, diodes) and the ngspice results of
+  [sfs-stepper-power-spice](https://github.com/AntonVynohradov/sfs-stepper-power-spice)
+  stay offline: too heavy for 50 µs.
+- **Safety:** the timer runs, but the main output enable is never set; the
+  board may run with or without a motor and bus voltage. `dead-time-ns` does
+  not have to be set.
+- **What the host sees:** Present Current and Present Input Voltage come from
+  the model. Present Position and Present Velocity are the commanded values,
+  as with the real motor (no encoder).
+- **RTT log** every `CONFIG_SFS_SIM_LOG_PERIOD_MS`: commanded and rotor
+  position, lag in electrical degrees (above 90 the motor is close to losing
+  steps; a multiple of 360 is 4 lost full steps), speed, phase currents and
+  voltages, load, and the longest fast-loop callback in CPU cycles and µs.
+- **Load torque** (`CONFIG_SFS_SIM_LOAD_UNM`, or `sim_plant_set_load()` from the
+  debugger) is a constant active torque, like gravity on a joint: it pulls the
+  rotor back when the motor loses synchronism or the torque is off.
+
+### B: on the PC (`native_sim`)
+
+The same application built for `native_sim/native/64` is a Linux program
+(`build-native/zephyr/zephyr.exe`, in the Docker image on Windows). The
+simulated motor is always on; `src/power_stage_native.c` replaces the STM32
+power stage with the ESC1 scaling, and a 1 ms kernel timer runs the 20
+fast-loop periods of each tick before the slow loop, as on the MCU. The
+emulated EEPROM is kept in `build-native/flash.bin`.
+
+```bash
+west build -b native_sim/native/64 -s apps/doppelstep -d build-native   # task "Zephyr: Build (native_sim)"
+python3 tools/sim/run_native.py run [--tcp 5555]                       # task "Zephyr: Run (native_sim)"
+python3 tools/sim/dxl_smoke_test.py build-native/ttyDXL                # ping, torque, move, without ROS 2
+```
+
+`run_native.py run` links the bus pseudoterminal to `build-native/ttyDXL`
+(its `/dev/pts/N` changes at every start). In the Docker image (task on the
+Windows host) it also serves the bus on TCP port 5555, published to the
+host. Where the host program runs:
+
+| Host program | Port to give it |
+|---|---|
+| same Linux machine / Dev Container | `build-native/ttyDXL` |
+| WSL or another Linux machine (ROS 2) | `python3 tools/sim/run_native.py connect --host localhost --port 5555` → `/tmp/ttyDXL` |
+| Windows (smoke test) | `python tools\sim\dxl_smoke_test.py --tcp localhost:5555` |
+
+For ROS 2, set the port of the `dynamixel_hardware_interface` description to
+`/tmp/ttyDXL` (or `build-native/ttyDXL`); the baud rate is accepted and
+ignored. The pseudoterminal driver polls for the first byte of a packet every
+10 ms, so an answer can take up to about 10 ms (a real bus: well under 1 ms);
+keep the host's packet timeout above that.
+
+`native_sim` options go after `--`, for example
+`run_native.py run -- -stop_at=60` (stop after 60 s) or `-- --no-rt` (as fast
+as possible, for tests without a host program).
+
+---
+
 ## Configuration
 
 | What | Where |
@@ -420,6 +520,8 @@ host sees one joint; set `CONFIG_SFS_DXL_ID` to the joint's ID (for example
 | Stepper-C build options (backend FLOAT, topologies, sine table) | `CONFIG_SSTEP_*` (`apps/modules/stepper-c/zephyr/Kconfig`) |
 | X430 model, devices per bus, protocol features | `CONFIG_X430_*` (Kconfig.x430 of the emulator) |
 | DYNAMIXEL ID, factory baud, start position, gear | `CONFIG_SFS_DXL_*` |
+| Simulated motor (model parameters, log) | `CONFIG_SFS_SIM_*`, `apps/doppelstep/sim.conf` |
+| Board-specific options (FPU, RTT, OPAMP / native_sim tick and logs) | `apps/doppelstep/boards/<board>.conf` |
 
 ---
 
@@ -475,7 +577,8 @@ Follows the Stepper-C integration guide.
 ## Open items
 
 - `dead-time-ns`: value from the ESC1 MCSDK project (see above).
-- Fast-loop execution time on the target (Stepper-C: measure on the MCU).
+- Fast-loop execution time on the target (Stepper-C: measure on the MCU); the
+  RTT log of the simulated motor shows the longest fast-loop callback.
 - Present Temperature: NTC on PB14 is not converted yet (no NTC data in UM2516);
   the register keeps its table value and there is no overheating trip.
 - Single-wire TTL bus instead of the VCP, and a shared bus with real DYNAMIXEL

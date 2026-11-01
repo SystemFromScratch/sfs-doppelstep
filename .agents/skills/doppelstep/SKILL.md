@@ -1,6 +1,6 @@
 ---
 name: doppelstep
-description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4.5 firmware for the STMicroelectronics B-G431B-ESC1 that drives a two-phase stepper motor with Stepper-C and emulates a DYNAMIXEL XM430-W350 (Protocol 2.0) with the X430 Control Table Emulator. Covers the Docker/Dev Container environment, the west workspace, the out-of-tree board, the Zephyr module glue of the libraries, the power stage (TIM1/ADC/OPAMP), the execution model, the DYNAMIXEL mapping, flashing and debugging with OpenOCD and J-Link.
+description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4.5 firmware for the STMicroelectronics B-G431B-ESC1 that drives a two-phase stepper motor with Stepper-C and emulates a DYNAMIXEL XM430-W350 (Protocol 2.0) with the X430 Control Table Emulator. Covers the Docker/Dev Container environment, the west workspace, the out-of-tree board, the Zephyr module glue of the libraries, the power stage (TIM1/ADC/OPAMP), the execution model, the DYNAMIXEL mapping, the simulated motor (on the board and on native_sim), flashing and debugging with OpenOCD and J-Link.
 ---
 
 # Doppelstep development skill
@@ -13,9 +13,13 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
   and the Zephyr module glue of three libraries (`apps/modules/`). `apps/` is
   the `BOARD_ROOT`/`DTS_ROOT` shared by every application under it.
 - Host side of the repository: `tools/gui/` (GUI, planned; entry point
-  `tools/gui/doppelstep_gui.py`, `--sim`), `tools/docs/` + `mkdocs.yml` +
-  `docs/` (MkDocs site and PDF manual), `requirements.txt` (host Python).
-- Target: B-G431B-ESC1, STM32G431CBU6, Cortex-M4F at 170 MHz.
+  `tools/gui/doppelstep_gui.py`, `--sim`), `tools/sim/` (native_sim launcher
+  `run_native.py`, Protocol 2.0 smoke test `dxl_smoke_test.py`; standard
+  library only), `tools/docs/` + `mkdocs.yml` + `docs/` (MkDocs site and PDF
+  manual), `requirements.txt` (host Python).
+- Targets: B-G431B-ESC1, STM32G431CBU6, Cortex-M4F at 170 MHz; and
+  `native_sim/native/64` (the same application as a Linux program, simulated
+  motor always on, section 7).
 - Libraries (west projects, no `zephyr/module.yml` of their own):
   Stepper-C (`modules/lib/stepper-c`, pinned **v1.0.0**),
   DYNAMIXEL-X430 emulator (`modules/lib/dynamixel-x430`, **main** until its
@@ -53,10 +57,22 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
 ```bash
 west build -b b_g431b_esc1 -s apps/doppelstep -d build            # default
 west build -p always -b b_g431b_esc1 -s apps/doppelstep -d build  # after Kconfig/DT/west.yml/toolchain changes
+west build -p always -b b_g431b_esc1 -s apps/doppelstep -d build -- -DEXTRA_CONF_FILE=sim.conf  # simulated motor on the board
+west build -b native_sim/native/64 -s apps/doppelstep -d build-native                          # firmware on the PC
 ```
 
-- Deliverable: `build/zephyr/zephyr.elf` (also `.hex`, `.bin`).
-- The build must stay free of warnings (including deprecation warnings).
+- Deliverables: `build/zephyr/zephyr.elf` (also `.hex`, `.bin`);
+  `build-native/zephyr/zephyr.exe` for native_sim.
+- The build must stay free of warnings (including deprecation warnings) in
+  all three variants. Known exception: host GCC reports
+  `-Wmaybe-uninitialized` in the emulator's `x430_bus.c` on native_sim (library
+  code: report it to the X430 repository, do not patch it here).
+- Configuration: `apps/doppelstep/prj.conf` holds only board-independent
+  options; board-specific ones go to `apps/doppelstep/boards/<board>.conf`
+  (`b_g431b_esc1.conf`: FPU, zero-latency IRQ, OPAMP, RTT, MPU flash write;
+  `native_sim_native_64.conf`: 1 ms tick, stdout logs). An option that does
+  not exist on every board must never be in `prj.conf` (Kconfig warnings are
+  fatal).
 - `apps/doppelstep/CMakeLists.txt` adds `BOARD_ROOT`, `DTS_ROOT` and `EXTRA_ZEPHYR_MODULES`;
   do not replace that with environment variables.
 
@@ -72,7 +88,8 @@ west build -p always -b b_g431b_esc1 -s apps/doppelstep -d build  # after Kconfi
 - Every library target links `zephyr_interface` (CPU/FPU flags, autoconf) and is
   registered with `zephyr_append_cmake_library()`.
 - Stepper-C options come from `CONFIG_SSTEP_*`; set `SSTEP_MATH_BACKEND` as a
-  FORCEd cache value. Backend: **FLOAT** (Cortex-M4F).
+  FORCEd cache value. Backend: **FLOAT** (Cortex-M4F; on native_sim the host
+  FPU, `SSTEP_MATH_FLOAT` depends on `FPU || ARCH_POSIX`).
 - X430: Zephyr's Kconfig sources the emulator's `Kconfig.x430`;
   `x430.cmake` runs with `X430_KCONFIG=OFF`, `X430_MODEL=${CONFIG_X430_MODEL_NAME}`,
   `X430_HAS_AUTOCONF` and the shim `x430_autoconf.h` → `<zephyr/autoconf.h>`.
@@ -112,8 +129,43 @@ west build -p always -b b_g431b_esc1 -s apps/doppelstep -d build  # after Kconfi
 - TIM1, ADC1 and ADC2 are programmed with LL; their DT nodes stay `disabled`.
   Configure TIM1 (MOE=0, OSSI=1, idle low) before `pinctrl_apply_state()`.
 - FPU: `CONFIG_FPU_SHARING=y`, motor thread created with `K_FP_REGS`.
+- `power_stage_fast_cycles_max()` (DWT cycle counter) measures the fast-loop
+  callback on the board; keep it outside the callback's own work.
 
-## 7. DYNAMIXEL mapping rules
+## 7. Simulated motor
+
+- `src/sim_plant.[ch]`: averaged shared-leg stage + two-phase hybrid stepper of
+  sfs-stepper-sim (`sil/c/sstep_xcos.c`, `sstep_xcos_plant`), same equations,
+  single precision, RK4, one PWM period of computation delay. Keep it in
+  step with that model; the switching stage and ngspice (sfs-stepper-power-spice)
+  stay offline (parameters only).
+- Sequence per PWM period, in the fast-loop context:
+  `sim_plant_sample()` → fast-loop callback (Stepper-C) → `sim_plant_step()`;
+  `power_stage_pwm_write()` feeds `sim_plant_set_compare()`,
+  `power_stage_output_enable()` feeds `sim_plant_set_enabled()`.
+- **A, on the board** (`CONFIG_SFS_SIM_PLANT=y`, `apps/doppelstep/sim.conf`):
+  TIM1/ADC keep the real timing; the samples come from the model. **MOE is
+  never set** in this mode, whatever the dead time: this is the safety rule of
+  the mode, never weaken it. `motor_outputs_allowed()` is true.
+- **B, native_sim**: `src/power_stage_native.c` (same API as `power_stage.h`,
+  ESC1 scaling as constants: keep them equal to `b_g431b_esc1.overlay`). A
+  `k_timer` every 1 ms tick runs the 20 fast-loop periods of the tick, then the
+  slow-loop thread runs: the 20:1 ratio of the MCU, host wakes once per ms.
+  `CONFIG_SFS_SIM_PLANT` is forced on (`ARCH_POSIX`). Bus on `uart1` (PTY);
+  `run_native.py run` links it to `build-native/ttyDXL` and, in Docker, serves
+  TCP 5555 (`connect` makes `/tmp/ttyDXL` on the ROS 2 machine). The PTY driver
+  polls the first RX byte every 10 ms. NVS lives in `build-native/flash.bin`.
+- `sim_plant` runs in interrupt context: no kernel calls in `sim_plant_sample()`
+  / `sim_plant_step()`; threads read the state through `sim_plant_get_state()`
+  (sequence lock). `sstep_set_position()` must be followed by
+  `sim_plant_shift_position()` (done in `motor.c`).
+- Present Position / Present Velocity stay the commanded values in both
+  modes (as with the real motor); the rotor position of the model is in the
+  RTT/stdout log only. Load torque is a constant active torque (gravity-like).
+- Code takes no simulated time on native_sim: interrupt load and priorities
+  are validated only with mode A.
+
+## 8. DYNAMIXEL mapping rules
 
 - Conversions live in `apps/doppelstep/src/joint.c` (pure functions, host-testable): 4096
   pulse/rev, 0.229 rev/min, 214.577 rev/min², 2.69 mA, time-based profile in ms.
@@ -125,23 +177,27 @@ west build -p always -b b_g431b_esc1 -s apps/doppelstep -d build  # after Kconfi
   `x430_device_write()` (validated and stored), never by patching NVM blocks.
 - NVM writes are refused while the power stage is enabled.
 
-## 8. Change procedure
+## 9. Change procedure
 
 1. Read `west.yml`, `Dockerfile`, `apps/doppelstep/prj.conf`,
    `apps/doppelstep/Kconfig`, the board DTS and
    `apps/doppelstep/boards/b_g431b_esc1.overlay` before changing behaviour.
 2. Keep versions pinned (Zephyr tag, Stepper-C tag, SDK, west, pip packages).
 3. Smallest change; Zephyr coding style (tabs, 100 columns) in `apps/`.
-4. Pristine build, no warnings, `zephyr.elf` produced.
+4. Pristine build, no warnings, `zephyr.elf` produced; for changes in the
+   motor, bus or power-stage path also the native_sim build and
+   `tools/sim/dxl_smoke_test.py` against `run_native.py` (exit code 0).
 5. Hardware-dependent changes: say which bring-up step (README) re-validates them.
 6. Update `README.md` (human usage), `docs/` (MkDocs site and PDF manual) and
    this skill (rules) when the workflow or architecture changes; `mkdocs build`
    is strict and must pass.
 
-## 9. Definition of done
+## 10. Definition of done
 
-- Builds pristine without warnings for `b_g431b_esc1`.
-- Execution-model rules of section 6 hold.
+- Builds pristine without warnings for `b_g431b_esc1` (with and without
+  `sim.conf`) and for `native_sim/native/64`.
+- The Protocol 2.0 smoke test passes on native_sim.
+- Execution-model rules of section 6 and simulated-motor rules of section 7 hold.
 - No secrets, license files or SEGGER binaries committed.
 - Both debug modes and both runners still documented and configured.
 - Open hardware items (dead time, NTC, fast-loop timing) are not silently "solved".

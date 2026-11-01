@@ -27,6 +27,9 @@ current platform. The other tasks run one action directly
 | Zephyr: West Init/Update | `scripts/west-init.sh` | same, in Docker |
 | Zephyr: Build | `west build -b b_g431b_esc1 -s apps/doppelstep -d build` | same, in Docker |
 | Zephyr: Pristine Build | `west build -p always …` | same, in Docker |
+| Zephyr: Pristine Build (simulated motor) | `west build -p always … -- -DEXTRA_CONF_FILE=sim.conf` | same, in Docker |
+| Zephyr: Build (native_sim) | `west build -b native_sim/native/64 … -d build-native` | same, in Docker |
+| Zephyr: Run (native_sim) | `tools/sim/run_native.py run` (bus at `build-native/ttyDXL`) | same, in Docker; bus also on TCP 5555 of the host |
 | Zephyr: Clean | removes `build/` | removes `build/` |
 | Zephyr: Flash (OpenOCD, ST-LINK) | `west flash -r openocd` | `openocd … program build/zephyr/zephyr.elf` (OpenOCD on Windows) |
 | Python: Create .venv | `.venv` (or `.venv-linux`) with `requirements.txt` | `.venv` with `requirements.txt` |

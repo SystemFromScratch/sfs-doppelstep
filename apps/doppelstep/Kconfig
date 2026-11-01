@@ -184,6 +184,100 @@ config SFS_DXL_NVM
 
 endmenu
 
+menu "Simulated motor (development without a motor)"
+
+config SFS_SIM_PLANT
+	bool "Drive a motor model instead of the power stage" if !ARCH_POSIX
+	default y if ARCH_POSIX
+	help
+	  Always on for native_sim (power_stage_native.c), which has no power
+	  stage hardware.
+
+	  On B-G431B-ESC1: TIM1 and the ADCs run as usual and keep the
+	  timing of the fast-loop interrupt, but Stepper-C receives the phase
+	  currents and the bus voltage of a motor model instead of the ADC
+	  readings, and its PWM
+	  compare values drive the model. The gate drivers are never enabled
+	  (MOE stays 0): the board runs with or without a motor and bus voltage,
+	  and dead-time-ns does not have to be set. Present Current and Present
+	  Input Voltage of the DYNAMIXEL Control Table come from the model.
+	  Model: averaged shared-leg power stage and two-phase hybrid stepper of
+	  sfs-stepper-sim (sstep_xcos_plant), integrated with RK4.
+
+if SFS_SIM_PLANT
+
+config SFS_SIM_VBUS_MV
+	int "Bus voltage of the model [mV]"
+	default SFS_STAGE_VBUS_NOMINAL_MV
+
+config SFS_SIM_R_MOHM
+	int "Phase resistance of the model [mOhm]"
+	default SFS_MOTOR_R_MOHM
+	help
+	  Defaults to the value the controller is tuned for; change it to test
+	  the current loop against a motor that differs from its datasheet.
+
+config SFS_SIM_L_UH
+	int "Phase inductance of the model [uH]"
+	default SFS_MOTOR_L_UH
+
+config SFS_SIM_KT_UNM_PER_A
+	int "Torque constant of the model [uN*m/A] (= back-EMF constant [uV*s/rad])"
+	default SFS_MOTOR_KE_UV_S_PER_RAD if SFS_MOTOR_KE_UV_S_PER_RAD != 0
+	default 208600
+	range 1 10000000
+
+config SFS_SIM_INERTIA_G_MM2
+	int "Rotor and load inertia [g*mm^2]"
+	default 8200
+	range 1 100000000
+	help
+	  17HS19-2004S1 rotor: 82 g*cm^2 = 8200 g*mm^2 (datasheet). Add the
+	  inertia of the load, referred to the motor shaft.
+
+config SFS_SIM_VISCOUS_UNM_S
+	int "Viscous friction [uN*m*s/rad]"
+	default 10
+
+config SFS_SIM_DETENT_UNM
+	int "Detent torque amplitude [uN*m]"
+	default 0
+	help
+	  One period per full step. Not in the datasheet; sfs-stepper-sim test
+	  T11 uses 20000 (about 3 % of the holding torque).
+
+config SFS_SIM_COULOMB_UNM
+	int "Dry (Coulomb) friction [uN*m]"
+	default 0
+
+config SFS_SIM_LOAD_UNM
+	int "Constant load torque [uN*m], positive against forward motion"
+	default 0
+	help
+	  Also settable at run time with sim_plant_set_load() (for example
+	  from the debugger).
+
+config SFS_SIM_LOCKED_ROTOR
+	bool "Locked rotor (current loop test)"
+
+config SFS_SIM_SUBSTEPS
+	int "RK4 steps per PWM period"
+	default 1
+	range 1 8
+	help
+	  One step of 50 us at 20 kHz is accurate for the 17HS19-2004S1
+	  (electrical time constant 1.9 ms, mechanical resonance about 220 Hz).
+	  Every step costs four sinf/cosf pairs in the fast-loop interrupt:
+	  check the "fast loop max" figure of the periodic log.
+
+config SFS_SIM_LOG_PERIOD_MS
+	int "Period of the model log line [ms], 0 = off"
+	default 1000
+
+endif # SFS_SIM_PLANT
+
+endmenu
+
 menu "Threads"
 
 config SFS_MOTOR_THREAD_PRIORITY

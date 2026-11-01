@@ -22,11 +22,18 @@ project(doppelstep LANGUAGES C)
 
 target_sources(app PRIVATE
   src/main.c
-  src/power_stage.c
   src/motor.c
   src/joint.c
   src/dxl_bus.c
   src/nvm.c
 )
+
+# native_sim: no power stage hardware, the simulated motor is always on
+if(CONFIG_ARCH_POSIX)
+  target_sources(app PRIVATE src/power_stage_native.c)
+else()
+  target_sources(app PRIVATE src/power_stage.c)
+endif()
+target_sources_ifdef(CONFIG_SFS_SIM_PLANT app PRIVATE src/sim_plant.c)
 
 target_link_libraries(app PRIVATE sstep x430)

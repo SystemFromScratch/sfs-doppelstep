@@ -22,6 +22,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 APP=apps/doppelstep
 BOARD_TARGET=b_g431b_esc1
 BUILD_DIR=build
+NATIVE_BOARD=native_sim/native/64
+NATIVE_BUILD_DIR=build-native
+SIM_TCP_PORT=5555
 GUI=tools/gui/doppelstep_gui.py
 PDF=site/Doppelstep.pdf
 
@@ -57,11 +60,29 @@ ensure_workspace() {
     fi
 }
 
-# build_firmware [west build options...]
+# build_firmware [west build options...] [-- CMake options...]
 build_firmware() {
     ensure_workspace
     echo "Building ${APP} for ${BOARD_TARGET} into ${BUILD_DIR}."
-    west build "$@" -b "${BOARD_TARGET}" -s "${APP}" -d "${BUILD_DIR}"
+    west build -b "${BOARD_TARGET}" -s "${APP}" -d "${BUILD_DIR}" "$@"
+}
+
+build_native() {
+    ensure_workspace
+    echo "Building ${APP} for ${NATIVE_BOARD} into ${NATIVE_BUILD_DIR}."
+    west build -b "${NATIVE_BOARD}" -s "${APP}" -d "${NATIVE_BUILD_DIR}" "$@"
+}
+
+# Bus PTY at ${NATIVE_BUILD_DIR}/ttyDXL; in the Docker image also on TCP
+# ${SIM_TCP_PORT} (published by host-menu.ps1) for a host program elsewhere.
+run_native() {
+    [ -x "${NATIVE_BUILD_DIR}/zephyr/zephyr.exe" ] || build_native
+    local tcp=()
+    if [ -f /.dockerenv ]; then
+        tcp=(--tcp "${SIM_TCP_PORT}")
+    fi
+    echo 'Starting the native_sim firmware (Ctrl+C stops it).'
+    python3 tools/sim/run_native.py run "${tcp[@]}"
 }
 
 require_build() {
@@ -153,6 +174,20 @@ case "${action}" in
     'Pristine build')
         zephyr_in_docker zephyr "${action}"
         build_firmware -p always
+        ;;
+    'Pristine build (simulated motor)')
+        # apps/doppelstep/sim.conf stays in the CMake cache: "Build firmware"
+        # keeps the simulated motor until the next "Pristine build".
+        zephyr_in_docker zephyr "${action}"
+        build_firmware -p always -- -DEXTRA_CONF_FILE=sim.conf
+        ;;
+    'Build (native_sim)')
+        zephyr_in_docker zephyr "${action}"
+        build_native
+        ;;
+    'Run (native_sim)')
+        zephyr_in_docker zephyr "${action}"
+        run_native
         ;;
     'Menuconfig')
         zephyr_in_docker zephyr "${action}"

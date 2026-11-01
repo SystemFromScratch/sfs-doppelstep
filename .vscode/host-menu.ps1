@@ -54,12 +54,12 @@ function Test-PythonImport([string]$Python, [string]$Code) {
 
 # --- Zephyr in Docker ------------------------------------------------------------
 
-function Invoke-ZephyrInDocker([string]$LinuxAction) {
+function Invoke-ZephyrInDocker([string]$LinuxAction, [string[]]$RunOptions = @()) {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Stop-WithError 'Docker was not found. Install Docker Desktop (WSL 2 backend), or open the folder in the Dev Container.'
     }
     Write-Host "Running `"$LinuxAction`" in the Docker image (compose service zephyr)."
-    Invoke-Checked 'docker' @('compose', 'run', '--rm', 'zephyr', 'bash', '.vscode/workspace-menu.sh', $LinuxAction)
+    Invoke-Checked 'docker' (@('compose', 'run', '--rm') + $RunOptions + @('zephyr', 'bash', '.vscode/workspace-menu.sh', $LinuxAction))
 }
 
 # --- Debug probe on the host ----------------------------------------------------
@@ -141,6 +141,15 @@ switch ($Action) {
     'Initialize + update' { Invoke-ZephyrInDocker $Action }
     'Build firmware' { Invoke-ZephyrInDocker $Action }
     'Pristine build' { Invoke-ZephyrInDocker $Action }
+    'Pristine build (simulated motor)' { Invoke-ZephyrInDocker $Action }
+    'Build (native_sim)' { Invoke-ZephyrInDocker $Action }
+    'Run (native_sim)' {
+        # DYNAMIXEL bus on TCP 5555 of the host (tools/sim/run_native.py connect,
+        # tools/sim/dxl_smoke_test.py --tcp). A fixed container name: an instance
+        # left behind by a closed terminal would keep the port.
+        & docker rm -f doppelstep-native-sim *> $null
+        Invoke-ZephyrInDocker $Action @('--name', 'doppelstep-native-sim', '-p', '5555:5555')
+    }
     'Clean' {
         Write-Host "Removing $BuildDir"
         if (Test-Path $BuildDir) {

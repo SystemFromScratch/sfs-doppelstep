@@ -62,6 +62,47 @@
             "problemMatcher": ["$gcc"]
         },
         {
+            "label": "Zephyr: Pristine Build (simulated motor)",
+            "detail": "west build -p always ... -- -DEXTRA_CONF_FILE=sim.conf: Stepper-C drives a motor model, gate drivers off",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Pristine build (simulated motor)"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Pristine build (simulated motor)"]
+            },
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "build",
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Zephyr: Build (native_sim)",
+            "detail": "west build -b native_sim/native/64 -s apps/doppelstep -d build-native (Windows: in Docker)",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Build (native_sim)"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Build (native_sim)"]
+            },
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "build",
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Zephyr: Run (native_sim)",
+            "detail": "tools/sim/run_native.py run: bus PTY build-native/ttyDXL (in Docker: also TCP 5555)",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Run (native_sim)"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Run (native_sim)"]
+            },
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
             "label": "Zephyr: Clean",
             "detail": "Remove build/",
             "type": "process",
@@ -164,6 +205,9 @@
                 "Initialize + update",
                 "Build firmware",
                 "Pristine build",
+                "Pristine build (simulated motor)",
+                "Build (native_sim)",
+                "Run (native_sim)",
                 "Menuconfig",
                 "Flash (OpenOCD, ST-LINK)",
                 "Flash (J-Link)",
@@ -189,6 +233,9 @@
                 "Initialize + update",
                 "Build firmware",
                 "Pristine build",
+                "Pristine build (simulated motor)",
+                "Build (native_sim)",
+                "Run (native_sim)",
                 "Clean",
                 "Flash (host OpenOCD, ST-LINK)",
                 "GDB server (host OpenOCD, ST-LINK)",

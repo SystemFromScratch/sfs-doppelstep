@@ -64,6 +64,9 @@ int power_stage_output_enable(void *context, bool enable);
 /** Number of fast-loop interrupts since start (for diagnostics). */
 uint32_t power_stage_isr_count(void);
 
+/** Longest fast-loop callback since the last reset [CPU cycles] (DWT counter). */
+uint32_t power_stage_fast_cycles_max(bool reset);
+
 #ifdef __cplusplus
 }
 #endif

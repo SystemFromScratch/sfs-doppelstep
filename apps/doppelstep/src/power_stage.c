@@ -12,6 +12,10 @@
  * At the top of the counter all legs are on their low-side switch (PWM mode 1:
  * high side while CNT < CCRx), the only moment the low-side shunts carry the
  * phase currents. The end of the ADC1 injected sequence runs the fast loop.
+ *
+ * CONFIG_SFS_SIM_PLANT: the timer and the ADCs run unchanged and keep the
+ * timing of the fast loop, but Stepper-C gets the samples of a motor model
+ * (sim_plant.c) and drives it; the main output enable (MOE) is never set.
  */
 
 #include "power_stage.h"
@@ -32,6 +36,10 @@
 
 #include <stm32_ll_adc.h>
 #include <stm32_ll_tim.h>
+
+#if defined(CONFIG_SFS_SIM_PLANT)
+#include "sim_plant.h"
+#endif
 
 LOG_MODULE_REGISTER(power_stage, CONFIG_SFS_LOG_LEVEL);
 
@@ -91,7 +99,9 @@ static volatile uint16_t offset_u = ADC_MID;
 static volatile uint16_t offset_v = ADC_MID;
 static volatile uint16_t offset_w = ADC_MID;
 static volatile uint16_t w_trip_counts; /* 0 = disabled */
+static volatile uint32_t w_trip_ma;     /* 0 = disabled */
 static volatile uint32_t isr_count;
+static volatile uint32_t fast_cycles_max;
 
 /* Offset calibration, accumulated by the ISR */
 static volatile uint32_t cal_remaining;
@@ -101,6 +111,7 @@ static volatile uint32_t cal_sum_w;
 
 /* ------------------------------------------------------------------------ */
 
+#if !defined(CONFIG_SFS_SIM_PLANT)
 static uint16_t recentre(uint16_t raw, uint16_t offset)
 {
 	const int32_t v = (int32_t)raw - (int32_t)offset + (int32_t)ADC_MID;
@@ -110,6 +121,7 @@ static uint16_t recentre(uint16_t raw, uint16_t offset)
 	}
 	return (v > (int32_t)ADC_FULL) ? (uint16_t)ADC_FULL : (uint16_t)v;
 }
+#endif
 
 ISR_DIRECT_DECLARE(power_stage_adc_isr)
 {
@@ -130,6 +142,17 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 			cal_sum_w += raw_w;
 			cal_remaining--;
 		} else if (fn != NULL) {
+			const uint32_t start = DWT->CYCCNT;
+#if defined(CONFIG_SFS_SIM_PLANT)
+			struct sstep_sample sample;
+			uint32_t i_w_ma;
+			const uint32_t trip = w_trip_ma;
+
+			ARG_UNUSED(raw_vbus);
+			sim_plant_sample(&sample, &i_w_ma);
+			fn(&sample, (trip != 0U) && (i_w_ma > trip), fast_ctx);
+			sim_plant_step();
+#else
 			const struct sstep_sample sample = {
 				.i_a = recentre(raw_u, offset_u),
 				.i_b = recentre(raw_v, offset_v),
@@ -141,6 +164,12 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 				((uint16_t)abs((int32_t)raw_w - (int32_t)offset_w) > trip);
 
 			fn(&sample, w_trip, fast_ctx);
+#endif
+			const uint32_t cycles = DWT->CYCCNT - start;
+
+			if (cycles > fast_cycles_max) {
+				fast_cycles_max = cycles;
+			}
 		}
 	}
 
@@ -414,10 +443,22 @@ int power_stage_init(void)
 		return ret;
 	}
 
+#if defined(CONFIG_SFS_SIM_PLANT)
+	ret = sim_plant_init(&info);
+	if (ret != 0) {
+		LOG_ERR("simulated motor (%d)", ret);
+		return ret;
+	}
+#endif
+
+	/* Cycle counter for power_stage_fast_cycles_max() */
+	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
 	IRQ_DIRECT_CONNECT(ADC_IRQN, ADC_IRQ_PRIO, power_stage_adc_isr, IRQ_ZERO_LATENCY);
 	irq_enable(ADC_IRQN);
 
-	if (info.dead_time_ns == 0U) {
+	if ((info.dead_time_ns == 0U) && !IS_ENABLED(CONFIG_SFS_SIM_PLANT)) {
 		LOG_WRN("dead-time-ns is 0: set it in the devicetree (MCSDK value); "
 			"the outputs stay disabled");
 	}
@@ -476,6 +517,7 @@ void power_stage_set_w_trip(uint32_t trip_ma)
 		counts = MAX(counts, 1U);
 	}
 	w_trip_counts = (uint16_t)MIN(counts, ADC_MID);
+	w_trip_ma = trip_ma;
 }
 
 int power_stage_pwm_write(void *context, const uint16_t compare[SSTEP_LEGS_MAX])
@@ -486,6 +528,9 @@ int power_stage_pwm_write(void *context, const uint16_t compare[SSTEP_LEGS_MAX])
 	LL_TIM_OC_SetCompareCH1(tim, compare[0]);
 	LL_TIM_OC_SetCompareCH2(tim, compare[1]);
 	LL_TIM_OC_SetCompareCH3(tim, compare[2]);
+#if defined(CONFIG_SFS_SIM_PLANT)
+	sim_plant_set_compare(compare);
+#endif
 	return 0;
 }
 
@@ -494,6 +539,11 @@ int power_stage_output_enable(void *context, bool enable)
 	TIM_TypeDef *const tim = TIMx;
 
 	ARG_UNUSED(context);
+#if defined(CONFIG_SFS_SIM_PLANT)
+	/* The gate drivers stay off: the windings of the model take the PWM */
+	ARG_UNUSED(tim);
+	sim_plant_set_enabled(enable);
+#else
 	if (enable) {
 		if (info.dead_time_ns == 0U) {
 			return -EPERM; /* Stepper-C raises SSTEP_FAULT_HAL */
@@ -502,10 +552,21 @@ int power_stage_output_enable(void *context, bool enable)
 	} else {
 		LL_TIM_DisableAllOutputs(tim);
 	}
+#endif
 	return 0;
 }
 
 uint32_t power_stage_isr_count(void)
 {
 	return isr_count;
+}
+
+uint32_t power_stage_fast_cycles_max(bool reset)
+{
+	const uint32_t cycles = fast_cycles_max;
+
+	if (reset) {
+		fast_cycles_max = 0U;
+	}
+	return cycles;
 }

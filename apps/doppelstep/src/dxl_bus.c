@@ -118,6 +118,11 @@ static int uart_set_baud(uint8_t code)
 		return -EINVAL;
 	}
 	ret = uart_config_get(uart, &cfg);
+	if (ret == -ENOSYS) {
+		/* no line rate (native_sim pseudoterminal) */
+		LOG_INF("bus at %u bps (not settable)", baud_bps[code]);
+		return 0;
+	}
 	if ((ret == 0) && (cfg.baudrate != baud_bps[code])) {
 		cfg.baudrate = baud_bps[code];
 		ret = uart_configure(uart, &cfg);

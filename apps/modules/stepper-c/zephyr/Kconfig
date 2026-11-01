@@ -13,7 +13,7 @@ if SSTEP
 
 choice SSTEP_MATH_BACKEND
 	prompt "Numeric backend"
-	default SSTEP_MATH_FLOAT if FPU
+	default SSTEP_MATH_FLOAT if FPU || ARCH_POSIX
 	default SSTEP_MATH_FIXED
 
 config SSTEP_MATH_FIXED
@@ -21,10 +21,10 @@ config SSTEP_MATH_FIXED
 
 config SSTEP_MATH_FLOAT
 	bool "Single-precision float (hardware FPU)"
-	depends on FPU
+	depends on FPU || ARCH_POSIX
 	help
 	  The fast loop runs in an interrupt: with threads that also use the
-	  FPU enable FPU_SHARING.
+	  FPU enable FPU_SHARING. native_sim (ARCH_POSIX) uses the host FPU.
 
 endchoice
 

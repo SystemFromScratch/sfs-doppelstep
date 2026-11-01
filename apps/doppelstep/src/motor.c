@@ -18,6 +18,9 @@
 #include <zephyr/sys/atomic.h>
 
 #include "power_stage.h"
+#if defined(CONFIG_SFS_SIM_PLANT)
+#include "sim_plant.h"
+#endif
 
 LOG_MODULE_REGISTER(motor, CONFIG_SFS_LOG_LEVEL);
 
@@ -187,9 +190,19 @@ static int execute(struct motor_req *req)
 	case OP_STOP:
 		rc = sstep_stop(&drv);
 		break;
-	case OP_SET_POSITION:
+	case OP_SET_POSITION: {
+		struct sstep_status before;
+
+		(void)sstep_get_status(&drv, &before);
 		rc = sstep_set_position(&drv, req->arg0);
+#if defined(CONFIG_SFS_SIM_PLANT)
+		if (rc == SSTEP_OK) {
+			/* the rotor stays where it is, only its coordinate changes */
+			sim_plant_shift_position(req->arg0 - before.position);
+		}
+#endif
 		break;
+	}
 	case OP_SET_CURRENT:
 		rc = sstep_set_current(&drv, req->arg1, req->arg2);
 		if (rc == SSTEP_OK) {
@@ -343,7 +356,8 @@ void motor_get_snapshot(struct motor_snapshot *snapshot)
 
 bool motor_outputs_allowed(void)
 {
-	return power_stage_get_info()->dead_time_ns != 0U;
+	/* the simulated motor never enables the gate drivers */
+	return IS_ENABLED(CONFIG_SFS_SIM_PLANT) || (power_stage_get_info()->dead_time_ns != 0U);
 }
 
 int motor_enable(bool enable)
