@@ -23,7 +23,13 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
 - Libraries (west projects, no `zephyr/module.yml` of their own):
   Stepper-C (`modules/lib/stepper-c`, pinned **v1.0.0**),
   DYNAMIXEL-X430 emulator (`modules/lib/dynamixel-x430`, **main** until its
-  first release), DXL2-C (`modules/lib/dxl2-c`, the tag `x430.cmake` expects).
+  first release), DXL2-C (`modules/lib/dxl2-c`, the tag `x430.cmake` expects),
+  sfs-stepper-sim (`modules/lib/sfs-stepper-sim`, **main**: plant model
+  `sil/c/sstep_plant.c` and `params/*.json` of the simulated motor) and
+  sfs-stepper-power-spice (`modules/lib/sfs-stepper-power-spice`, **main**,
+  not built: ngspice source of the stage parameters). Keep the two simulation
+  repositories siblings under `modules/lib` (power-spice `--export` writes
+  `../sfs-stepper-sim/params`).
 - Host side: ROS 2 `dynamixel_hardware_interface` (OpenMANIPULATOR-X), DynamixelSDK,
   DYNAMIXEL Wizard. The firmware must look like a genuine XM430-W350.
 
@@ -87,6 +93,13 @@ west build -b native_sim/native/64 -s apps/doppelstep -d build-native           
   Zephyr has its own `version.cmake`.
 - Every library target links `zephyr_interface` (CPU/FPU flags, autoconf) and is
   registered with `zephyr_append_cmake_library()`.
+- sfs-stepper-sim (`apps/modules/sfs-stepper-sim/zephyr`): `CONFIG_SSTEP_PLANT`
+  (selected by `CONFIG_SFS_SIM_PLANT`) builds `sstep_plant.c` with the global
+  definitions `SSTEP_PLANT_FLOAT=1`, `SSTEP_PLANT_SWITCHING=0` and generates
+  `sstep_plant_params.h` from `params/${CONFIG_SSTEP_PLANT_MOTOR_PARAMS}.json`
+  and `params/${CONFIG_SSTEP_PLANT_STAGE_PARAMS}.json` (CMake `string(JSON)`,
+  `"format": 1` checked, the files are configure dependencies).
+  `SSTEP_SIM_SOURCE_DIR` points the build at a local checkout.
 - Stepper-C options come from `CONFIG_SSTEP_*`; set `SSTEP_MATH_BACKEND` as a
   FORCEd cache value. Backend: **FLOAT** (Cortex-M4F; on native_sim the host
   FPU, `SSTEP_MATH_FLOAT` depends on `FPU || ARCH_POSIX`).
@@ -134,11 +147,17 @@ west build -b native_sim/native/64 -s apps/doppelstep -d build-native           
 
 ## 7. Simulated motor
 
-- `src/sim_plant.[ch]`: averaged shared-leg stage + two-phase hybrid stepper of
-  sfs-stepper-sim (`sil/c/sstep_xcos.c`, `sstep_xcos_plant`), same equations,
-  single precision, RK4, one PWM period of computation delay. Keep it in
-  step with that model; the switching stage and ngspice (sfs-stepper-power-spice)
-  stay offline (parameters only).
+- The model is **not** code of this repository: `sil/c/sstep_plant.c` of
+  sfs-stepper-sim (the code of its Xcos plant block) built in single
+  precision with the averaged stage, open windings when the outputs are off,
+  and the ngspice leg voltage error table (`CONFIG_SFS_SIM_LEG_ERROR`).
+  `src/sim_plant.[ch]` is only the Zephyr adapter (ADC scaling from
+  `power_stage_info`, publication, log). Change the model or its parameters in
+  sfs-stepper-sim / sfs-stepper-power-spice, never by copying it here; the
+  switching stage and the ngspice simulations stay offline.
+- Parameters: the JSON files of sfs-stepper-sim; `CONFIG_SFS_SIM_*` motor
+  values are overrides (`-1` = file value). User documentation:
+  `docs/simulation.md`.
 - Sequence per PWM period, in the fast-loop context:
   `sim_plant_sample()` → fast-loop callback (Stepper-C) → `sim_plant_step()`;
   `power_stage_pwm_write()` feeds `sim_plant_set_compare()`,
@@ -165,6 +184,15 @@ west build -b native_sim/native/64 -s apps/doppelstep -d build-native           
 - Code takes no simulated time on native_sim: interrupt load and priorities
   are validated only with mode A.
 
+- Tests (`docs/testing.md`): `tests/sil` (pytest + `tools/sim/dxl2.py`) and
+  `tests/integration` (DynamixelSDK, ros2_control loop) against the
+  `native_sim` firmware built with `sim-test.conf` (model log every 100 ms).
+  Every test gets its own `zephyr.exe` and `flash.bin`; scenarios through
+  `-sim_load_unm` / `-sim_vbus_mv` (`power_stage_native.c`). Assert real
+  behaviour (measure first, then fix the numbers from physics or the
+  e-Manual); a known gap is an `xfail(strict=True)` with the reason, never a
+  deleted test. Load acts from the first Torque Enable.
+
 ## 8. DYNAMIXEL mapping rules
 
 - Conversions live in `apps/doppelstep/src/joint.c` (pure functions, host-testable): 4096
@@ -184,19 +212,21 @@ west build -b native_sim/native/64 -s apps/doppelstep -d build-native           
    `apps/doppelstep/boards/b_g431b_esc1.overlay` before changing behaviour.
 2. Keep versions pinned (Zephyr tag, Stepper-C tag, SDK, west, pip packages).
 3. Smallest change; Zephyr coding style (tabs, 100 columns) in `apps/`.
-4. Pristine build, no warnings, `zephyr.elf` produced; for changes in the
-   motor, bus or power-stage path also the native_sim build and
-   `tools/sim/dxl_smoke_test.py` against `run_native.py` (exit code 0).
+4. `docker compose run --rm zephyr bash scripts/ci.sh` passes: pristine
+   builds without warnings (ESC1, ESC1 + `sim.conf`, native_sim) and the SIL /
+   integration tests. New behaviour of the bus, motion or protection path gets
+   a test in `tests/sil` (or `tests/integration` for host-library behaviour).
 5. Hardware-dependent changes: say which bring-up step (README) re-validates them.
+   Changes of the simulated motor model: in sfs-stepper-sim (`sstep_plant.c`
+   and the Scilab prototype together, `tests/run_all.sce` S01–S05), then
+   `west update` here; try them first with `-DSSTEP_SIM_SOURCE_DIR=<checkout>`.
 6. Update `README.md` (human usage), `docs/` (MkDocs site and PDF manual) and
    this skill (rules) when the workflow or architecture changes; `mkdocs build`
    is strict and must pass.
 
 ## 10. Definition of done
 
-- Builds pristine without warnings for `b_g431b_esc1` (with and without
-  `sim.conf`) and for `native_sim/native/64`.
-- The Protocol 2.0 smoke test passes on native_sim.
+- `scripts/ci.sh` passes (the same script as GitHub Actions).
 - Execution-model rules of section 6 and simulated-motor rules of section 7 hold.
 - No secrets, license files or SEGGER binaries committed.
 - Both debug modes and both runners still documented and configured.

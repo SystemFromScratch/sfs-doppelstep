@@ -103,6 +103,20 @@
             "problemMatcher": []
         },
         {
+            "label": "Zephyr: Run tests (native_sim)",
+            "detail": "scripts/run-tests.sh: SIL and integration tests (pytest) -> build-tests/junit.xml (Windows: in Docker)",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Run tests (native_sim)"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Run tests (native_sim)"]
+            },
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "test",
+            "problemMatcher": []
+        },
+        {
             "label": "Zephyr: Clean",
             "detail": "Remove build/",
             "type": "process",
@@ -208,6 +222,7 @@
                 "Pristine build (simulated motor)",
                 "Build (native_sim)",
                 "Run (native_sim)",
+                "Run tests (native_sim)",
                 "Menuconfig",
                 "Flash (OpenOCD, ST-LINK)",
                 "Flash (J-Link)",
@@ -236,6 +251,7 @@
                 "Pristine build (simulated motor)",
                 "Build (native_sim)",
                 "Run (native_sim)",
+                "Run tests (native_sim)",
                 "Clean",
                 "Flash (host OpenOCD, ST-LINK)",
                 "GDB server (host OpenOCD, ST-LINK)",

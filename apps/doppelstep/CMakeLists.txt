@@ -15,6 +15,7 @@ list(APPEND DTS_ROOT "${SFS_ROOT}")
 list(APPEND EXTRA_ZEPHYR_MODULES
   "${SFS_ROOT}/modules/stepper-c"
   "${SFS_ROOT}/modules/dynamixel-x430"
+  "${SFS_ROOT}/modules/sfs-stepper-sim"
 )
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})

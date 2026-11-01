@@ -15,6 +15,11 @@
  *
  * The scaling is the one power_stage.c derives from the power-stage node of
  * boards/b_g431b_esc1.overlay, so Stepper-C runs with the ESC1 numbers.
+ *
+ * Command line options of zephyr.exe set the scenario of the model without a
+ * rebuild (tests, tests/README.md):
+ *   -sim_load_unm=<uN*m>  load torque (CONFIG_SFS_SIM_LOAD_UNM otherwise)
+ *   -sim_vbus_mv=<mV>     bus voltage (CONFIG_SFS_SIM_VBUS_MV otherwise)
  */
 
 #include "power_stage.h"
@@ -23,6 +28,9 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+
+#include <cmdline.h>
+#include <posix_native_task.h>
 
 #include "sim_plant.h"
 
@@ -76,6 +84,57 @@ static void fast_timer_fn(struct k_timer *timer)
 
 static K_TIMER_DEFINE(fast_timer, fast_timer_fn, NULL);
 
+/* Command line scenario; native_sim sets the destination of an option that
+ * is not given to its type's default, hence the flags.
+ */
+static int32_t arg_load_unm;
+static int32_t arg_vbus_mv;
+static bool arg_load_given;
+static bool arg_vbus_given;
+
+static void load_given(char *argv, int offset)
+{
+	ARG_UNUSED(argv);
+	ARG_UNUSED(offset);
+	arg_load_given = true;
+}
+
+static void vbus_given(char *argv, int offset)
+{
+	ARG_UNUSED(argv);
+	ARG_UNUSED(offset);
+	arg_vbus_given = true;
+}
+
+static void add_sim_options(void)
+{
+	static struct args_struct_t sim_options[] = {
+		{
+			.option = "sim_load_unm",
+			.name = "uN*m",
+			.type = 'i',
+			.dest = &arg_load_unm,
+			.call_when_found = load_given,
+			.descript = "Load torque of the simulated motor (default "
+				    "CONFIG_SFS_SIM_LOAD_UNM)",
+		},
+		{
+			.option = "sim_vbus_mv",
+			.name = "mV",
+			.type = 'i',
+			.dest = &arg_vbus_mv,
+			.call_when_found = vbus_given,
+			.descript = "Bus voltage of the simulated motor (default "
+				    "CONFIG_SFS_SIM_VBUS_MV)",
+		},
+		ARG_TABLE_ENDMARKER,
+	};
+
+	native_add_command_line_opts(sim_options);
+}
+
+NATIVE_TASK(add_sim_options, PRE_BOOT_1, 10);
+
 int power_stage_init(void)
 {
 	const uint32_t gain_abs = (uint32_t)((SENSE_GAIN_MILLI < 0) ? -SENSE_GAIN_MILLI
@@ -102,6 +161,14 @@ int power_stage_init(void)
 	if (ret != 0) {
 		LOG_ERR("simulated motor (%d)", ret);
 		return ret;
+	}
+	if (arg_load_given) {
+		sim_plant_set_load(arg_load_unm);
+		LOG_INF("load %d uNm (command line)", arg_load_unm);
+	}
+	if (arg_vbus_given && (arg_vbus_mv >= 0)) {
+		sim_plant_set_vbus((uint32_t)arg_vbus_mv);
+		LOG_INF("bus voltage %d mV (command line)", arg_vbus_mv);
 	}
 
 	k_timer_start(&fast_timer, K_TICKS(1), K_TICKS(1));

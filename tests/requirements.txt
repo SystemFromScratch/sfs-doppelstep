@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Python packages of the SIL and integration tests. The Docker image installs the
+# same versions (Dockerfile, ARG PYTEST_VERSION ...): keep both in step.
+pytest==9.0.2
+pytest-timeout==2.4.0
+pyserial==3.5
+dynamixel-sdk==4.1.0

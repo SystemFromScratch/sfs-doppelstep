@@ -36,6 +36,7 @@ this repository.
 - [Logs (RTT)](#logs-rtt)
 - [DYNAMIXEL emulation](#dynamixel-emulation)
 - [Simulated motor](#simulated-motor)
+- [Tests and CI](#tests-and-ci)
 - [Configuration](#configuration)
 - [GUI](#gui)
 - [Documentation and PDF manual](#documentation-and-pdf-manual)
@@ -87,7 +88,8 @@ this repository.
 
 ```text
 doppelstep/                             west manifest repository (this repo)
-├── west.yml                            Zephyr v4.5.0, Stepper-C v1.0.0, X430 emulator (main), DXL2-C v1.0.0
+├── west.yml                            Zephyr v4.5.0, Stepper-C v1.0.0, X430 emulator (main), DXL2-C v1.0.0,
+│                                       sfs-stepper-sim and sfs-stepper-power-spice (main)
 ├── apps/                               everything Zephyr; BOARD_ROOT and DTS_ROOT of the applications
 │   ├── doppelstep/                     Zephyr application (west build -s apps/doppelstep)
 │   │   ├── CMakeLists.txt              BOARD_ROOT, DTS_ROOT, EXTRA_ZEPHYR_MODULES
@@ -113,14 +115,19 @@ doppelstep/                             west manifest repository (this repo)
 │   ├── dts/bindings/sfs/               sfs,stm32-shared-leg-power-stage
 │   └── modules/                        Zephyr module glue for the libraries (workspace side)
 │       ├── stepper-c/zephyr/           module.yml, Kconfig (CONFIG_SSTEP_*), CMakeLists.txt
-│       └── dynamixel-x430/zephyr/      module.yml, Kconfig (sources Kconfig.x430), CMakeLists.txt
+│       ├── dynamixel-x430/zephyr/      module.yml, Kconfig (sources Kconfig.x430), CMakeLists.txt
+│       └── sfs-stepper-sim/zephyr/     plant model sstep_plant.c, params/*.json -> sstep_plant_params.h
 ├── tools/
 │   ├── gui/                            host GUI (planned, see tools/gui/README.md)
 │   ├── sim/                            native_sim launcher (PTY link, TCP bridge), Protocol 2.0 smoke test
 │   └── docs/                           PDF manual builder, MkDocs hooks, cover page
-├── docs/                               MkDocs sources (index, development, GUI, NAMING.md)
+├── docs/                               MkDocs sources (index, development, simulation, GUI, NAMING.md)
+├── tests/                              SIL (tests/sil) and integration (tests/integration) tests, pytest
+├── .github/workflows/ci.yml            builds + tests in the Docker image (scripts/ci.sh)
 ├── scripts/
 │   ├── west-init.sh                    west init -l + west update (in the container)
+│   ├── run-tests.sh / ci.sh            tests on native_sim / builds + tests (CI)
+│   ├── junit_summary.py                test table for the GitHub job summary
 │   └── host/                           GDB servers on the Windows host (OpenOCD, J-Link)
 ├── docker/jlink/                       optional J-Link Software archive for the image
 ├── .devcontainer/
@@ -171,6 +178,8 @@ container rebuilds); only this repository and `build/` live in the Windows folde
 | Stepper-C | **v1.0.0** | `west.yml` |
 | DYNAMIXEL-X430 emulator | `main` (until its first release) | `west.yml` |
 | DXL2-C | v1.0.0 (= `X430_DXL2_GIT_TAG` of the emulator) | `west.yml` |
+| sfs-stepper-sim | `main` (until its first release): plant model and parameters of the simulated motor | `west.yml` |
+| sfs-stepper-power-spice | `main` (until its first release): ngspice source of the stage parameters, not built | `west.yml` |
 | Board | `b_g431b_esc1` (this repository) | `apps/boards/` |
 
 The X430 emulator normally downloads DXL2-C with CMake FetchContent; the module
@@ -422,7 +431,14 @@ host sees one joint; set `CONFIG_SFS_DXL_ID` to the joint's ID (for example
 
 For development without a motor, `CONFIG_SFS_SIM_PLANT=y` puts a motor model
 behind the power stage, so the whole chain ROS 2 → Protocol 2.0 → X430
-emulator → Stepper-C runs as it will with the motor. Two ways:
+emulator → Stepper-C runs as it will with the motor. The model is the plant
+model of [sfs-stepper-sim](https://github.com/AntonVynohradov/sfs-stepper-sim)
+(`sil/c/sstep_plant.c`, the code of its Xcos block) with its `params/*.json`;
+the power stage values come from the ngspice model of
+[sfs-stepper-power-spice](https://github.com/AntonVynohradov/sfs-stepper-power-spice).
+Both are west projects (`main`). How the three repositories work together and
+how to change the model or its parameters: [docs/simulation.md](docs/simulation.md).
+Two ways:
 
 | | A: on the board | B: on the PC (`native_sim`) |
 |---|---|---|
@@ -450,15 +466,13 @@ CMake cache, so **Zephyr: Build** keeps the simulated motor until the next
  power_stage_pwm_write() → compare values → model;  MOE stays 0 (gate drivers off)
 ```
 
-- **Model:** the averaged shared-leg power stage and the two-phase hybrid
-  stepper of [sfs-stepper-sim](https://github.com/AntonVynohradov/sfs-stepper-sim)
-  (`sstep_xcos_plant`, same equations), in single precision for the FPU, one
-  PWM period of computation delay as on the hardware. Parameters:
-  `CONFIG_SFS_SIM_*` (R, L, Kt default to the controller's motor values;
-  inertia, friction, detent torque, load torque, locked rotor). The switching
-  stage of sfs-stepper-sim (dead time, diodes) and the ngspice results of
-  [sfs-stepper-power-spice](https://github.com/AntonVynohradov/sfs-stepper-power-spice)
-  stay offline: too heavy for 50 µs.
+- **Model:** `sstep_plant.c` of sfs-stepper-sim in single precision with the
+  averaged shared-leg stage plus the ngspice leg voltage error table
+  (`CONFIG_SFS_SIM_LEG_ERROR`), one PWM period of computation delay as on the
+  hardware. Parameters from sfs-stepper-sim `params/*.json`, each overridable
+  with `CONFIG_SFS_SIM_*` (−1 = file value); load torque, locked rotor. The
+  switching stage and the ngspice simulations stay offline (too heavy for
+  50 µs); their results enter as parameters.
 - **Safety:** the timer runs, but the main output enable is never set; the
   board may run with or without a motor and bus voltage. `dead-time-ns` does
   not have to be set.
@@ -508,6 +522,25 @@ keep the host's packet timeout above that.
 `native_sim` options go after `--`, for example
 `run_native.py run -- -stop_at=60` (stop after 60 s) or `-- --no-rt` (as fast
 as possible, for tests without a host program).
+
+---
+
+## Tests and CI
+
+The firmware is tested on the PC: `native_sim` with the simulated motor, driven by pytest
+over Protocol 2.0. The SIL tests use a raw client, `tools/sim/dxl2.py`. The integration
+tests use the official DynamixelSDK in the ros2_control loop.
+
+```bash
+docker compose run --rm zephyr bash scripts/run-tests.sh   # tests (task "Zephyr: Run tests (native_sim)")
+docker compose run --rm zephyr bash scripts/ci.sh          # builds without warnings + tests, as CI
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs `scripts/ci.sh` in the same image. The
+suite (about 20 s) covers motion and profiles, the load angle against `T = Kt·I·sin δ`,
+the overload and undervoltage reporting, Bus Watchdog, Reboot and Factory Reset, the
+EEPROM across a power cycle, and the 100 Hz Sync Read / Write loop. Details:
+[docs/testing.md](docs/testing.md).
 
 ---
 
@@ -577,6 +610,9 @@ Follows the Stepper-C integration guide.
 ## Open items
 
 - `dead-time-ns`: value from the ESC1 MCSDK project (see above).
+- Stall detection: a lost synchronism (load above the holding torque at the hold
+  current) is not reported to the host; `tests/sil/test_protection.py` documents it
+  as an expected failure.
 - Fast-loop execution time on the target (Stepper-C: measure on the MCU); the
   RTT log of the simulated motor shows the longest fast-loop callback.
 - Present Temperature: NTC on PB14 is not converted yet (no NTC data in UM2516);

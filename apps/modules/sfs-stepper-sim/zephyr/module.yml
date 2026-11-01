@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Zephyr module glue for sfs-stepper-sim (west project "sfs-stepper-sim",
+# <topdir>/modules/lib/sfs-stepper-sim): the plant model sil/c/sstep_plant.c and
+# the parameter files params/*.json of the simulated motor. The repository has
+# no zephyr/module.yml; this workspace adds it through EXTRA_ZEPHYR_MODULES.
+name: sfs-stepper-sim
+build:
+  cmake: zephyr
+  kconfig: zephyr/Kconfig

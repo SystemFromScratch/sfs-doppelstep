@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Firmware builds and SIL / integration tests in the Docker image of the
+# repository: the same scripts/ci.sh a developer runs locally
+# (docker compose run --rm zephyr bash scripts/ci.sh). See tests/README.md.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    name: Build and test (b_g431b_esc1, native_sim)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      # west workspace in a host directory (cached) instead of the named volume
+      DOPPELSTEP_WEST: ${{ runner.temp }}/west
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker image (cached layers)
+        uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: doppelstep:1.0.1-2          # compose.yaml image
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: west workspace and ccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/west
+          key: west-${{ hashFiles('west.yml') }}-${{ github.run_id }}
+          restore-keys: west-${{ hashFiles('west.yml') }}-
+
+      - name: Builds, SIL and integration tests
+        run: docker compose run --rm zephyr bash scripts/ci.sh
+
+      - name: Test summary
+        if: always()
+        run: python3 scripts/junit_summary.py build-tests/junit.xml >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test results and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            build-tests/junit.xml
+            build-tests/pytest/**/*.log
+            build-ci/*.log
+          if-no-files-found: ignore
+
+      - name: Firmware images
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            build-ci/esc1/zephyr/zephyr.elf
+            build-ci/esc1/zephyr/zephyr.hex
+            build-ci/esc1-sim/zephyr/zephyr.elf

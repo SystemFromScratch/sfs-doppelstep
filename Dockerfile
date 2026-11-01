@@ -23,6 +23,11 @@ ARG PYELFTOOLS_VERSION=0.33
 ARG PYYAML_VERSION=6.0.3
 # `west flash|debug|debugserver|rtt -r jlink` (runners/jlink.py)
 ARG PYLINK_SQUARE_VERSION=2.0.1
+# SIL and integration tests (tests/requirements.txt: keep both in step)
+ARG PYTEST_VERSION=9.0.2
+ARG PYTEST_TIMEOUT_VERSION=2.4.0
+ARG PYSERIAL_VERSION=3.5
+ARG DYNAMIXEL_SDK_VERSION=4.1.0
 
 # sha256.sum of the SDK release
 ARG ZEPHYR_SDK_MINIMAL_SHA256=ca9bc0ff66fafca1dac9d592a36d953cf16d096a9d09b1c0357f021cf9f6a7eb
@@ -65,7 +70,8 @@ RUN apt-get update \
 # west, plus the packages the Zephyr 4.5 build needs (manifest and module
 # validation with jsonschema, ELF post-processing with pyelftools), PyYAML for
 # the X430 Control Table generator and pylink-square for the J-Link runner.
-# CMake comes from pip because Zephyr follows recent CMake releases.
+# CMake comes from pip because Zephyr follows recent CMake releases. pytest,
+# pyserial and the DYNAMIXEL SDK run the SIL and integration tests (tests/).
 # ---------------------------------------------------------------------------
 
 RUN python3 -m venv "${VIRTUAL_ENV}" \
@@ -76,7 +82,11 @@ RUN python3 -m venv "${VIRTUAL_ENV}" \
         "cmake==${CMAKE_VERSION}" \
         "pyelftools==${PYELFTOOLS_VERSION}" \
         "PyYAML==${PYYAML_VERSION}" \
-        "pylink-square==${PYLINK_SQUARE_VERSION}"
+        "pylink-square==${PYLINK_SQUARE_VERSION}" \
+        "pytest==${PYTEST_VERSION}" \
+        "pytest-timeout==${PYTEST_TIMEOUT_VERSION}" \
+        "pyserial==${PYSERIAL_VERSION}" \
+        "dynamixel-sdk==${DYNAMIXEL_SDK_VERSION}"
 
 # ---------------------------------------------------------------------------
 # Zephyr SDK - minimal bundle plus ONLY the ARM Cortex-M toolchain

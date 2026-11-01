@@ -23,6 +23,8 @@ strict: true
 nav:
   - Overview: index.md
   - Development environment: development.md
+  - Simulated motor: simulation.md
+  - SIL and integration tests: testing.md
   - GUI: gui/index.md
   - Naming: NAMING.md
 

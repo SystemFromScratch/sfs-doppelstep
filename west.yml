@@ -13,10 +13,17 @@
 #       └── lib/
 #           ├── stepper-c          Stepper-C            (pinned release)
 #           ├── dynamixel-x430     X430 emulator        (main until the first release)
-#           └── dxl2-c             DXL2-C, used by the X430 emulator (offline build)
+#           ├── dxl2-c             DXL2-C, used by the X430 emulator (offline build)
+#           ├── sfs-stepper-sim    motor model (sil/c/sstep_plant.c) and its parameters
+#           │                      (params/*.json) for the simulated motor (main until
+#           │                      the first release)
+#           └── sfs-stepper-power-spice  ngspice model of the ESC1 leg: source of the
+#                                  stage parameters of sfs-stepper-sim; not built
+#                                  (main until the first release)
 #
-# Stepper-C, DYNAMIXEL-X430 and DXL2-C carry no zephyr/module.yml; the Zephyr
-# module glue lives in this repository under apps/modules/
+# Stepper-C, DYNAMIXEL-X430, DXL2-C and sfs-stepper-sim carry no
+# zephyr/module.yml; the Zephyr module glue lives in this repository under
+# apps/modules/
 # (see apps/doppelstep/CMakeLists.txt).
 
 manifest:
@@ -61,6 +68,20 @@ manifest:
       repo-path: DXL2-C
       revision: v1.0.0
       path: modules/lib/dxl2-c
+
+    # Simulated motor (CONFIG_SFS_SIM_PLANT, docs/simulation.md). Both follow
+    # main until their first release; pin them to the release tags then. The two
+    # stay siblings under modules/lib: run_tests.py --export of power-spice
+    # updates ../sfs-stepper-sim/params.
+    - name: sfs-stepper-sim
+      remote: antonvynohradov
+      revision: main
+      path: modules/lib/sfs-stepper-sim
+
+    - name: sfs-stepper-power-spice
+      remote: antonvynohradov
+      revision: main
+      path: modules/lib/sfs-stepper-power-spice
 
   self:
     path: doppelstep

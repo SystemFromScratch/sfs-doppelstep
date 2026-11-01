@@ -189,6 +189,11 @@ case "${action}" in
         zephyr_in_docker zephyr "${action}"
         run_native
         ;;
+    'Run tests (native_sim)')
+        zephyr_in_docker zephyr "${action}"
+        ensure_workspace
+        bash scripts/run-tests.sh
+        ;;
     'Menuconfig')
         zephyr_in_docker zephyr "${action}"
         require_build

@@ -7,12 +7,15 @@
 #   docker compose run --rm zephyr-usb west flash -r openocd      # USB probe (usbipd)
 
 x-zephyr: &zephyr
-  image: doppelstep:1.0.1
+  # <Zephyr SDK>-<image revision>: raise the revision when the Dockerfile
+  # changes, so that `docker compose run` builds the new image.
+  image: doppelstep:1.0.1-2
   build:
     context: .
   working_dir: /workdir/doppelstep
   volumes:
-    - west:/workdir
+    # west workspace: named volume, or a host directory (CI: DOPPELSTEP_WEST=<path>)
+    - ${DOPPELSTEP_WEST:-west}:/workdir
     - .:/workdir/doppelstep
   environment:
     CCACHE_DIR: /workdir/.ccache
@@ -39,7 +42,7 @@ services:
     profiles: [usb]
     privileged: true
     volumes:
-      - west:/workdir
+      - ${DOPPELSTEP_WEST:-west}:/workdir
       - .:/workdir/doppelstep
       - /dev/bus/usb:/dev/bus/usb
     command: ["bash"]

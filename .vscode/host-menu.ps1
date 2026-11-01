@@ -143,6 +143,7 @@ switch ($Action) {
     'Pristine build' { Invoke-ZephyrInDocker $Action }
     'Pristine build (simulated motor)' { Invoke-ZephyrInDocker $Action }
     'Build (native_sim)' { Invoke-ZephyrInDocker $Action }
+    'Run tests (native_sim)' { Invoke-ZephyrInDocker $Action }
     'Run (native_sim)' {
         # DYNAMIXEL bus on TCP 5555 of the host (tools/sim/run_native.py connect,
         # tools/sim/dxl_smoke_test.py --tcp). A fixed container name: an instance

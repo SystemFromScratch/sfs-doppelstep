@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+#
+# Continuous integration in the Docker image, the same on a PC and in GitHub
+# Actions (.github/workflows/ci.yml):
+#
+#   docker compose run --rm zephyr bash scripts/ci.sh
+#
+#   1. west workspace: init / update (scripts/west-init.sh)
+#   2. pristine builds without warnings: b_g431b_esc1, b_g431b_esc1 + sim.conf,
+#      native_sim (the test firmware)
+#   3. SIL and integration tests (scripts/run-tests.sh) -> build-tests/junit.xml
+#
+# Build logs: build-ci/*.log. Known warning outside this repository (reported
+# upstream): -Wmaybe-uninitialized in x430_bus.c of the X430 emulator, host gcc.
+
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# The repository is bind-mounted with another owner than the container user
+git config --global --add safe.directory '*'
+
+KNOWN_WARNINGS='dynamixel-x430/src/x430_bus.c:[0-9]+:[0-9]+: warning: .*maybe-uninitialized'
+
+bash scripts/west-init.sh
+
+# SSTEP_SIM_SOURCE_DIR: local checkout of sfs-stepper-sim (tests/README.md)
+sim_args=()
+[ -n "${SSTEP_SIM_SOURCE_DIR:-}" ] && sim_args=("-DSSTEP_SIM_SOURCE_DIR=${SSTEP_SIM_SOURCE_DIR}")
+
+mkdir -p build-ci
+failed=0
+
+# build <name> <west build arguments...>
+build() {
+    local name=$1
+    shift
+    local log="build-ci/${name}.log"
+    echo "::group::build ${name}"
+    if ! west build -p always "$@" >"${log}" 2>&1; then
+        tail -50 "${log}"
+        echo "ERROR: build ${name} failed (${log})"
+        failed=1
+    fi
+    local warnings
+    warnings=$(grep -E 'warning:' "${log}" | grep -Ev "${KNOWN_WARNINGS}" || true)
+    if [ -n "${warnings}" ]; then
+        echo "${warnings}"
+        echo "ERROR: build ${name} has warnings (${log})"
+        failed=1
+    fi
+    grep -E 'FLASH:|RAM:' "${log}" || true
+    echo "::endgroup::"
+}
+
+build esc1 -b b_g431b_esc1 -s apps/doppelstep -d build-ci/esc1
+build esc1-sim -b b_g431b_esc1 -s apps/doppelstep -d build-ci/esc1-sim \
+    -- -DEXTRA_CONF_FILE=sim.conf "${sim_args[@]}"
+build native-tests -b native_sim/native/64 -s apps/doppelstep -d build-tests \
+    -- -DEXTRA_CONF_FILE=sim-test.conf "${sim_args[@]}"
+
+if [ "${failed}" -ne 0 ]; then
+    exit 1
+fi
+
+echo "::group::SIL and integration tests"
+bash scripts/run-tests.sh
+echo "::endgroup::"

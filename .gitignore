@@ -2,6 +2,8 @@
 /.west/
 **/build/
 **/build-*/
+# native_sim flash image (emulated EEPROM), written in the working directory of zephyr.exe
+flash.bin
 /twister-out*/
 
 # Documentation build output (mkdocs build, tools/docs/build_pdf.py)

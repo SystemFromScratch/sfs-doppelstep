@@ -3,8 +3,9 @@
  *
  * Simulated motor behind the power stage (CONFIG_SFS_SIM_PLANT): averaged
  * shared-leg power stage, two-phase hybrid stepper and current sensing, the
- * model of sfs-stepper-sim (sstep_xcos_plant). The power stage calls it from
- * the fast-loop interrupt in place of the ADC readings and the gate drivers:
+ * plant model of sfs-stepper-sim (sil/c/sstep_plant.c, west project). The power
+ * stage calls it from the fast-loop interrupt in place of the ADC readings and
+ * the gate drivers:
  *
  *   sim_plant_sample()      ADC counts of the state at the sampling instant
  *   fast loop (Stepper-C)   -> power_stage_pwm_write() -> sim_plant_set_compare()
@@ -54,8 +55,15 @@ void sim_plant_set_enabled(bool enable);
 /** Advance the model by one PWM period. ISR, after the fast loop. */
 void sim_plant_step(void);
 
-/** Load torque [uN*m], positive against forward motion. Any context. */
+/**
+ * Load torque [uN*m], positive against forward motion, acting from the first
+ * time the outputs are enabled (at power-on the joint rests on a support).
+ * Any context.
+ */
 void sim_plant_set_load(int32_t load_unm);
+
+/** Bus voltage of the model [mV] (CONFIG_SFS_SIM_VBUS_MV at start). Any context. */
+void sim_plant_set_vbus(uint32_t vbus_mv);
 
 /** Follow sstep_set_position(): shift the reported rotor position. Any context. */
 void sim_plant_shift_position(int32_t delta_usteps);

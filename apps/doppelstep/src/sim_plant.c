@@ -1,20 +1,15 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * Simulated motor (see sim_plant.h). Same equations as sstep_xcos_plant of
- * sfs-stepper-sim (sil/c/sstep_xcos.c), averaged power stage only, in single
- * precision for the Cortex-M4F FPU. State x = [iA iB w pe], pe = p theta:
- *
- *   L diA/dt = vA - R iA + Kt w sin(pe)                 p = Ns / 4
- *   L diB/dt = vB - R iB - Kt w cos(pe)
- *   J dw/dt  = Kt (-iA sin(pe) + iB cos(pe)) - Td sin(4 pe) - TL - B w - Tc tanh(w / wc)
- *   dpe/dt   = p w
- *
- * pe stays in [-pi, pi) and the electrical turns are counted apart, so the
- * float state keeps its precision however far the rotor turns. Shared leg:
- * vA = (dU - dW) Vbus, vB = (dV - dW) Vbus. With the outputs off the windings
- * are open: the currents are zero (the body diodes return the energy within
- * a fraction of a millisecond) and the rotor coasts.
+ * Simulated motor (see sim_plant.h): Zephyr adapter of the plant model of
+ * sfs-stepper-sim (sil/c/sstep_plant.c, the code of its Xcos plant block),
+ * built in single precision with the averaged stage. Parameters: the motor and
+ * stage files of sfs-stepper-sim (generated sstep_plant_params.h), each value
+ * overridable with CONFIG_SFS_SIM_* (-1 = file value). Here the topology is the
+ * shared leg of the ESC1 and outputs off means open windings (the currents are
+ * zero, the rotor coasts). The load torque acts from the first time the
+ * outputs are enabled: at power-on the joint rests on a support. See
+ * docs/simulation.md.
  */
 
 #include "sim_plant.h"
@@ -26,38 +21,33 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/barrier.h>
 
+#include <sstep_plant.h>
+#include <sstep_plant_params.h>
+
 #include "motor.h"
 
 LOG_MODULE_REGISTER(sim_plant, CONFIG_SFS_LOG_LEVEL);
 
-#define PI_F 3.14159265f
-#define TWO_PI_F 6.28318531f
-#define DRY_FRICTION_W_C 0.05f /* rad/s, Tc tanh(w / w_c): no stiction */
+BUILD_ASSERT(SSTEP_PLANT_FLOAT, "the firmware builds the model in single precision");
+BUILD_ASSERT(SSTEP_PLANT_PARAM_LEG_ERROR_N <= SSTEP_PLANT_LEG_ERROR_MAX,
+	     "leg error table of the stage file too long for sstep_plant");
 
+#define TWO_PI_F 6.28318531f
 #define USTEPS_PER_E_TURN (4 * CONFIG_SFS_CTRL_MICROSTEPS)
 
-struct motor {
-	float r, l, kt, p, j, b, td, tc;
-};
+/* Kconfig override (integer, scaled to SI) or the value of the parameter file */
+#define PARAM(sym, scale, file) \
+	((CONFIG_##sym >= 0) ? (float)CONFIG_##sym * (scale) : (float)(file))
 
-static struct motor m;
-static float h;            /* RK4 step [s] */
-static float vbus;         /* [V] */
-static float duty_scale;   /* 1 / pwm_period_ticks */
-static float counts_per_a; /* signed, adc_i_span / i_full_scale */
-static float adc_zero;
-static float adc_full;
-static uint16_t vbus_counts;
+static struct sstep_plant plant;
+static struct sstep_plant_adc adc;
 
 /* Fast-loop interrupt only */
-static float x[4];
-static int32_t e_turns;
-static float v_a;
-static float v_b;
-static uint16_t cmp[SSTEP_LEGS_MAX];
+static float cmp[SSTEP_PLANT_LEGS];
 
 /* Written by threads, read by the interrupt (single aligned words) */
 static volatile bool enabled;
+static volatile bool loaded; /* outputs enabled once: the load acts */
 static volatile float load;
 static volatile int32_t pos_offset;
 
@@ -65,89 +55,19 @@ static volatile int32_t pos_offset;
 static struct sim_plant_state pub;
 static volatile uint32_t pub_seq;
 
-/* ------------------------------------------------------------------------ */
-
-static void deriv(const float *s, float va, float vb, float tl, float *d)
-{
-	const float sn = sinf(s[3]);
-	const float cs = cosf(s[3]);
-	float te = m.kt * (-s[0] * sn + s[1] * cs);
-
-	if (m.td != 0.0f) {
-		te -= m.td * sinf(4.0f * s[3]);
-	}
-	float tf = m.b * s[2];
-
-	if (m.tc != 0.0f) {
-		tf += m.tc * tanhf(s[2] / DRY_FRICTION_W_C);
-	}
-
-	d[0] = (va - m.r * s[0] + m.kt * s[2] * sn) / m.l;
-	d[1] = (vb - m.r * s[1] - m.kt * s[2] * cs) / m.l;
-	if (IS_ENABLED(CONFIG_SFS_SIM_LOCKED_ROTOR)) {
-		d[2] = 0.0f;
-		d[3] = 0.0f;
-	} else {
-		d[2] = (te - tl - tf) / m.j;
-		d[3] = m.p * s[2];
-	}
-}
-
-static void rk4(float va, float vb, float tl)
-{
-	float k1[4], k2[4], k3[4], k4[4], y[4];
-
-	deriv(x, va, vb, tl, k1);
-	for (int i = 0; i < 4; i++) {
-		y[i] = x[i] + 0.5f * h * k1[i];
-	}
-	deriv(y, va, vb, tl, k2);
-	for (int i = 0; i < 4; i++) {
-		y[i] = x[i] + 0.5f * h * k2[i];
-	}
-	deriv(y, va, vb, tl, k3);
-	for (int i = 0; i < 4; i++) {
-		y[i] = x[i] + h * k3[i];
-	}
-	deriv(y, va, vb, tl, k4);
-	for (int i = 0; i < 4; i++) {
-		x[i] += (h / 6.0f) * (k1[i] + 2.0f * k2[i] + 2.0f * k3[i] + k4[i]);
-	}
-
-	if (x[3] >= PI_F) {
-		x[3] -= TWO_PI_F;
-		e_turns++;
-	} else if (x[3] < -PI_F) {
-		x[3] += TWO_PI_F;
-		e_turns--;
-	} else {
-		/* within one turn */
-	}
-}
-
-static uint16_t current_counts(float i)
-{
-	const float c = adc_zero + i * counts_per_a + 0.5f;
-
-	if (c < 0.0f) {
-		return 0U;
-	}
-	return (c > adc_full) ? (uint16_t)adc_full : (uint16_t)c;
-}
-
 static void publish(void)
 {
 	const bool en = enabled;
 
 	pub_seq++;
 	barrier_dmem_fence_full();
-	pub.i_a_ma = (int32_t)lroundf(x[0] * 1000.0f);
-	pub.i_b_ma = (int32_t)lroundf(x[1] * 1000.0f);
-	pub.v_a_mv = (int32_t)lroundf(v_a * 1000.0f);
-	pub.v_b_mv = (int32_t)lroundf(v_b * 1000.0f);
-	pub.speed_mrpm = (int32_t)lroundf(x[2] * (60000.0f / TWO_PI_F));
-	pub.rotor_usteps = e_turns * USTEPS_PER_E_TURN +
-			   (int32_t)lroundf(x[3] * ((float)USTEPS_PER_E_TURN / TWO_PI_F)) +
+	pub.i_a_ma = (int32_t)lroundf(plant.x[0] * 1000.0f);
+	pub.i_b_ma = (int32_t)lroundf(plant.x[1] * 1000.0f);
+	pub.v_a_mv = (int32_t)lroundf(plant.v[0] * 1000.0f);
+	pub.v_b_mv = (int32_t)lroundf(plant.v[1] * 1000.0f);
+	pub.speed_mrpm = (int32_t)lroundf(plant.x[2] * (60000.0f / TWO_PI_F));
+	pub.rotor_usteps = plant.e_turns * USTEPS_PER_E_TURN +
+			   (int32_t)lroundf(plant.x[3] * ((float)USTEPS_PER_E_TURN / TWO_PI_F)) +
 			   pos_offset;
 	pub.load_unm = (int32_t)lroundf(load * 1e6f);
 	pub.enabled = en;
@@ -159,51 +79,47 @@ static void publish(void)
 
 void sim_plant_sample(struct sstep_sample *sample, uint32_t *i_w_ma)
 {
-	sample->i_a = current_counts(x[0]);
-	sample->i_b = current_counts(x[1]);
-	sample->vbus = vbus_counts;
-	*i_w_ma = (uint32_t)lroundf(fabsf(x[0] + x[1]) * 1000.0f);
+	float counts[3];
+
+	sstep_plant_adc_sample(&plant, &adc, counts);
+	sample->i_a = (uint16_t)counts[0];
+	sample->i_b = (uint16_t)counts[1];
+	sample->vbus = (uint16_t)counts[2];
+	*i_w_ma = (uint32_t)lroundf(fabsf(plant.x[0] + plant.x[1]) * 1000.0f);
 }
 
 void sim_plant_set_compare(const uint16_t compare[SSTEP_LEGS_MAX])
 {
-	for (size_t k = 0; k < SSTEP_LEGS_MAX; k++) {
-		cmp[k] = compare[k];
+	for (size_t k = 0; k < MIN(SSTEP_LEGS_MAX, SSTEP_PLANT_LEGS); k++) {
+		cmp[k] = (float)compare[k];
 	}
 }
 
 void sim_plant_set_enabled(bool enable)
 {
 	enabled = enable;
+	if (enable) {
+		loaded = true;
+	}
 }
 
 void sim_plant_step(void)
 {
-	const float tl = load;
-
-	for (int k = 0; k < CONFIG_SFS_SIM_SUBSTEPS; k++) {
-		rk4(v_a, v_b, tl);
-	}
-
+	sstep_plant_period(&plant, loaded ? load : 0.0f);
 	/* voltage of the next period from the compare values just written */
-	if (enabled) {
-		const float d_w = (float)cmp[2] * duty_scale;
-
-		v_a = ((float)cmp[0] * duty_scale - d_w) * vbus;
-		v_b = ((float)cmp[1] * duty_scale - d_w) * vbus;
-	} else {
-		v_a = 0.0f;
-		v_b = 0.0f;
-		x[0] = 0.0f;
-		x[1] = 0.0f;
-	}
-
+	sstep_plant_set_compare(&plant, cmp, enabled ? 1 : 0);
 	publish();
 }
 
 void sim_plant_set_load(int32_t load_unm)
 {
 	load = (float)load_unm * 1e-6f;
+}
+
+void sim_plant_set_vbus(uint32_t vbus_mv)
+{
+	/* single aligned word, read by the interrupt (ADC sample and legs) */
+	plant.stage.vbus = (float)vbus_mv * 1e-3f;
 }
 
 void sim_plant_shift_position(int32_t delta_usteps)
@@ -263,43 +179,83 @@ static void log_fn(struct k_work *work)
 
 #endif
 
+static bool off_by_more_than(float value, float ref, float rel)
+{
+	return fabsf(value - ref) > rel * fabsf(ref);
+}
+
 int sim_plant_init(const struct power_stage_info *info)
 {
-	if ((info->pwm_period_ticks == 0U) || (info->pwm_freq_hz == 0U) ||
-	    (info->i_full_scale_ma == 0U) || (info->adc_vbus_mv_full == 0U)) {
+	static const float err_i[] = SSTEP_PLANT_PARAM_LEG_ERROR_I;
+	static const float err_v[] = SSTEP_PLANT_PARAM_LEG_ERROR_V;
+	const struct sstep_plant_motor motor = {
+		.r = PARAM(SFS_SIM_R_MOHM, 1e-3f, SSTEP_PLANT_PARAM_R),
+		.l = PARAM(SFS_SIM_L_UH, 1e-6f, SSTEP_PLANT_PARAM_L),
+		.kt = PARAM(SFS_SIM_KT_UNM_PER_A, 1e-6f, SSTEP_PLANT_PARAM_KT),
+		.ns = (float)SSTEP_PLANT_PARAM_NS,
+		.j = PARAM(SFS_SIM_INERTIA_G_MM2, 1e-9f, SSTEP_PLANT_PARAM_J),
+		.b = PARAM(SFS_SIM_VISCOUS_UNM_S, 1e-6f, SSTEP_PLANT_PARAM_B),
+		.td = PARAM(SFS_SIM_DETENT_UNM, 1e-6f, SSTEP_PLANT_PARAM_TD),
+		.tc = PARAM(SFS_SIM_COULOMB_UNM, 1e-6f, SSTEP_PLANT_PARAM_TC),
+		.w_c = (float)SSTEP_PLANT_PARAM_W_C,
+	};
+	struct sstep_plant_stage stage = {
+		.topology = SSTEP_PLANT_SHARED_LEG,
+		.model = SSTEP_PLANT_STAGE_AVG,
+		.off = SSTEP_PLANT_OFF_OPEN,
+		.locked = IS_ENABLED(CONFIG_SFS_SIM_LOCKED_ROTOR) ? 1 : 0,
+		.vbus = (float)CONFIG_SFS_SIM_VBUS_MV * 1e-3f,
+		.fs = (float)info->pwm_freq_hz,
+		.period = (float)info->pwm_period_ticks,
+		.nsub = CONFIG_SFS_SIM_SUBSTEPS,
+	};
+
+	if ((info->i_full_scale_ma == 0U) || (info->adc_vbus_mv_full == 0U)) {
+		return -EINVAL;
+	}
+	if (IS_ENABLED(CONFIG_SFS_SIM_LEG_ERROR)) {
+		stage.leg_error_n = ARRAY_SIZE(err_i);
+		for (size_t k = 0; k < ARRAY_SIZE(err_i); k++) {
+			stage.leg_error_i[k] = err_i[k];
+			stage.leg_error_v[k] = err_v[k];
+		}
+	}
+	if (sstep_plant_init(&plant, &motor, &stage) != 0) {
+		LOG_ERR("invalid model parameters");
 		return -EINVAL;
 	}
 
-	m = (struct motor){
-		.r = (float)CONFIG_SFS_SIM_R_MOHM * 1e-3f,
-		.l = (float)CONFIG_SFS_SIM_L_UH * 1e-6f,
-		.kt = (float)CONFIG_SFS_SIM_KT_UNM_PER_A * 1e-6f,
-		.p = (float)CONFIG_SFS_MOTOR_FULL_STEPS_PER_REV / 4.0f,
-		.j = (float)CONFIG_SFS_SIM_INERTIA_G_MM2 * 1e-9f,
-		.b = (float)CONFIG_SFS_SIM_VISCOUS_UNM_S * 1e-6f,
-		.td = (float)CONFIG_SFS_SIM_DETENT_UNM * 1e-6f,
-		.tc = (float)CONFIG_SFS_SIM_COULOMB_UNM * 1e-6f,
+	adc = (struct sstep_plant_adc){
+		.i_full = (float)info->i_full_scale_ma * 1e-3f,
+		.span = (float)info->adc_i_span,
+		.zero = (float)info->adc_i_zero,
+		.v_full = (float)info->adc_vbus_mv_full * 1e-3f,
+		.full = (float)info->adc_full,
 	};
-	h = 1.0f / ((float)info->pwm_freq_hz * (float)CONFIG_SFS_SIM_SUBSTEPS);
-	vbus = (float)CONFIG_SFS_SIM_VBUS_MV * 1e-3f;
-	duty_scale = 1.0f / (float)info->pwm_period_ticks;
-	counts_per_a = (float)info->adc_i_span * 1000.0f / (float)info->i_full_scale_ma;
-	adc_zero = (float)info->adc_i_zero;
-	adc_full = (float)info->adc_full;
-	vbus_counts = (uint16_t)MIN((uint64_t)CONFIG_SFS_SIM_VBUS_MV * info->adc_full /
-					    info->adc_vbus_mv_full,
-				    UINT16_MAX);
-	sim_plant_set_load(CONFIG_SFS_SIM_LOAD_UNM);
-
-	for (size_t k = 0; k < SSTEP_LEGS_MAX; k++) {
-		cmp[k] = info->pwm_period_ticks / 2U;
+	for (size_t k = 0; k < SSTEP_PLANT_LEGS; k++) {
+		cmp[k] = (float)info->pwm_period_ticks / 2.0f;
 	}
+	sim_plant_set_load(CONFIG_SFS_SIM_LOAD_UNM);
 	publish();
 
 	LOG_WRN("SIMULATED MOTOR: gate drivers stay off, Stepper-C drives the model");
-	LOG_INF("model: R %u mOhm, L %u uH, Kt %u uNm/A, J %u g*mm^2, Vbus %u mV, %u RK4 step(s)",
-		CONFIG_SFS_SIM_R_MOHM, CONFIG_SFS_SIM_L_UH, CONFIG_SFS_SIM_KT_UNM_PER_A,
-		CONFIG_SFS_SIM_INERTIA_G_MM2, CONFIG_SFS_SIM_VBUS_MV, CONFIG_SFS_SIM_SUBSTEPS);
+	LOG_INF("model %s: R %d mOhm, L %d uH, Kt %d uNm/A, J %d g*mm^2, Vbus %u mV, "
+		"leg error %s, %u RK4 step(s)",
+		SSTEP_PLANT_PARAM_MOTOR_NAME, (int)lroundf(motor.r * 1e3f),
+		(int)lroundf(motor.l * 1e6f), (int)lroundf(motor.kt * 1e6f),
+		(int)lroundf(motor.j * 1e9f), CONFIG_SFS_SIM_VBUS_MV,
+		(stage.leg_error_n > 0U) ? "on" : "off", CONFIG_SFS_SIM_SUBSTEPS);
+	if ((int)SSTEP_PLANT_PARAM_NS != CONFIG_SFS_MOTOR_FULL_STEPS_PER_REV) {
+		LOG_WRN("model has %d full steps per revolution, the controller %d",
+			(int)SSTEP_PLANT_PARAM_NS, CONFIG_SFS_MOTOR_FULL_STEPS_PER_REV);
+	}
+	if ((stage.leg_error_n > 0U) &&
+	    (off_by_more_than(stage.vbus, (float)SSTEP_PLANT_PARAM_STAGE_VBUS, 0.05f) ||
+	     off_by_more_than(stage.fs, (float)SSTEP_PLANT_PARAM_STAGE_FS, 0.05f))) {
+		LOG_WRN("leg error table measured at %d mV / %d Hz, model runs at %u mV / %u Hz",
+			(int)(SSTEP_PLANT_PARAM_STAGE_VBUS * 1000), (int)SSTEP_PLANT_PARAM_STAGE_FS,
+			CONFIG_SFS_SIM_VBUS_MV, info->pwm_freq_hz);
+	}
 
 #if CONFIG_SFS_SIM_LOG_PERIOD_MS > 0
 	(void)k_work_schedule(&log_work, K_MSEC(CONFIG_SFS_SIM_LOG_PERIOD_MS));
