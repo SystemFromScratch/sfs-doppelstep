@@ -5,9 +5,9 @@
 
 if(CONFIG_SSTEP)
 
-  # <topdir>/doppelstep/modules/stepper-c/zephyr -> <topdir>/modules/lib/stepper-c
+  # <topdir>/doppelstep/apps/modules/stepper-c/zephyr -> <topdir>/modules/lib/stepper-c
   get_filename_component(sstep_default_dir
-    "${CMAKE_CURRENT_LIST_DIR}/../../../../modules/lib/stepper-c" ABSOLUTE)
+    "${CMAKE_CURRENT_LIST_DIR}/../../../../../modules/lib/stepper-c" ABSOLUTE)
   set(SSTEP_SOURCE_DIR "${sstep_default_dir}" CACHE PATH "Stepper-C source tree")
 
   if(NOT EXISTS "${SSTEP_SOURCE_DIR}/sstep.cmake")

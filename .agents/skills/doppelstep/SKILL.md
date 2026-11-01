@@ -7,9 +7,14 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
 
 ## 1. What the repository is
 
-- West manifest repository **and** Zephyr application (`app/`), out-of-tree
-  board (`boards/st/b_g431b_esc1`), devicetree bindings (`dts/bindings`) and the
-  Zephyr module glue of three libraries (`modules/`).
+- West manifest repository. Everything Zephyr lives in `apps/`: the
+  application (`apps/doppelstep/`), the out-of-tree board
+  (`apps/boards/st/b_g431b_esc1`), devicetree bindings (`apps/dts/bindings`)
+  and the Zephyr module glue of three libraries (`apps/modules/`). `apps/` is
+  the `BOARD_ROOT`/`DTS_ROOT` shared by every application under it.
+- Host side of the repository: `tools/gui/` (GUI, planned; entry point
+  `tools/gui/doppelstep_gui.py`, `--sim`), `tools/docs/` + `mkdocs.yml` +
+  `docs/` (MkDocs site and PDF manual), `requirements.txt` (host Python).
 - Target: B-G431B-ESC1, STM32G431CBU6, Cortex-M4F at 170 MHz.
 - Libraries (west projects, no `zephyr/module.yml` of their own):
   Stepper-C (`modules/lib/stepper-c`, pinned **v1.0.0**),
@@ -31,6 +36,12 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
   (tags: the libraries' version scripts use `git describe`).
 - SEGGER J-Link Software is never downloaded by the build or committed: only a
   user-provided `docker/jlink/JLink_Linux_V*_x86_64.tgz` is installed.
+- VS Code tasks (`.vscode/tasks.json`) have a Linux command
+  (`.vscode/workspace-menu.sh`, Dev Container or Linux host) and a `windows`
+  override (`.vscode/host-menu.ps1`); both take the same action names. On the
+  Windows host Zephyr runs in Docker (`docker compose run --rm zephyr bash
+  .vscode/workspace-menu.sh "<action>"`). Add a new action to both scripts and
+  to the `pickString` inputs, or document why it exists on one platform only.
 - Two debug modes, keep both working:
   - A: probe in the container (usbipd-win → WSL 2, `.devcontainer/usb-passthrough`):
     `west flash|debug|debugserver|attach|rtt -r openocd|jlink`.
@@ -40,20 +51,21 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
 ## 3. Build
 
 ```bash
-west build -b b_g431b_esc1 -s app -d build            # default
-west build -p always -b b_g431b_esc1 -s app -d build  # after Kconfig/DT/west.yml/toolchain changes
+west build -b b_g431b_esc1 -s apps/doppelstep -d build            # default
+west build -p always -b b_g431b_esc1 -s apps/doppelstep -d build  # after Kconfig/DT/west.yml/toolchain changes
 ```
 
 - Deliverable: `build/zephyr/zephyr.elf` (also `.hex`, `.bin`).
 - The build must stay free of warnings (including deprecation warnings).
-- `app/CMakeLists.txt` adds `BOARD_ROOT`, `DTS_ROOT` and `EXTRA_ZEPHYR_MODULES`;
+- `apps/doppelstep/CMakeLists.txt` adds `BOARD_ROOT`, `DTS_ROOT` and `EXTRA_ZEPHYR_MODULES`;
   do not replace that with environment variables.
 
-## 4. Module glue rules (`modules/*/zephyr`)
+## 4. Module glue rules (`apps/modules/*/zephyr`)
 
 - The libraries are built with their **own** CMake entry points
   (`sstep.cmake`, `x430.cmake` → `dxl2.cmake`); do not copy their source lists.
 - Library paths default to `<topdir>/modules/lib/<name>` relative to the glue
+  (five levels up from `apps/modules/<name>/zephyr`)
   (`SSTEP_SOURCE_DIR`, `X430_SOURCE_DIR`, `DXL2_SOURCE_DIR` cache overrides).
 - `list(PREPEND CMAKE_MODULE_PATH <lib>/cmake)` before including a library:
   Zephyr has its own `version.cmake`.
@@ -71,7 +83,7 @@ west build -p always -b b_g431b_esc1 -s app -d build  # after Kconfig/DT/west.ym
 ## 5. Board and hardware facts
 
 - Source of truth for pins: UM2516 Rev 4, Table 4 (copied into the board DTS
-  and `boards/st/b_g431b_esc1/doc/index.rst`). Do not invent pins, channels,
+  and `apps/boards/st/b_g431b_esc1/doc/index.rst`). Do not invent pins, channels,
   clock values or analog parameters; ask when a value is not documented.
 - HSE 8 MHz → PLL M=2 N=85 R=2 → 170 MHz.
 - PWM: TIM1 CH1/CH1N (PA8/PC13) = U, CH2/CH2N (PA9/PA12) = V, CH3/CH3N
@@ -103,7 +115,7 @@ west build -p always -b b_g431b_esc1 -s app -d build  # after Kconfig/DT/west.ym
 
 ## 7. DYNAMIXEL mapping rules
 
-- Conversions live in `app/src/joint.c` (pure functions, host-testable): 4096
+- Conversions live in `apps/doppelstep/src/joint.c` (pure functions, host-testable): 4096
   pulse/rev, 0.229 rev/min, 214.577 rev/min², 2.69 mA, time-based profile in ms.
 - Supported Operating Modes: 1, 3, 4. Others are refused with Data Range Error.
 - Present Position = commanded position + start position (2048) + Homing Offset;
@@ -115,14 +127,16 @@ west build -p always -b b_g431b_esc1 -s app -d build  # after Kconfig/DT/west.ym
 
 ## 8. Change procedure
 
-1. Read `west.yml`, `Dockerfile`, `app/prj.conf`, `app/Kconfig`, the board DTS
-   and `app/boards/b_g431b_esc1.overlay` before changing behaviour.
+1. Read `west.yml`, `Dockerfile`, `apps/doppelstep/prj.conf`,
+   `apps/doppelstep/Kconfig`, the board DTS and
+   `apps/doppelstep/boards/b_g431b_esc1.overlay` before changing behaviour.
 2. Keep versions pinned (Zephyr tag, Stepper-C tag, SDK, west, pip packages).
-3. Smallest change; Zephyr coding style (tabs, 100 columns) in `app/`.
+3. Smallest change; Zephyr coding style (tabs, 100 columns) in `apps/`.
 4. Pristine build, no warnings, `zephyr.elf` produced.
 5. Hardware-dependent changes: say which bring-up step (README) re-validates them.
-6. Update `README.md` (human usage) and this skill (rules) when the workflow or
-   architecture changes.
+6. Update `README.md` (human usage), `docs/` (MkDocs site and PDF manual) and
+   this skill (rules) when the workflow or architecture changes; `mkdocs build`
+   is strict and must pass.
 
 ## 9. Definition of done
 

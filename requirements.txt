@@ -1,0 +1,33 @@
+# Host-side Python tools of Doppelstep: the GUI (tools/gui) and the
+# documentation with its PDF manual (mkdocs.yml, tools/docs). The firmware does
+# not need them; its toolchain lives in the Docker image (Dockerfile).
+#
+# The VS Code tasks create the environment on first use:
+#   Windows host:              .venv        (.vscode/host-menu.ps1)
+#   Linux / Dev Container:     .venv, or .venv-linux when .venv is a Windows
+#                              environment in the bind-mounted folder
+#                              (.vscode/workspace-menu.sh)
+#
+# By hand:
+#   Windows (PowerShell):  py -3 -m venv .venv
+#                          .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+#   Linux:                 python3 -m venv .venv
+#                          .venv/bin/python -m pip install -r requirements.txt
+#                          .venv/bin/python -m playwright install chromium
+#
+# Tkinter (GUI) is part of Python and cannot be installed with pip: it is in
+# the python.org Windows installer ("tcl/tk and IDLE"); on Debian/Ubuntu install
+# python3-tk and python3-venv with apt.
+
+# tools/gui - serial link to the DYNAMIXEL bus (Protocol 2.0)
+pyserial==3.5
+
+# Documentation (HTML site and PDF manual). MkDocs 2.0 removes the plugin
+# system used by the theme and by print-site.
+mkdocs>=1.6,<2
+mkdocs-material>=9.5,<10
+mkdocs-print-site-plugin>=2.6,<3
+# PDF rendering: Chromium through Playwright (Linux: python -m playwright
+# install chromium; Windows uses the installed Microsoft Edge).
+playwright>=1.45
+pypdf>=4.0

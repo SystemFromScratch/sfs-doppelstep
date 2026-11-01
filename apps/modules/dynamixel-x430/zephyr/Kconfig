@@ -13,7 +13,7 @@ menuconfig SFS_DYNAMIXEL_X430
 
 if SFS_DYNAMIXEL_X430
 
-# <topdir>/doppelstep/modules/dynamixel-x430/zephyr -> <topdir>/modules/lib/dynamixel-x430
-rsource "../../../../modules/lib/dynamixel-x430/Kconfig.x430"
+# <topdir>/doppelstep/apps/modules/dynamixel-x430/zephyr -> <topdir>/modules/lib/dynamixel-x430
+rsource "../../../../../modules/lib/dynamixel-x430/Kconfig.x430"
 
 endif # SFS_DYNAMIXEL_X430

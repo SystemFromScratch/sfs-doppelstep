@@ -4,6 +4,7 @@
     "C_Cpp.default.intelliSenseMode": "linux-gcc-arm",
 
     "cmake.configureOnOpen": false,
+    "cmake.sourceDirectory": "${workspaceFolder}/apps/doppelstep",
     "cmake.buildDirectory": "${workspaceFolder}/build",
 
     "cortex-debug.armToolchainPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin",
@@ -27,6 +28,16 @@
 
     "search.exclude": {
         "**/build": true,
-        "**/.ccache": true
-    }
+        "**/.ccache": true,
+        "site": true,
+        ".venv": true,
+        ".venv-linux": true
+    },
+
+    // mkdocs.yml uses the !ENV and !!python/name tags of MkDocs.
+    "yaml.customTags": [
+        "!ENV scalar",
+        "!ENV sequence",
+        "tag:yaml.org,2002:python/name:pymdownx.superfences.fence_code_format"
+    ]
 }

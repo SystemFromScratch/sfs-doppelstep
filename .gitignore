@@ -4,6 +4,9 @@
 **/build-*/
 /twister-out*/
 
+# Documentation build output (mkdocs build, tools/docs/build_pdf.py)
+/site/
+
 # Build caches
 /.ccache/
 **/.cache/
@@ -14,10 +17,13 @@
 
 # Python environments and generated files
 .venv/
+.venv-linux/
 venv/
 env/
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.ruff_cache/
 
 # CMake-generated files outside build directories
 /CMakeFiles/

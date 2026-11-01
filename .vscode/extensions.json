@@ -4,6 +4,8 @@
         "ms-vscode.cpptools",
         "marus25.cortex-debug",
         "trond-snekvik.devicetree",
-        "trond-snekvik.kconfig-lang"
+        "trond-snekvik.kconfig-lang",
+        "ms-python.python",
+        "redhat.vscode-yaml"
     ]
 }

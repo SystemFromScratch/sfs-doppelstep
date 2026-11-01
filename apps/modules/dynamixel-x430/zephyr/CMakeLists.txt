@@ -12,9 +12,9 @@
 if(CONFIG_SFS_DYNAMIXEL_X430)
 
   get_filename_component(x430_default_dir
-    "${CMAKE_CURRENT_LIST_DIR}/../../../../modules/lib/dynamixel-x430" ABSOLUTE)
+    "${CMAKE_CURRENT_LIST_DIR}/../../../../../modules/lib/dynamixel-x430" ABSOLUTE)
   get_filename_component(dxl2_default_dir
-    "${CMAKE_CURRENT_LIST_DIR}/../../../../modules/lib/dxl2-c" ABSOLUTE)
+    "${CMAKE_CURRENT_LIST_DIR}/../../../../../modules/lib/dxl2-c" ABSOLUTE)
   set(X430_SOURCE_DIR "${x430_default_dir}" CACHE PATH "DYNAMIXEL-X430 emulator source tree")
   set(DXL2_SOURCE_DIR "${dxl2_default_dir}" CACHE PATH "DXL2-C source tree")
 

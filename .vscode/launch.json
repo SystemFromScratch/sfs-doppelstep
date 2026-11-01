@@ -16,7 +16,7 @@
                 "/opt/zephyr-sdk/hosttools/sysroots/x86_64-pokysdk-linux/usr/share/openocd/scripts"
             ],
             "configFiles": [
-                "${workspaceFolder}/boards/st/b_g431b_esc1/support/openocd.cfg"
+                "${workspaceFolder}/apps/boards/st/b_g431b_esc1/support/openocd.cfg"
             ],
             "rtos": "Zephyr",
             "preLaunchTask": "Zephyr: Build"

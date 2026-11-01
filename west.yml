@@ -5,7 +5,7 @@
 # Layout after `west init -l` + `west update` (topdir = parent of this repo):
 #
 #   <topdir>/
-#   ├── doppelstep/                this repository (manifest, app, board, wrappers)
+#   ├── doppelstep/                this repository (manifest; Zephyr app, board, module glue in apps/)
 #   ├── zephyr/                    Zephyr RTOS
 #   └── modules/
 #       ├── hal/stm32, hal/cmsis_6 HAL modules imported from zephyr/west.yml
@@ -16,7 +16,8 @@
 #           └── dxl2-c             DXL2-C, used by the X430 emulator (offline build)
 #
 # Stepper-C, DYNAMIXEL-X430 and DXL2-C carry no zephyr/module.yml; the Zephyr
-# module glue lives in this repository under modules/ (see app/CMakeLists.txt).
+# module glue lives in this repository under apps/modules/
+# (see apps/doppelstep/CMakeLists.txt).
 
 manifest:
   version: "1.2"

@@ -5,8 +5,9 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
-# Repository root: out-of-tree board (boards/), devicetree bindings
-# (dts/bindings/) and the Zephyr module glue of the libraries (modules/).
+# Zephyr root of the repository (apps/): out-of-tree board (apps/boards/),
+# devicetree bindings (apps/dts/bindings/) and the Zephyr module glue of the
+# libraries (apps/modules/), shared by every application under apps/.
 get_filename_component(SFS_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
 list(APPEND BOARD_ROOT "${SFS_ROOT}")

@@ -1,237 +1,165 @@
 {
+    // Every task runs on Linux (Dev Container or Linux host) through
+    // .vscode/workspace-menu.sh and on the Windows host through
+    // .vscode/host-menu.ps1; both take the same action names. On Windows,
+    // Zephyr runs in the Docker image (compose.yaml) and the debug probe tools
+    // come from the host. See docs/development.md.
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Zephyr: Workspace Menu",
+            "label": "Workspace Menu",
+            "detail": "Pick a Zephyr, debug probe, GUI or documentation action",
             "type": "process",
             "command": "bash",
-            "args": [
-                "-lc",
-                "case \"${input:zephyrAction}\" in\n  'Initialize + update') bash scripts/west-init.sh ;;\n  'Build firmware') west build -b b_g431b_esc1 -s app -d build ;;\n  'Pristine build') west build -p always -b b_g431b_esc1 -s app -d build ;;\n  'Menuconfig') west build -d build -t menuconfig ;;\n  'Flash (OpenOCD, ST-LINK)') west flash -d build -r openocd ;;\n  'Flash (J-Link)') west flash -d build -r jlink ;;\n  'RTT log (OpenOCD)') west rtt -d build -r openocd ;;\n  'RTT log (J-Link)') west rtt -d build -r jlink ;;\nesac"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
+            "args": [".vscode/workspace-menu.sh", "${input:linuxAction}"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "${input:windowsAction}"]
             },
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": { "kind": "build", "isDefault": true },
             "problemMatcher": []
         },
         {
             "label": "Zephyr: West Init/Update",
-            "type": "shell",
+            "detail": "west init -l + west update (Windows: in Docker)",
+            "type": "process",
             "command": "bash",
-            "args": [
-                "scripts/west-init.sh"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
+            "args": [".vscode/workspace-menu.sh", "Initialize + update"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Initialize + update"]
             },
+            "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },
         {
             "label": "Zephyr: Build",
-            "type": "shell",
-            "command": "west",
-            "args": [
-                "build",
-                "-b",
-                "b_g431b_esc1",
-                "-s",
-                "app",
-                "-d",
-                "build"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
+            "detail": "west build -b b_g431b_esc1 -s apps/doppelstep -d build (Windows: in Docker)",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Build firmware"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Build firmware"]
             },
-            "problemMatcher": [
-                "$gcc"
-            ]
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "build",
+            "problemMatcher": ["$gcc"]
         },
         {
             "label": "Zephyr: Pristine Build",
-            "type": "shell",
-            "command": "west",
-            "args": [
-                "build",
-                "-p",
-                "always",
-                "-b",
-                "b_g431b_esc1",
-                "-s",
-                "app",
-                "-d",
-                "build"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
+            "detail": "west build -p always ... (Windows: in Docker)",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Pristine build"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Pristine build"]
             },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "group": "build"
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "build",
+            "problemMatcher": ["$gcc"]
         },
         {
             "label": "Zephyr: Clean",
-            "type": "shell",
-            "command": "rm",
-            "args": [
-                "-rf",
-                "build"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
+            "detail": "Remove build/",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Clean"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Clean"]
             },
-            "problemMatcher": []
-        },
-        {
-            "label": "Zephyr: Menuconfig",
-            "type": "shell",
-            "command": "west",
-            "args": [
-                "build",
-                "-d",
-                "build",
-                "-t",
-                "menuconfig"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
+            "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },
         {
             "label": "Zephyr: Flash (OpenOCD, ST-LINK)",
-            "type": "shell",
-            "command": "west",
-            "args": [
-                "flash",
-                "-d",
-                "build",
-                "-r",
-                "openocd"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
+            "detail": "west flash -r openocd (Windows: OpenOCD installed on the host)",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Flash (OpenOCD, ST-LINK)"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Flash (host OpenOCD, ST-LINK)"]
             },
+            "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },
         {
-            "label": "Zephyr: Flash (J-Link)",
-            "type": "shell",
-            "command": "west",
-            "args": [
-                "flash",
-                "-d",
-                "build",
-                "-r",
-                "jlink"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
+            "label": "Python: Create .venv",
+            "detail": "Virtual environment with requirements.txt (GUI, documentation)",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Create .venv"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Create .venv"]
             },
+            "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },
         {
-            "label": "Zephyr: Debug server (OpenOCD, ST-LINK)",
-            "type": "shell",
-            "command": "west",
-            "args": [
-                "debugserver",
-                "-d",
-                "build",
-                "-r",
-                "openocd"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
+            "label": "GUI: Run",
+            "detail": "tools/gui/doppelstep_gui.py on a serial port",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Run GUI"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Run GUI"]
             },
-            "problemMatcher": [],
-            "isBackground": true
-        },
-        {
-            "label": "Zephyr: Debug server (J-Link)",
-            "type": "shell",
-            "command": "west",
-            "args": [
-                "debugserver",
-                "-d",
-                "build",
-                "-r",
-                "jlink"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": [],
-            "isBackground": true
-        },
-        {
-            "label": "Zephyr: RTT log (OpenOCD)",
-            "type": "shell",
-            "command": "west",
-            "args": [
-                "rtt",
-                "-d",
-                "build",
-                "-r",
-                "openocd"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": [],
-            "isBackground": true
-        },
-        {
-            "label": "Zephyr: RTT log (J-Link)",
-            "type": "shell",
-            "command": "west",
-            "args": [
-                "rtt",
-                "-d",
-                "build",
-                "-r",
-                "jlink"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": [],
-            "isBackground": true
-        },
-        {
-            "label": "Zephyr: Ccache Stats",
-            "type": "shell",
-            "command": "ccache",
-            "args": [
-                "--show-stats"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
+            "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },
         {
-            "label": "Zephyr: Ccache Clear",
-            "type": "shell",
-            "command": "ccache",
-            "args": [
-                "--clear"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
+            "label": "GUI: Run (simulator)",
+            "detail": "tools/gui/doppelstep_gui.py --sim, no hardware",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Run GUI (simulator)"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Run GUI (simulator)"]
             },
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Docs: Serve",
+            "detail": "mkdocs serve on http://127.0.0.1:8000",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Serve documentation"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Serve documentation"]
+            },
+            "options": { "cwd": "${workspaceFolder}" },
+            "isBackground": true,
+            "problemMatcher": []
+        },
+        {
+            "label": "Docs: Build PDF",
+            "detail": "MkDocs + Chromium/Edge -> site/Doppelstep.pdf",
+            "type": "process",
+            "command": "bash",
+            "args": [".vscode/workspace-menu.sh", "Build PDF documentation"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Build PDF documentation"]
+            },
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "build",
             "problemMatcher": []
         }
     ],
     "inputs": [
         {
-            "id": "zephyrAction",
+            "id": "linuxAction",
             "type": "pickString",
-            "description": "Choose a west action",
+            "description": "Linux / Dev Container action",
             "options": [
                 "Initialize + update",
                 "Build firmware",
@@ -239,8 +167,39 @@
                 "Menuconfig",
                 "Flash (OpenOCD, ST-LINK)",
                 "Flash (J-Link)",
+                "Debug server (OpenOCD, ST-LINK)",
+                "Debug server (J-Link)",
                 "RTT log (OpenOCD)",
-                "RTT log (J-Link)"
+                "RTT log (J-Link)",
+                "Clean",
+                "Ccache stats",
+                "Ccache clear",
+                "Create .venv",
+                "Run GUI",
+                "Run GUI (simulator)",
+                "Serve documentation",
+                "Build PDF documentation"
+            ]
+        },
+        {
+            "id": "windowsAction",
+            "type": "pickString",
+            "description": "Windows host action (Zephyr in Docker, probe tools on the host)",
+            "options": [
+                "Initialize + update",
+                "Build firmware",
+                "Pristine build",
+                "Clean",
+                "Flash (host OpenOCD, ST-LINK)",
+                "GDB server (host OpenOCD, ST-LINK)",
+                "GDB server + RTT (host OpenOCD, ST-LINK)",
+                "GDB server (host J-Link)",
+                "J-Link Remote Server (host)",
+                "Create .venv",
+                "Run GUI",
+                "Run GUI (simulator)",
+                "Serve documentation",
+                "Build PDF documentation"
             ]
         }
     ]

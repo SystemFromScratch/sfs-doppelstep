@@ -20,7 +20,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repo = Resolve-Path (Join-Path $PSScriptRoot "..\..")
-$cfg = Join-Path $repo "boards\st\b_g431b_esc1\support\openocd.cfg"
+$cfg = Join-Path $repo "apps\boards\st\b_g431b_esc1\support\openocd.cfg"
 
 $arguments = @(
     "-f", $cfg,
@@ -30,7 +30,7 @@ $arguments = @(
     "-c", "gdb_port $GdbPort",
     "-c", "telnet_port $TelnetPort",
     "-c", "tcl_port disabled",
-    # Thread awareness (CONFIG_DEBUG_THREAD_INFO=y in app/prj.conf)
+    # Thread awareness (CONFIG_DEBUG_THREAD_INFO=y in apps/doppelstep/prj.conf)
     "-c", '$_TARGETNAME configure -rtos Zephyr'
 )
 

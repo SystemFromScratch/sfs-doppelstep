@@ -30,11 +30,14 @@ this repository.
 - [Tool and dependency versions](#tool-and-dependency-versions)
 - [Hardware](#hardware)
 - [Environment setup](#environment-setup)
+- [VS Code tasks (Windows and Linux)](#vs-code-tasks-windows-and-linux)
 - [Building](#building)
 - [Flashing and debugging](#flashing-and-debugging)
 - [Logs (RTT)](#logs-rtt)
 - [DYNAMIXEL emulation](#dynamixel-emulation)
 - [Configuration](#configuration)
+- [GUI](#gui)
+- [Documentation and PDF manual](#documentation-and-pdf-manual)
 - [Bring-up checklist](#bring-up-checklist)
 - [Open items](#open-items)
 - [Naming](#naming)
@@ -84,26 +87,31 @@ this repository.
 ```text
 doppelstep/                             west manifest repository (this repo)
 ├── west.yml                            Zephyr v4.5.0, Stepper-C v1.0.0, X430 emulator (main), DXL2-C v1.0.0
-├── app/                                Zephyr application
-│   ├── CMakeLists.txt                  BOARD_ROOT, DTS_ROOT, EXTRA_ZEPHYR_MODULES
-│   ├── Kconfig                         motor, power stage, control, DYNAMIXEL options
-│   ├── prj.conf
-│   ├── boards/b_g431b_esc1.overlay     power stage node, DYNAMIXEL UART (1 Mbps)
-│   └── src/
-│       ├── main.c                      startup, STATUS LED
-│       ├── power_stage.[ch]            TIM1 + ADC1/ADC2 (LL) + OPAMPs, fast-loop ISR
-│       ├── motor.[ch]                  Stepper-C instance, slow-loop thread, commands
-│       ├── dxl_bus.[ch]                UART, X430 bus/device, hooks, events
-│       ├── joint.[ch]                  microsteps <-> DYNAMIXEL units, profiles
-│       └── nvm.[ch]                    EEPROM area / backup in flash (NVS)
-├── boards/st/b_g431b_esc1/             out-of-tree board (not in Zephyr 4.5)
-│   ├── b_g431b_esc1.dts                pinout from UM2516 Table 4, 170 MHz from 8 MHz HSE
-│   ├── board.cmake                     runners: openocd (default), jlink, stm32cubeprogrammer, pyocd
-│   └── support/openocd.cfg             ST-LINK/V2-1, STM32G4
-├── dts/bindings/sfs/                   sfs,stm32-shared-leg-power-stage
-├── modules/                            Zephyr module glue for the libraries (workspace side)
-│   ├── stepper-c/zephyr/               module.yml, Kconfig (CONFIG_SSTEP_*), CMakeLists.txt
-│   └── dynamixel-x430/zephyr/          module.yml, Kconfig (sources Kconfig.x430), CMakeLists.txt
+├── apps/                               everything Zephyr; BOARD_ROOT and DTS_ROOT of the applications
+│   ├── doppelstep/                     Zephyr application (west build -s apps/doppelstep)
+│   │   ├── CMakeLists.txt              BOARD_ROOT, DTS_ROOT, EXTRA_ZEPHYR_MODULES
+│   │   ├── Kconfig                     motor, power stage, control, DYNAMIXEL options
+│   │   ├── prj.conf
+│   │   ├── boards/b_g431b_esc1.overlay power stage node, DYNAMIXEL UART (1 Mbps)
+│   │   └── src/
+│   │       ├── main.c                  startup, STATUS LED
+│   │       ├── power_stage.[ch]        TIM1 + ADC1/ADC2 (LL) + OPAMPs, fast-loop ISR
+│   │       ├── motor.[ch]              Stepper-C instance, slow-loop thread, commands
+│   │       ├── dxl_bus.[ch]            UART, X430 bus/device, hooks, events
+│   │       ├── joint.[ch]              microsteps <-> DYNAMIXEL units, profiles
+│   │       └── nvm.[ch]                EEPROM area / backup in flash (NVS)
+│   ├── boards/st/b_g431b_esc1/         out-of-tree board (not in Zephyr 4.5)
+│   │   ├── b_g431b_esc1.dts            pinout from UM2516 Table 4, 170 MHz from 8 MHz HSE
+│   │   ├── board.cmake                 runners: openocd (default), jlink, stm32cubeprogrammer, pyocd
+│   │   └── support/openocd.cfg         ST-LINK/V2-1, STM32G4
+│   ├── dts/bindings/sfs/               sfs,stm32-shared-leg-power-stage
+│   └── modules/                        Zephyr module glue for the libraries (workspace side)
+│       ├── stepper-c/zephyr/           module.yml, Kconfig (CONFIG_SSTEP_*), CMakeLists.txt
+│       └── dynamixel-x430/zephyr/      module.yml, Kconfig (sources Kconfig.x430), CMakeLists.txt
+├── tools/
+│   ├── gui/                            host GUI (planned, see tools/gui/README.md)
+│   └── docs/                           PDF manual builder, MkDocs hooks, cover page
+├── docs/                               MkDocs sources (index, development, GUI, NAMING.md)
 ├── scripts/
 │   ├── west-init.sh                    west init -l + west update (in the container)
 │   └── host/                           GDB servers on the Windows host (OpenOCD, J-Link)
@@ -111,9 +119,13 @@ doppelstep/                             west manifest repository (this repo)
 ├── .devcontainer/
 │   ├── devcontainer.json               default: GDB server on the host (mode B)
 │   └── usb-passthrough/devcontainer.json  probe in the container via usbipd (mode A)
-├── .vscode/                            tasks (west menu), Cortex-Debug launch configurations
-├── docs/NAMING.md                   where the name Doppelstep comes from
-├── .agents/skills/doppelstep/      engineering rules for agents
+├── .vscode/
+│   ├── tasks.json                      tasks for Linux/Dev Container and the Windows host
+│   ├── workspace-menu.sh               Linux / Dev Container actions
+│   ├── host-menu.ps1                   Windows host actions
+│   └── launch.json                     Cortex-Debug configurations
+├── .agents/skills/doppelstep/          engineering rules for agents
+├── mkdocs.yml, requirements.txt        documentation, PDF manual, host Python tools
 ├── Dockerfile, compose.yaml
 └── LICENSE (Apache-2.0)
 ```
@@ -152,7 +164,7 @@ container rebuilds); only this repository and `build/` live in the Windows folde
 | Stepper-C | **v1.0.0** | `west.yml` |
 | DYNAMIXEL-X430 emulator | `main` (until its first release) | `west.yml` |
 | DXL2-C | v1.0.0 (= `X430_DXL2_GIT_TAG` of the emulator) | `west.yml` |
-| Board | `b_g431b_esc1` (this repository) | `boards/` |
+| Board | `b_g431b_esc1` (this repository) | `apps/boards/` |
 
 The X430 emulator normally downloads DXL2-C with CMake FetchContent; the module
 glue points `FETCHCONTENT_SOURCE_DIR_DXL2` at the west project instead, so a
@@ -166,7 +178,7 @@ build needs no network access. It warns when the `dxl2-c` revision in
 B-G431B-ESC1: STM32G431CBU6 (Cortex-M4F, 170 MHz, 128 KiB flash, 32 KiB SRAM),
 L6387 gate drivers, STL180N6F7 MOSFETs, three 3 mΩ low-side shunts on the
 internal OPAMPs, detachable ST-LINK/V2-1. Pinout: UM2516 Rev 4, Table 4
-(see `boards/st/b_g431b_esc1/doc/index.rst`).
+(see `apps/boards/st/b_g431b_esc1/doc/index.rst`).
 
 **Motor wiring (Stepper-C shared-leg topology):**
 
@@ -214,6 +226,10 @@ The first start runs `scripts/west-init.sh`: `west init -l` and
 volume (a few minutes). Run it again (task **Zephyr: West Init/Update**) after
 changing `west.yml`.
 
+Without the Dev Container, the VS Code tasks also work on the Windows host
+(Zephyr in Docker, probe tools on Windows) and on a Linux host — see
+[VS Code tasks](#vs-code-tasks-windows-and-linux).
+
 ### Mode A: USB probe in the container (usbipd-win)
 
 ```powershell
@@ -248,16 +264,44 @@ docker compose --profile usb run --rm zephyr-usb     # shell with the USB probe
 
 ---
 
+## VS Code tasks (Windows and Linux)
+
+Every task in `.vscode/tasks.json` has a Linux command (Dev Container or Linux
+host, `.vscode/workspace-menu.sh`) and a `windows` override (Windows host,
+`.vscode/host-menu.ps1`); both scripts take the same action names.
+
+| Where VS Code runs | Zephyr (`west`) | Debug probe | GUI, documentation |
+|---|---|---|---|
+| Dev Container | in the container | mode A or B | `.venv` / `.venv-linux` |
+| Linux host | native `west`, or the Docker image when `west` is missing | native tools or `zephyr-usb` service | `.venv` |
+| Windows host | Docker image (`docker compose run --rm zephyr`) | OpenOCD / J-Link on Windows (`scripts/host/`) | `.venv` |
+
+| Task | What it does |
+|---|---|
+| **Workspace Menu** (`Ctrl+Shift+B`) | every action of the current platform |
+| Zephyr: West Init/Update, Build, Pristine Build, Clean | west workspace and firmware (`build/`) |
+| Zephyr: Flash (OpenOCD, ST-LINK) | Linux: `west flash -r openocd`; Windows: host OpenOCD |
+| Python: Create .venv | virtual environment with `requirements.txt` |
+| GUI: Run, GUI: Run (simulator) | `tools/gui/doppelstep_gui.py [--sim]` |
+| Docs: Serve, Docs: Build PDF | `mkdocs serve`, `site/Doppelstep.pdf` |
+
+Linux menu only: menuconfig, J-Link flash, debug servers, RTT logs, ccache.
+Windows menu only: host GDB servers (OpenOCD with or without RTT, J-Link) and
+the J-Link Remote Server. Details: [docs/development.md](docs/development.md).
+
+---
+
 ## Building
 
 ```bash
-west build -b b_g431b_esc1 -s app -d build               # incremental
-west build -p always -b b_g431b_esc1 -s app -d build     # pristine
-west build -d build -t menuconfig                        # Kconfig
+west build -b b_g431b_esc1 -s apps/doppelstep -d build              # incremental
+west build -p always -b b_g431b_esc1 -s apps/doppelstep -d build    # pristine
+west build -d build -t menuconfig                                   # Kconfig
 ```
 
-`Ctrl+Shift+B` opens the **Zephyr: Workspace Menu** (initialize/update, build,
-pristine build, menuconfig, flash, RTT).
+`Ctrl+Shift+B` opens the **Workspace Menu** (initialize/update, build,
+pristine build, menuconfig, flash, RTT, GUI, documentation); see
+[VS Code tasks](#vs-code-tasks-windows-and-linux).
 
 Artifacts in `build/zephyr/`: **`zephyr.elf`** (debugging), `zephyr.hex`,
 `zephyr.bin`. Current size: about 70 KiB flash of the 124 KiB code partition,
@@ -282,7 +326,7 @@ west debugserver  -d build -r jlink       # GDB server on :2331
 west attach       -d build -r openocd|jlink
 ```
 
-The openocd runner uses `boards/st/b_g431b_esc1/support/openocd.cfg` and the
+The openocd runner uses `apps/boards/st/b_g431b_esc1/support/openocd.cfg` and the
 OpenOCD of the Zephyr SDK (Zephyr thread awareness). In mode B the J-Link runner
 in the container can still reach the probe through `scripts/host/jlink-remote-server.ps1`
 (`--dev-id <host IP> --dev-id-type ip`); this path is not yet verified with the
@@ -341,7 +385,7 @@ Sync/Bulk Read, Bus Watchdog …); the firmware maps the registers onto Stepper-
 | CLEAR (multi-turn) | position redefined within one turn |
 | Baud Rate (8) | USART2 reconfigured after the status packet |
 
-Unit conversions (`app/src/joint.c`): 4096 pulses per joint revolution,
+Unit conversions (`apps/doppelstep/src/joint.c`): 4096 pulses per joint revolution,
 0.229 rev/min, 214.577 rev/min², 2.69 mA; 3200 microsteps per motor revolution
 (200 × 16), gear ratio `CONFIG_SFS_DXL_GEAR_MOTOR_REVS / CONFIG_SFS_DXL_GEAR_JOINT_REVS`
 (1/1).
@@ -371,11 +415,36 @@ host sees one joint; set `CONFIG_SFS_DXL_ID` to the joint's ID (for example
 
 | What | Where |
 |---|---|
-| Motor (R, L, rated current, Ke, steps), stage limits, control (microsteps, bandwidth, currents, v_max, accel) | `app/Kconfig` (defaults: Stepper-C documentation, 17HS19-2004S1 on B-G431B-ESC1) |
-| PWM frequency, dead time, ADC channels, shunt, amplifier gain, VBUS divider | `app/boards/b_g431b_esc1.overlay` (power-stage node) |
-| Stepper-C build options (backend FLOAT, topologies, sine table) | `CONFIG_SSTEP_*` (`modules/stepper-c/zephyr/Kconfig`) |
+| Motor (R, L, rated current, Ke, steps), stage limits, control (microsteps, bandwidth, currents, v_max, accel) | `apps/doppelstep/Kconfig` (defaults: Stepper-C documentation, 17HS19-2004S1 on B-G431B-ESC1) |
+| PWM frequency, dead time, ADC channels, shunt, amplifier gain, VBUS divider | `apps/doppelstep/boards/b_g431b_esc1.overlay` (power-stage node) |
+| Stepper-C build options (backend FLOAT, topologies, sine table) | `CONFIG_SSTEP_*` (`apps/modules/stepper-c/zephyr/Kconfig`) |
 | X430 model, devices per bus, protocol features | `CONFIG_X430_*` (Kconfig.x430 of the emulator) |
 | DYNAMIXEL ID, factory baud, start position, gear | `CONFIG_SFS_DXL_*` |
+
+---
+
+## GUI
+
+A host-side desktop GUI (Control Table access, motion, live registers over
+the DYNAMIXEL bus) is planned. The tasks **GUI: Run** and
+**GUI: Run (simulator)** already start `tools/gui/doppelstep_gui.py [--sim]`
+from the `.venv` on Windows and Linux; the contract is in
+[tools/gui/README.md](tools/gui/README.md).
+
+---
+
+## Documentation and PDF manual
+
+`docs/` holds the MkDocs Material sources (`mkdocs.yml`); the PDF manual is
+built by `tools/docs/build_pdf.py` (MkDocs + print-site plugin, printed with
+Chromium or Microsoft Edge):
+
+```bash
+mkdocs serve                       # live preview, task "Docs: Serve"
+python tools/docs/build_pdf.py     # site/Doppelstep.pdf, task "Docs: Build PDF"
+```
+
+Dependencies: `requirements.txt` (the tasks create the `.venv`).
 
 ---
 
@@ -383,8 +452,8 @@ host sees one joint; set `CONFIG_SFS_DXL_ID` to the joint's ID (for example
 
 Follows the Stepper-C integration guide.
 
-1. **Dead time (required).** `dead-time-ns` in `app/boards/b_g431b_esc1.overlay`
-   is 0 until the value of the B-G431B-ESC1 MCSDK (Motor Control Workbench)
+1. **Dead time (required).** `dead-time-ns` in
+   `apps/doppelstep/boards/b_g431b_esc1.overlay` is 0 until the value of the B-G431B-ESC1 MCSDK (Motor Control Workbench)
    project is entered. With 0 the firmware runs, but never enables the gate
    drivers (Torque Enable answers Result Fail, log: "dead-time-ns … not set").
    Check the gate driver input polarity (TIM1 CHx/CHxN active high) against the
