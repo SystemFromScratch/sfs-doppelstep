@@ -1,0 +1,61 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Doppelstep on B-G431B-ESC1.
+ */
+
+/ {
+	chosen {
+		/* USART2 carries the DYNAMIXEL bus; console and logs go to RTT. */
+		/delete-property/ zephyr,console;
+		/delete-property/ zephyr,shell-uart;
+		sfs,dxl-uart = &usart2;
+	};
+
+	power_stage: power-stage {
+		compatible = "sfs,stm32-shared-leg-power-stage";
+		pinctrl-0 = <&tim1_ch1_pa8 &tim1_ch1n_pc13
+			     &tim1_ch2_pa9 &tim1_ch2n_pa12
+			     &tim1_ch3_pa10 &tim1_ch3n_pb15
+			     &adc1_in1_pa0>;
+		pinctrl-names = "default";
+
+		timer = <&timers1>;
+		adc-master = <&adc1>;
+		adc-slave = <&adc2>;
+		opamps = <&opamp1 &opamp2 &opamp3>;
+		opamp-gain = "OPAMP_GAIN_16";
+
+		/* 20 kHz: TIM1 at 170 MHz, center-aligned, ARR = 4250 */
+		pwm-frequency = <20000>;
+
+		/*
+		 * TODO(bring-up): dead time of the ESC1 bridge, from the ST Motor
+		 * Control Workbench (MCSDK) project of the B-G431B-ESC1. Until it
+		 * is set, the firmware runs but never enables the gate drivers.
+		 */
+		dead-time-ns = <0>;
+
+		/* OP1_OUT PA2 = ADC1_IN3, OP2_OUT PA6 = ADC2_IN3,
+		 * OP3_OUT PB1 = ADC1_IN12, VBUS PA0 = ADC1_IN1
+		 */
+		phase-u-channel = <3>;
+		phase-v-channel = <3>;
+		phase-w-channel = <12>;
+		vbus-channel = <1>;
+		adc-vref-mv = <3300>;
+
+		/* 3 mOhm shunts, -64/7 = -9.143 V/V (MCSDK, NuttX, SimpleFOC) */
+		shunt-micro-ohms = <3000>;
+		current-sense-gain-milli = <(-9143)>;
+
+		/* 18k / (18k + 169k) */
+		vbus-divider = <18000 169000>;
+	};
+};
+
+/* DYNAMIXEL Protocol 2.0 bus: ST-LINK VCP for now, 1 Mbps as OpenMANIPULATOR-X */
+&usart2 {
+	current-speed = <1000000>;
+	fifo-enable;
+};

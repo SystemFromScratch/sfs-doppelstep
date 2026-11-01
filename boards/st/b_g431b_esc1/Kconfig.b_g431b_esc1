@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# STMicroelectronics B-G431B-ESC1 (STM32G431CBU6, UFQFPN48).
+
+config BOARD_B_G431B_ESC1
+	select SOC_STM32G431XX

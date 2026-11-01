@@ -1,0 +1,15 @@
+identifier: b_g431b_esc1
+name: ST B-G431B-ESC1 Discovery kit
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+ram: 32
+flash: 128
+supported:
+  - gpio
+  - nvs
+  - opamp
+  - serial
+  - watchdog
+vendor: st

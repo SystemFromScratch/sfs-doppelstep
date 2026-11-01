@@ -1,0 +1,114 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "cortex-debug",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none",
+            "name": "Debug: OpenOCD in container (ST-LINK, USB pass-through)",
+            "request": "launch",
+            "servertype": "openocd",
+            "serverpath": "/opt/zephyr-sdk/hosttools/sysroots/x86_64-pokysdk-linux/usr/bin/openocd",
+            "searchDir": [
+                "/opt/zephyr-sdk/hosttools/sysroots/x86_64-pokysdk-linux/usr/share/openocd/scripts"
+            ],
+            "configFiles": [
+                "${workspaceFolder}/boards/st/b_g431b_esc1/support/openocd.cfg"
+            ],
+            "rtos": "Zephyr",
+            "preLaunchTask": "Zephyr: Build"
+        },
+        {
+            "type": "cortex-debug",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none",
+            "name": "Debug: J-Link in container (J-Link OB, USB pass-through)",
+            "request": "launch",
+            "servertype": "jlink",
+            "serverpath": "/opt/SEGGER/JLink/JLinkGDBServerCLExe",
+            "device": "STM32G431CB",
+            "interface": "swd",
+            "preLaunchTask": "Zephyr: Build"
+        },
+        {
+            "type": "cortex-debug",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none",
+            "name": "Debug: OpenOCD on host (host.docker.internal:3333)",
+            "request": "launch",
+            "servertype": "external",
+            "gdbTarget": "host.docker.internal:3333",
+            "overrideLaunchCommands": [
+                "monitor reset halt",
+                "-target-download",
+                "monitor reset halt"
+            ],
+            "overrideRestartCommands": [
+                "monitor reset halt"
+            ],
+            "overrideResetCommands": [
+                "monitor reset halt"
+            ],
+            "preLaunchTask": "Zephyr: Build"
+        },
+        {
+            "type": "cortex-debug",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none",
+            "name": "Debug: J-Link GDB Server on host (host.docker.internal:2331)",
+            "request": "launch",
+            "servertype": "external",
+            "gdbTarget": "host.docker.internal:2331",
+            "overrideLaunchCommands": [
+                "monitor reset",
+                "monitor halt",
+                "-target-download",
+                "monitor reset",
+                "monitor halt"
+            ],
+            "overrideRestartCommands": [
+                "monitor reset",
+                "monitor halt"
+            ],
+            "overrideResetCommands": [
+                "monitor reset",
+                "monitor halt"
+            ],
+            "preLaunchTask": "Zephyr: Build"
+        },
+        {
+            "type": "cortex-debug",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+            "showDevDebugOutput": "none",
+            "name": "Attach: OpenOCD on host (no download)",
+            "request": "attach",
+            "servertype": "external",
+            "gdbTarget": "host.docker.internal:3333"
+        },
+        {
+            "type": "cortex-debug",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
+            "showDevDebugOutput": "none",
+            "name": "Attach: J-Link GDB Server on host (no download)",
+            "request": "attach",
+            "servertype": "external",
+            "gdbTarget": "host.docker.internal:2331"
+        }
+    ]
+}

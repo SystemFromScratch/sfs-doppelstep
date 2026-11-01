@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# West manifest of the Doppelstep workspace.
+#
+# Layout after `west init -l` + `west update` (topdir = parent of this repo):
+#
+#   <topdir>/
+#   ├── doppelstep/                this repository (manifest, app, board, wrappers)
+#   ├── zephyr/                    Zephyr RTOS
+#   └── modules/
+#       ├── hal/stm32, hal/cmsis_6 HAL modules imported from zephyr/west.yml
+#       ├── debug/segger           RTT (log backend over the debug probe)
+#       └── lib/
+#           ├── stepper-c          Stepper-C            (pinned release)
+#           ├── dynamixel-x430     X430 emulator        (main until the first release)
+#           └── dxl2-c             DXL2-C, used by the X430 emulator (offline build)
+#
+# Stepper-C, DYNAMIXEL-X430 and DXL2-C carry no zephyr/module.yml; the Zephyr
+# module glue lives in this repository under modules/ (see app/CMakeLists.txt).
+
+manifest:
+  version: "1.2"
+
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+    - name: antonvynohradov
+      url-base: https://github.com/AntonVynohradov
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v4.5.0
+      import:
+        # Only the modules this firmware needs. Add names here when the
+        # application starts to use another module (for example littlefs).
+        name-allowlist:
+          - cmsis_6
+          - hal_stm32
+          - segger
+
+    - name: stepper-c
+      remote: antonvynohradov
+      repo-path: Stepper-C
+      revision: v1.0.0
+      path: modules/lib/stepper-c
+
+    # Follows main until the emulator has its first release; pin it to the
+    # release tag then (and keep dxl2-c at the tag that release expects).
+    - name: dynamixel-x430
+      remote: antonvynohradov
+      repo-path: DYNAMIXEL-X430-Control-Table-Emulator
+      revision: main
+      path: modules/lib/dynamixel-x430
+
+    # Must match X430_DXL2_GIT_TAG of x430.cmake (v1.0.0 on the emulator's
+    # main as of this commit). The X430 module glue warns on a mismatch.
+    - name: dxl2-c
+      remote: antonvynohradov
+      repo-path: DXL2-C
+      revision: v1.0.0
+      path: modules/lib/dxl2-c
+
+  self:
+    path: doppelstep

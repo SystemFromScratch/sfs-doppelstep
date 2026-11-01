@@ -1,0 +1,32 @@
+{
+    "C_Cpp.default.compilerPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.default.intelliSenseMode": "linux-gcc-arm",
+
+    "cmake.configureOnOpen": false,
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+
+    "cortex-debug.armToolchainPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin",
+    "cortex-debug.armToolchainPrefix": "arm-zephyr-eabi",
+    "cortex-debug.openocdPath": "/opt/zephyr-sdk/hosttools/sysroots/x86_64-pokysdk-linux/usr/bin/openocd",
+    "cortex-debug.JLinkGDBServerPath": "/opt/SEGGER/JLink/JLinkGDBServerCLExe",
+
+    "terminal.integrated.cwd": "${workspaceFolder}",
+
+    "files.associations": {
+        "*.overlay": "dts",
+        "*.dtsi": "dts",
+        "Kconfig": "kconfig",
+        "Kconfig.*": "kconfig",
+        "*.conf": "properties"
+    },
+
+    "files.exclude": {
+        "**/.git": true
+    },
+
+    "search.exclude": {
+        "**/build": true,
+        "**/.ccache": true
+    }
+}

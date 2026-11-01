@@ -1,0 +1,39 @@
+# Zephyr and west build state
+/.west/
+**/build/
+**/build-*/
+/twister-out*/
+
+# Build caches
+/.ccache/
+**/.cache/
+
+# SEGGER J-Link Software archives (docker/jlink/README.md)
+/docker/jlink/*.tgz
+/docker/jlink/*.deb
+
+# Python environments and generated files
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# CMake-generated files outside build directories
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/compile_commands.json
+
+# Logs and crash dumps
+*.log
+core
+core.*
+
+# Local IDE files (keep shared .vscode project configuration)
+.idea/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini

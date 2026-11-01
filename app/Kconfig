@@ -1,0 +1,214 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Doppelstep application options. Defaults of the motor, power stage
+# and control parameters: the 17HS19-2004S1 on B-G431B-ESC1 example of the
+# Stepper-C documentation (docs/index.md, docs/configuration.md).
+
+mainmenu "Doppelstep"
+
+menu "Stepper motor (Stepper-C struct sstep_motor_cfg)"
+
+config SFS_MOTOR_R_MOHM
+	int "Phase resistance [mOhm]"
+	default 1600
+
+config SFS_MOTOR_L_UH
+	int "Phase inductance [uH]"
+	default 3000
+
+config SFS_MOTOR_I_RATED_MA
+	int "Rated phase current [mA]"
+	default 2000
+
+config SFS_MOTOR_KE_UV_S_PER_RAD
+	int "Back-EMF constant [uV*s/rad], 0 = unknown"
+	default 208600
+
+config SFS_MOTOR_FULL_STEPS_PER_REV
+	int "Full steps per revolution"
+	default 200
+
+endmenu
+
+menu "Power stage limits (Stepper-C struct sstep_stage_cfg)"
+
+comment "Current and voltage scaling are derived from the power-stage devicetree node"
+
+config SFS_STAGE_VBUS_NOMINAL_MV
+	int "Nominal bus voltage [mV]"
+	default 24000
+
+config SFS_STAGE_VBUS_MIN_MV
+	int "Undervoltage trip [mV], 0 = disabled"
+	default 10000
+
+config SFS_STAGE_VBUS_MAX_MV
+	int "Overvoltage trip [mV], 0 = disabled"
+	default 28000
+
+config SFS_STAGE_I_TRIP_MA
+	int "Overcurrent trip [mA]"
+	default 3500
+
+config SFS_STAGE_CURRENT_SENSE_INVERT
+	bool "Invert the measured phase current polarity"
+	help
+	  The sign of adc_i_span follows the sign of current-sense-gain-milli
+	  of the power-stage node. Bring-up step 2 of the Stepper-C integration
+	  guide: if the measured current of phase A is negative after
+	  sstep_enable() in voltage drive, set this option.
+
+config SFS_STAGE_PHASE_W_TRIP
+	bool "Overcurrent trip on the shared leg (phase W shunt)"
+	default y
+	help
+	  The shared leg carries iA + iB, which Stepper-C does not measure.
+	  When set, the fast-loop interrupt converts the W shunt too and
+	  reports SSTEP_FAULT_EXTERNAL when |iW| exceeds SFS_STAGE_I_TRIP_MA.
+
+config SFS_STAGE_OFFSET_SAMPLES
+	int "Samples averaged for the current sensor offsets at startup"
+	default 1024
+	range 16 65535
+
+endmenu
+
+menu "Control (Stepper-C struct sstep_ctrl_cfg)"
+
+config SFS_CTRL_VOLTAGE_DRIVE
+	bool "Open-loop voltage drive (bring-up)"
+	help
+	  SSTEP_DRIVE_VOLTAGE instead of SSTEP_DRIVE_CURRENT. Bring-up step 2
+	  of the Stepper-C integration guide (current polarity check).
+
+config SFS_CTRL_SLOW_LOOP_HZ
+	int "Slow loop rate [Hz]"
+	default 1000
+	help
+	  The PWM frequency of the power-stage node must be an integer
+	  multiple of this rate.
+
+config SFS_CTRL_MICROSTEPS
+	int "Microsteps per full step"
+	default 16
+
+config SFS_CTRL_CURRENT_BW_HZ
+	int "Current loop bandwidth [Hz]"
+	default 1000
+
+config SFS_CTRL_I_RUN_MA
+	int "Run current [mA]"
+	default 1500
+
+config SFS_CTRL_I_HOLD_MA
+	int "Hold current [mA]"
+	default 500
+
+config SFS_CTRL_HOLD_DELAY_MS
+	int "Standstill time before the hold current [ms]"
+	default 500
+
+config SFS_CTRL_V_MAX
+	int "Maximum velocity [microsteps/s]"
+	default 16000
+	help
+	  Upper bound for every velocity derived from the DYNAMIXEL Profile
+	  Velocity, Velocity Limit and Goal Velocity registers.
+
+config SFS_CTRL_ACCEL_MAX
+	int "Maximum acceleration [microsteps/s^2]"
+	default 64000
+	help
+	  Upper bound for every acceleration derived from the DYNAMIXEL
+	  Profile Acceleration register.
+
+endmenu
+
+menu "DYNAMIXEL emulation"
+
+config SFS_DXL_ID
+	int "Factory ID"
+	default 1
+	range 0 252
+	help
+	  ID used while no EEPROM block is stored and after FACTORY_RESET
+	  0xFF. XM430 factory ID is 1; OpenMANIPULATOR-X uses 11..15.
+
+config SFS_DXL_FACTORY_BAUD_CODE
+	int "Factory Baud Rate code"
+	default 3
+	range 0 7
+	help
+	  Baud Rate register value written when no EEPROM block is stored
+	  (first start) and after FACTORY_RESET. 3 = 1 Mbps, the bus speed of
+	  the OpenMANIPULATOR-X ros2_control description. A real XM430 leaves
+	  the factory at 1 (57600 bps).
+
+config SFS_DXL_START_POSITION
+	int "Present Position at startup [pulse]"
+	default 2048
+	help
+	  The stepper motor has no encoder: the rotor position at power-on is
+	  reported as this value (2048 = 0 rad for dynamixel_hardware_interface).
+	  Power the joint up in that position.
+
+config SFS_DXL_GEAR_MOTOR_REVS
+	int "Gear ratio: motor revolutions..."
+	default 1
+	range 1 1000
+
+config SFS_DXL_GEAR_JOINT_REVS
+	int "...per joint revolutions"
+	default 1
+	range 1 1000
+	help
+	  Motor revolutions per joint revolution =
+	  SFS_DXL_GEAR_MOTOR_REVS / SFS_DXL_GEAR_JOINT_REVS (1/1 = direct drive).
+
+config SFS_DXL_RX_BUFFER_SIZE
+	int "UART receive ring buffer [bytes]"
+	default 512
+
+config SFS_DXL_POLL_MS
+	int "Bus Watchdog poll and live register refresh period [ms]"
+	default 10
+
+config SFS_DXL_NVM
+	bool "Store the EEPROM area and the Control Table backup in flash (NVS)"
+	default y
+	depends on NVS
+	help
+	  Uses the storage_partition. Writes are refused while the power stage
+	  is enabled: an erase of the single-bank flash stalls the CPU and with
+	  it the current loop.
+
+endmenu
+
+menu "Threads"
+
+config SFS_MOTOR_THREAD_PRIORITY
+	int "Slow loop thread priority"
+	default -2
+	help
+	  Cooperative (negative) so that the slow loop is never preempted by
+	  another thread.
+
+config SFS_MOTOR_THREAD_STACK_SIZE
+	int "Slow loop thread stack size"
+	default 1536
+
+config SFS_DXL_THREAD_PRIORITY
+	int "DYNAMIXEL bus thread priority"
+	default 2
+
+config SFS_DXL_THREAD_STACK_SIZE
+	int "DYNAMIXEL bus thread stack size"
+	default 2560
+
+endmenu
+
+module = SFS
+module-str = doppelstep
+source "subsys/logging/Kconfig.template.log_config"
+
+source "Kconfig.zephyr"

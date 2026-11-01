@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Serial driver (USART2 is wired to the ST-LINK/V2-1 Virtual COM Port)
+CONFIG_SERIAL=y
+
+# Console on USART2 by default; an application that needs USART2 for
+# something else (Doppelstep: DYNAMIXEL bus) moves the console to RTT.
+CONFIG_CONSOLE=y
+CONFIG_UART_CONSOLE=y
+
+# Enable MPU
+CONFIG_ARM_MPU=y
+
+# Enable HW stack protection
+CONFIG_HW_STACK_PROTECTION=y
+
+# GPIO (status LED, user button)
+CONFIG_GPIO=y
+
+# Link into /chosen/zephyr,code-partition (keeps storage_partition free)
+CONFIG_USE_DT_CODE_PARTITION=y

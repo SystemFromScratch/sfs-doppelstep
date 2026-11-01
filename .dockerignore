@@ -1,0 +1,5 @@
+# Only docker/jlink/ is needed in the build context (optional J-Link archive).
+*
+!docker/
+!docker/jlink/
+!docker/jlink/**

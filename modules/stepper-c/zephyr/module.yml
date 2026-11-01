@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Zephyr module glue for Stepper-C (west project "stepper-c",
+# <topdir>/modules/lib/stepper-c). The library repository has no
+# zephyr/module.yml; this workspace adds it through EXTRA_ZEPHYR_MODULES.
+name: sfs-stepper-c
+build:
+  cmake: zephyr
+  kconfig: zephyr/Kconfig

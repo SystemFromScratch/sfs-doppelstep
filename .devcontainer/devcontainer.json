@@ -1,0 +1,56 @@
+{
+    // Default container: build, flash and debug through a GDB server that runs
+    // on the host (OpenOCD or SEGGER J-Link GDB Server, see scripts/host/).
+    // The debug probe stays on Windows; GDB in the container connects over TCP
+    // to host.docker.internal.
+    "name": "Doppelstep (B-G431B-ESC1, host debug server)",
+
+    "build": {
+        "dockerfile": "../Dockerfile",
+        "context": ".."
+    },
+
+    "remoteUser": "root",
+
+    // West topdir /workdir (named volume: zephyr/, modules/, .west/, ccache)
+    // with this repository mounted inside it.
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workdir/doppelstep,type=bind,consistency=cached",
+    "workspaceFolder": "/workdir/doppelstep",
+
+    "mounts": [
+        "source=doppelstep-west,target=/workdir,type=volume"
+    ],
+
+    "containerEnv": {
+        "CCACHE_DIR": "/workdir/.ccache",
+        "ZEPHYR_TOOLCHAIN_VARIANT": "zephyr",
+        "ZEPHYR_SDK_INSTALL_DIR": "/opt/zephyr-sdk",
+        "BOARD": "b_g431b_esc1"
+    },
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools",
+                "marus25.cortex-debug",
+                "trond-snekvik.devicetree",
+                "trond-snekvik.kconfig-lang",
+                "ms-vscode.vscode-serial-monitor"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "bash"
+            }
+        }
+    },
+
+    // First start: west init + west update (Zephyr 4.5.0, hal_stm32, cmsis_6,
+    // segger, Stepper-C v1.0.0, DYNAMIXEL-X430 main, DXL2-C v1.0.0).
+    "postCreateCommand": "bash scripts/west-init.sh && ccache --zero-stats",
+
+    "postStartCommand": "echo 'Doppelstep container ready, board b_g431b_esc1' && west --version && arm-zephyr-eabi-gcc --version | head -n 1",
+
+    "shutdownAction": "stopContainer",
+
+    "overrideCommand": true
+}

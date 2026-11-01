@@ -1,0 +1,9 @@
+{
+    "recommendations": [
+        "ms-vscode-remote.remote-containers",
+        "ms-vscode.cpptools",
+        "marus25.cortex-debug",
+        "trond-snekvik.devicetree",
+        "trond-snekvik.kconfig-lang"
+    ]
+}
