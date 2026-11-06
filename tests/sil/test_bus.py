@@ -8,7 +8,7 @@ import pytest
 
 import dxl2
 from dxl2 import DxlError
-from support import DXL_ID, START_POSITION, wait_until
+from support import DXL_ID, START_POSITION, assert_stopped, wait_until
 
 
 def test_bad_crc_and_other_ids_get_no_answer(bus):
@@ -30,7 +30,7 @@ def test_bus_watchdog_stops_the_motor(fw, bus):
     assert fw.next_sample().rpm != 0
 
     time.sleep(1.0)                                         # host silent
-    assert fw.next_sample().rpm == 0
+    assert_stopped(fw)
     assert bus.read(DXL_ID, dxl2.BUS_WATCHDOG) == -1
     with pytest.raises(DxlError) as err:                    # goals refused until cleared
         bus.write(DXL_ID, dxl2.GOAL_VELOCITY, 50)
@@ -65,3 +65,29 @@ def test_sync_write_and_sync_read(bus):
     bus.sync_write(dxl2.GOAL_POSITION, {DXL_ID: START_POSITION - 512})
     wait_until(lambda: bus.sync_read([DXL_ID], dxl2.PRESENT_POSITION)[DXL_ID] ==
                START_POSITION - 512, 3.0, what="sync read of the goal")
+
+
+def test_rapid_goals_during_a_move_all_get_an_answer(fw, bus):
+    bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
+    for k in range(200):
+        bus.write(DXL_ID, dxl2.GOAL_POSITION, START_POSITION + (k % 2) * 512)  # raises if no answer
+    assert fw.errors() == []
+
+
+def test_clear_multi_turn_during_a_move_is_rejected(bus):
+    bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
+    bus.write(DXL_ID, dxl2.GOAL_POSITION, START_POSITION + 1024)
+    time.sleep(0.05)
+    with pytest.raises(DxlError) as error:
+        bus.clear_multi_turn(DXL_ID)
+    assert error.value.error == dxl2.ERR_RESULT_FAIL
+    wait_until(lambda: bus.read(DXL_ID, dxl2.PRESENT_POSITION) == START_POSITION + 1024, 5.0,
+               what="the move continues to its goal")
+
+
+def test_garbage_on_the_bus_does_not_stop_it(fw, bus):
+    bus.write_raw(bytes(range(256)) * 8)
+    time.sleep(0.1)
+    bus.flush()
+    bus.ping(DXL_ID)
+    assert fw.errors() == []

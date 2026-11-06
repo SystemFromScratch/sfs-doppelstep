@@ -45,3 +45,5 @@ core.*
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+docs/design/

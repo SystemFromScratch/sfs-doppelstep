@@ -1,0 +1,28 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The simulation backend with the ESC1 values, and fake backends.
+ */
+
+/ {
+	sim_stage: sim-power-stage {
+		compatible = "sfs,sim-power-stage";
+		pwm-frequency = <20000>;
+		timer-clock-hz = <170000000>;
+		adc-vref-mv = <3300>;
+		shunt-micro-ohms = <3000>;
+		current-sense-gain-milli = <(-9143)>;
+		vbus-divider = <18000 169000>;
+		microsteps = <16>;
+		full-steps-per-rev = <200>;
+	};
+
+	fake_full: fake-full {
+		compatible = "sfs,fake-power-stage";
+	};
+
+	fake_minimal: fake-minimal {
+		compatible = "sfs,fake-power-stage";
+		minimal;
+	};
+};

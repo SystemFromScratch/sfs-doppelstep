@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The emulator's own Kconfig tree (Kconfig.x430: model, devices per bus,
+# protocol features, ...) is sourced from the west project, so the
+# CONFIG_X430_* symbols land in Zephyr's autoconf.h.
+
+menuconfig SFS_DYNAMIXEL_X430
+	bool "DYNAMIXEL X430 Control Table emulator (Protocol 2.0)"
+	help
+	  Device-side emulation of ROBOTIS DYNAMIXEL X430 actuators
+	  (https://github.com/AntonVynohradov/DYNAMIXEL-X430-Control-Table-Emulator)
+	  on top of DXL2-C (https://github.com/AntonVynohradov/DXL2-C).
+
+if SFS_DYNAMIXEL_X430
+
+rsource "../../../modules/lib/dynamixel-x430/Kconfig.x430"
+
+endif # SFS_DYNAMIXEL_X430

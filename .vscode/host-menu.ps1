@@ -71,7 +71,7 @@ function Invoke-HostFlash {
     if (-not (Get-Command openocd -ErrorAction SilentlyContinue)) {
         Stop-WithError 'openocd was not found in PATH. Install OpenOCD 0.12+ (for example xPack) and the ST-LINK driver.'
     }
-    $cfg = Join-Path $Root 'apps\boards\st\b_g431b_esc1\support\openocd.cfg'
+    $cfg = Join-Path $Root 'boards\st\b_g431b_esc1\support\openocd.cfg'
     # OpenOCD's Tcl parser takes forward slashes on Windows.
     $image = $Elf -replace '\\', '/'
     Invoke-Checked 'openocd' @('-f', $cfg, '-c', "program {$image} verify reset exit")

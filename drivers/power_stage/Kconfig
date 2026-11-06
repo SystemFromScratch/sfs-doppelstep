@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig POWER_STAGE
+	bool "Power stage drivers"
+	default y if DT_HAS_SFS_STM32_SHARED_LEG_POWER_STAGE_ENABLED || \
+		     DT_HAS_SFS_SIM_POWER_STAGE_ENABLED
+
+if POWER_STAGE
+
+config POWER_STAGE_INIT_PRIORITY
+	int "Power stage init priority"
+	default 70
+
+config POWER_STAGE_STM32
+	bool "STM32 backend (timer, ADC injected conversions, OPAMP)"
+	default y
+	depends on DT_HAS_SFS_STM32_SHARED_LEG_POWER_STAGE_ENABLED
+
+rsource "Kconfig.sim"
+
+module = POWER_STAGE
+module-str = power_stage
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # POWER_STAGE

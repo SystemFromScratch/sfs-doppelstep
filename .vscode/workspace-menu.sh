@@ -19,7 +19,7 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-APP=apps/doppelstep
+APP=app
 BOARD_TARGET=b_g431b_esc1
 BUILD_DIR=build
 NATIVE_BOARD=native_sim/native/64
@@ -176,10 +176,10 @@ case "${action}" in
         build_firmware -p always
         ;;
     'Pristine build (simulated motor)')
-        # apps/doppelstep/sim.conf stays in the CMake cache: "Build firmware"
+        # app/sim.overlay stays in the CMake cache: "Build firmware"
         # keeps the simulated motor until the next "Pristine build".
         zephyr_in_docker zephyr "${action}"
-        build_firmware -p always -- -DEXTRA_CONF_FILE=sim.conf
+        build_firmware -p always -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay
         ;;
     'Build (native_sim)')
         zephyr_in_docker zephyr "${action}"

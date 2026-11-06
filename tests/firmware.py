@@ -67,7 +67,7 @@ class NativeFirmware:
         self._reader = threading.Thread(target=self._read, daemon=True)
         self._reader.start()
         self.wait_for(BUS_PTY, timeout)
-        self.wait_for(re.compile(r"dxl_bus: DYNAMIXEL"), timeout)
+        self.wait_for(re.compile(r"x430_servo: DYNAMIXEL"), timeout)
         return self
 
     def _read(self):

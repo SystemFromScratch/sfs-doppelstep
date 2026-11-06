@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# The repository is a Zephyr module: board, devicetree bindings, drivers and the
+# glue of the libraries, for the application in app/ and the tests in tests/.
+name: doppelstep
+build:
+  cmake: .
+  kconfig: Kconfig
+  settings:
+    board_root: .
+    dts_root: .

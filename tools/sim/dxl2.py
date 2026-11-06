@@ -31,6 +31,7 @@ GOAL_VELOCITY = (104, 4)
 PROFILE_ACCELERATION = (108, 4)
 PROFILE_VELOCITY = (112, 4)
 GOAL_POSITION = (116, 4)
+REALTIME_TICK = (120, 2)
 MOVING = (122, 1)
 MOVING_STATUS = (123, 1)
 PRESENT_CURRENT = (126, 2)
@@ -46,6 +47,7 @@ INST_READ = 0x02
 INST_WRITE = 0x03
 INST_FACTORY_RESET = 0x06
 INST_REBOOT = 0x08
+INST_CLEAR = 0x10
 INST_SYNC_READ = 0x82
 INST_SYNC_WRITE = 0x83
 INST_STATUS = 0x55
@@ -216,6 +218,10 @@ class Bus:
 
     def reboot(self, dxl_id):
         return self.transact(dxl_id, INST_REBOOT)
+
+    def clear_multi_turn(self, dxl_id):
+        """Clear instruction: Present Position back into one turn."""
+        return self.transact(dxl_id, INST_CLEAR, bytes([0x01, 0x44, 0x58, 0x4C, 0x22]))
 
     def factory_reset(self, dxl_id, option=0xFF):
         """0xFF all, 0x01 all but ID, 0x02 all but ID and Baud Rate."""

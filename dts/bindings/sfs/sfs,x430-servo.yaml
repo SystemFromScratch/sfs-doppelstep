@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Emulated DYNAMIXEL X430 servo (Protocol 2.0), a child node of its UART. The joint
+  properties are read by the application, which maps the registers onto the motor.
+
+compatible: "sfs,x430-servo"
+
+on-bus: uart
+
+include: base.yaml
+
+properties:
+  storage:
+    type: phandle
+    description: Flash partition of the persistent EEPROM area; none = not persistent.
+
+  factory-id:
+    type: int
+    default: 1
+    description: |
+      ID while no EEPROM block is stored and after FACTORY_RESET 0xFF. XM430 factory
+      ID is 1; OpenMANIPULATOR-X uses 11..15.
+
+  factory-baud-code:
+    type: int
+    default: 3
+    enum: [0, 1, 2, 3, 4, 5, 6, 7]
+    description: |
+      Baud Rate register value written when no EEPROM block is stored (first start)
+      and after FACTORY_RESET. 3 = 1 Mbps, the bus speed of the OpenMANIPULATOR-X
+      ros2_control description. A real XM430 leaves the factory at 1 (57600 bps).
+
+  start-position:
+    type: int
+    default: 2048
+    description: |
+      Present Position at startup [pulse]. The stepper motor has no encoder: the
+      rotor position at power-on is reported as this value (2048 = 0 rad for
+      dynamixel_hardware_interface). Power the joint up in that position.
+
+  gear-motor-revs:
+    type: int
+    default: 1
+    description: Gear ratio, motor revolutions ...
+
+  gear-joint-revs:
+    type: int
+    default: 1
+    description: ... per joint revolutions (1/1 = direct drive).

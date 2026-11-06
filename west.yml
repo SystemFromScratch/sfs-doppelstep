@@ -5,7 +5,7 @@
 # Layout after `west init -l` + `west update` (topdir = parent of this repo):
 #
 #   <topdir>/
-#   ├── doppelstep/                this repository (manifest; Zephyr app, board, module glue in apps/)
+#   ├── doppelstep/                this repository (manifest and Zephyr module: app/, boards/, drivers/, modules/)
 #   ├── zephyr/                    Zephyr RTOS
 #   └── modules/
 #       ├── hal/stm32, hal/cmsis_6 HAL modules imported from zephyr/west.yml
@@ -14,17 +14,16 @@
 #           ├── stepper-c          Stepper-C            (pinned release)
 #           ├── dynamixel-x430     X430 emulator        (main until the first release)
 #           ├── dxl2-c             DXL2-C, used by the X430 emulator (offline build)
-#           ├── sfs-stepper-sim    motor model (sil/c/sstep_plant.c) and its parameters
+#           ├── stepper-lab        motor model (sil/c/sstep_plant.c) and its parameters
 #           │                      (params/*.json) for the simulated motor (main until
 #           │                      the first release)
 #           └── sfs-stepper-power-spice  ngspice model of the ESC1 leg: source of the
-#                                  stage parameters of sfs-stepper-sim; not built
+#                                  stage parameters of Stepper-Lab; not built
 #                                  (main until the first release)
 #
-# Stepper-C, DYNAMIXEL-X430, DXL2-C and sfs-stepper-sim carry no
-# zephyr/module.yml; the Zephyr module glue lives in this repository under
-# apps/modules/
-# (see apps/doppelstep/CMakeLists.txt).
+# Stepper-C, DYNAMIXEL-X430, DXL2-C and Stepper-Lab carry no
+# zephyr/module.yml; their glue lives in modules/ of this repository, built by its
+# CMakeLists.txt.
 
 manifest:
   version: "1.2"
@@ -50,7 +49,7 @@ manifest:
     - name: stepper-c
       remote: antonvynohradov
       repo-path: Stepper-C
-      revision: v1.0.0
+      revision: v1.2.0
       path: modules/lib/stepper-c
 
     # Follows main until the emulator has its first release; pin it to the
@@ -69,14 +68,14 @@ manifest:
       revision: v1.0.0
       path: modules/lib/dxl2-c
 
-    # Simulated motor (CONFIG_SFS_SIM_PLANT, docs/simulation.md). Both follow
-    # main until their first release; pin them to the release tags then. The two
-    # stay siblings under modules/lib: run_tests.py --export of power-spice
-    # updates ../sfs-stepper-sim/params.
-    - name: sfs-stepper-sim
+    # Simulated motor (docs/simulation.md). Both follow main until their first
+    # release; pin them to the release tags then. The two stay siblings under
+    # modules/lib: the parameter export of power-spice writes into Stepper-Lab.
+    - name: stepper-lab
       remote: antonvynohradov
+      repo-path: Stepper-Lab
       revision: main
-      path: modules/lib/sfs-stepper-sim
+      path: modules/lib/stepper-lab
 
     - name: sfs-stepper-power-spice
       remote: antonvynohradov

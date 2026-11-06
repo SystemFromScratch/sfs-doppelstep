@@ -9,7 +9,7 @@ import pytest
 import dxl2
 from dxl2 import DxlError
 from support import (CURRENT_UNIT_MA, DXL_ID, START_POSITION, VELOCITY_UNIT_RPM,
-                     pulses_to_usteps, wait_until)
+                     assert_stopped, pulses_to_usteps, wait_until)
 
 RUN_MA = 1500                     # CONFIG_SFS_CTRL_I_RUN_MA
 HOLD_MA = 500                     # CONFIG_SFS_CTRL_I_HOLD_MA
@@ -68,13 +68,15 @@ def test_time_based_profile_keeps_the_time(fw, bus):
     bus.write(DXL_ID, dxl2.PROFILE_VELOCITY, 1000)   # whole move [ms]
     bus.write(DXL_ID, dxl2.PROFILE_ACCELERATION, 250)  # acceleration time [ms]
     bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
-    t0 = time.monotonic()
+    # Firmware clock: the simulated time of native_sim can run ahead of the host clock
+    t0 = bus.read(DXL_ID, dxl2.REALTIME_TICK)
     bus.write(DXL_ID, dxl2.GOAL_POSITION, START_POSITION + 1024)
     wait_until(lambda: bus.read(DXL_ID, dxl2.MOVING) == 1, 0.5, interval=0.01,
                what="move start")
     wait_until(lambda: bus.read(DXL_ID, dxl2.MOVING) == 0, 3.0, interval=0.01,
                what="move end")
-    assert time.monotonic() - t0 == pytest.approx(1.0, abs=0.15)
+    elapsed_ms = (bus.read(DXL_ID, dxl2.REALTIME_TICK) - t0) % 32768  # 0..32767 ms, then wraps
+    assert elapsed_ms / 1000 == pytest.approx(1.0, abs=0.15)
     s = fw.next_sample()
     assert abs(s.rotor - s.cmd) <= 2
 
@@ -93,8 +95,8 @@ def test_velocity_mode(fw, bus):
     bus.write(DXL_ID, dxl2.GOAL_VELOCITY, 0)
     wait_until(lambda: bus.read(DXL_ID, dxl2.MOVING) == 0, 2.0, what="stop")
     time.sleep(0.3)
-    s = fw.next_sample()
-    assert s.rpm == 0 and abs(s.rotor - s.cmd) <= 2
+    s = assert_stopped(fw)
+    assert abs(s.rotor - s.cmd) <= 2
 
 
 def test_torque_off_releases_the_motor(fw, bus):

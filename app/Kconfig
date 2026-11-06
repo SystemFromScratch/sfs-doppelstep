@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Doppelstep application options. Motor, power stage and control parameters
+# are properties of the devicetree nodes (app/boards/*.overlay).
+
+mainmenu "Doppelstep"
+
+config SFS_STAGE_OFFSET_SAMPLES
+	int "Samples averaged for the current sensor offsets at startup"
+	default 1024
+	range 16 65535
+
+rsource "Kconfig.app_msg"
+
+menu "Threads"
+
+config SFS_CONTROL_THREAD_PRIORITY
+	int "Control task priority"
+	default -2
+	help
+	  Cooperative (negative) so that the slow loop is never preempted by
+	  another thread.
+
+config SFS_CONTROL_THREAD_STACK_SIZE
+	int "Control task stack size"
+	default 1536
+
+config SFS_COMM_THREAD_PRIORITY
+	int "Communication task priority"
+	default 2
+
+config SFS_COMM_THREAD_STACK_SIZE
+	int "Communication task stack size"
+	default 2560
+
+endmenu
+
+module = SFS
+module-str = doppelstep
+source "subsys/logging/Kconfig.template.log_config"
+
+source "Kconfig.zephyr"

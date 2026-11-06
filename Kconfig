@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Zephyr module of the repository (zephyr/module.yml).
+
+rsource "modules/stepper-c/Kconfig"
+rsource "modules/dynamixel-x430/Kconfig"
+rsource "modules/stepper-lab/Kconfig"
+rsource "drivers/Kconfig"

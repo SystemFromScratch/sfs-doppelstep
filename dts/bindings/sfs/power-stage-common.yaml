@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Measurement scaling of a low-side shunt power stage, shared by the backends.
+
+properties:
+  pwm-frequency:
+    type: int
+    description: PWM frequency [Hz] (center-aligned).
+
+  adc-vref-mv:
+    type: int
+    description: ADC reference voltage [mV].
+
+  shunt-micro-ohms:
+    type: int
+    description: Shunt resistance [uOhm].
+
+  current-sense-gain-milli:
+    type: int
+    description: |
+      Voltage gain from the shunt to the ADC input, x1000. Negative for an
+      inverting amplifier.
+
+  vbus-divider:
+    type: array
+    description: Bus voltage divider <R_low R_high> [Ohm]; V_adc = V_bus * R_low / (R_low + R_high).
+
+  current-sense-invert:
+    type: boolean
+    description: |
+      Invert the measured phase current polarity. The sign of adc_i_span follows
+      current-sense-gain-milli. Bring-up step 2 of the Stepper-C integration guide:
+      if the measured current of phase A is negative after sstep_enable() in voltage
+      drive, set this property.

@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Stepper-C build-time options (inc/sstep_config.h). Motor, power stage and
+# control parameters are run-time values given to sstep_init().
+
+menuconfig SSTEP
+	bool "Stepper-C stepper motor control library"
+	help
+	  Closed-loop microstepping current control for two-phase stepper
+	  motors (https://github.com/AntonVynohradov/Stepper-C).
+
+if SSTEP
+
+choice SSTEP_MATH_BACKEND
+	prompt "Numeric backend"
+	default SSTEP_MATH_FLOAT if FPU || ARCH_POSIX
+	default SSTEP_MATH_FIXED
+
+config SSTEP_MATH_FIXED
+	bool "Fixed point (Q15/Q31, integer only)"
+
+config SSTEP_MATH_FLOAT
+	bool "Single-precision float (hardware FPU)"
+	depends on FPU || ARCH_POSIX
+	help
+	  The fast loop runs in an interrupt: with threads that also use the
+	  FPU enable FPU_SHARING. native_sim (ARCH_POSIX) uses the host FPU.
+
+endchoice
+
+config SSTEP_TOPOLOGY_FULL_BRIDGE
+	bool "Two full H-bridges (4 legs)"
+	default y
+	help
+	  SSTEP_CFG_TOPOLOGY_FULL_BRIDGE.
+
+config SSTEP_TOPOLOGY_SHARED_LEG
+	bool "Three half-bridges with a shared leg (3 legs)"
+	default y
+	help
+	  SSTEP_CFG_TOPOLOGY_SHARED_LEG, for example B-G431B-ESC1.
+
+config SSTEP_MICROSTEPS_MAX
+	int "Largest microstep division"
+	default 256
+	range 1 256
+	help
+	  SSTEP_CFG_MICROSTEPS_MAX, a power of two.
+
+config SSTEP_SINE_TABLE_BITS
+	int "log2 of the quarter-wave sine table size"
+	default 8
+	range 6 10
+	help
+	  SSTEP_CFG_SINE_TABLE_BITS.
+
+config SSTEP_ARG_CHECKS
+	bool "Pointer checks in sstep_fast_loop()"
+	default y
+	help
+	  SSTEP_CFG_ARG_CHECKS. All other functions always check.
+
+config SSTEP_OPTIMIZE_SPEED
+	bool "Build the library with -O2"
+	help
+	  In an emulated Cortex-M0+ build the fast loop takes about a third fewer
+	  cycles than with -Os, for about 4 KB of flash (docs/porting.md).
+
+endif # SSTEP

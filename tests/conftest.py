@@ -2,7 +2,7 @@
 """Fixtures of the SIL and integration tests (see tests/README.md).
 
 Every test starts its own native_sim firmware (zephyr.exe built with
-apps/doppelstep/sim-test.conf) in a fresh working directory, so the emulated
+app/sim-test.conf) in a fresh working directory, so the emulated
 EEPROM (flash.bin) starts at the factory values. The firmware runs in real
 time: the bus timing is the one a host program sees.
 """

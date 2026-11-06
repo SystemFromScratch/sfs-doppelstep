@@ -3,7 +3,7 @@
 # Docker without VS Code:
 #   docker compose build
 #   docker compose run --rm zephyr bash scripts/west-init.sh      # first time
-#   docker compose run --rm zephyr                                # build apps/doppelstep
+#   docker compose run --rm zephyr                                # build app
 #   docker compose run --rm zephyr-usb west flash -r openocd      # USB probe (usbipd)
 
 x-zephyr: &zephyr
@@ -33,7 +33,7 @@ services:
       - -b
       - b_g431b_esc1
       - -s
-      - apps/doppelstep
+      - app
       - -d
       - build
 

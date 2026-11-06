@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config POWER_STAGE_SIM
+	bool "Simulation backend: a motor model behind the power stage"
+	default y
+	depends on DT_HAS_SFS_SIM_POWER_STAGE_ENABLED
+	select SSTEP_PLANT
+	help
+	  Drives the plant model of Stepper-Lab in place of the hardware:
+	  the fast loop receives the phase currents and the bus voltage of the
+	  model, and its PWM compare values drive the model. Selected by a
+	  sfs,sim-power-stage devicetree node, see docs/simulation.md.
+
+	  Model: sil/c/sstep_plant.c of Stepper-Lab (the code of its Xcos
+	  plant block), parameters from its params/*.json (CONFIG_SSTEP_PLANT_*).
+
+if POWER_STAGE_SIM
+
+config POWER_STAGE_SIM_INIT_PRIORITY
+	int "Simulation backend init priority"
+	default 71
+	help
+	  After the power stage it takes its timing from (timebase property).
+
+config SFS_SIM_VBUS_MV
+	int "Bus voltage of the model [mV]"
+	default 24000
+
+config SFS_SIM_LEG_ERROR
+	bool "Leg voltage error from ngspice (dead time, diodes, leg resistance)"
+	default y
+	help
+	  Adds the leg_error_table of the stage parameter file to the
+	  averaged legs (sfs-stepper-power-spice, measured at its vbus / fs;
+	  a warning is logged when the model runs elsewhere). Off: ideal legs.
+
+comment "Overrides of the Stepper-Lab parameters (-1 = value of the parameter file)"
+
+config SFS_SIM_R_MOHM
+	int "Phase resistance [mOhm]"
+	default -1
+	help
+	  Change it to test the current loop against a motor that differs
+	  from the values the controller is tuned for.
+
+config SFS_SIM_L_UH
+	int "Phase inductance [uH]"
+	default -1
+
+config SFS_SIM_KT_UNM_PER_A
+	int "Torque constant [uN*m/A] (= back-EMF constant [uV*s/rad])"
+	default -1
+
+config SFS_SIM_INERTIA_G_MM2
+	int "Rotor and load inertia [g*mm^2]"
+	default -1
+	help
+	  17HS19-2004S1 rotor: 82 g*cm^2 = 8200 g*mm^2 (datasheet). Add the
+	  inertia of the load, referred to the motor shaft.
+
+config SFS_SIM_VISCOUS_UNM_S
+	int "Viscous friction [uN*m*s/rad]"
+	default -1
+
+config SFS_SIM_DETENT_UNM
+	int "Detent torque amplitude [uN*m]"
+	default -1
+	help
+	  One period per full step. Stepper-Lab test T11 uses 20000
+	  (about 3 % of the holding torque).
+
+config SFS_SIM_COULOMB_UNM
+	int "Dry (Coulomb) friction [uN*m]"
+	default -1
+
+comment "Scenario"
+
+config SFS_SIM_LOAD_UNM
+	int "Constant load torque [uN*m], positive against forward motion"
+	default 0
+	help
+	  A constant active torque, like gravity on a joint. It acts from the
+	  first time the outputs are enabled (at power-on the joint rests on a
+	  support) and stays when the torque is switched off again. Also
+	  settable at run time with power_stage_sim_set_load() and on native_sim
+	  with -sim_load_unm=<uN*m>.
+
+config SFS_SIM_LOCKED_ROTOR
+	bool "Locked rotor (current loop test)"
+
+config SFS_SIM_SUBSTEPS
+	int "RK4 steps per PWM period"
+	default 1
+	range 1 8
+	help
+	  One step of 50 us at 20 kHz is accurate for the 17HS19-2004S1
+	  (electrical time constant 1.9 ms, mechanical resonance about 220 Hz).
+	  Every step costs four sinf/cosf pairs in the fast-loop interrupt:
+	  check the "fast loop max" figure of the periodic log.
+
+config SFS_SIM_LOG_PERIOD_MS
+	int "Period of the model log line [ms], 0 = off"
+	default 1000
+
+endif # POWER_STAGE_SIM

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: Fake power stage for driver tests.
+
+compatible: "sfs,fake-power-stage"
+
+include: base.yaml
+
+properties:
+  minimal:
+    type: boolean
+    description: Leave out the optional operations of the class.

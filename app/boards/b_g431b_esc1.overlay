@@ -1,0 +1,102 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Doppelstep on B-G431B-ESC1.
+ */
+
+/ {
+	chosen {
+		/* USART2 carries the DYNAMIXEL bus; console and logs go to RTT. */
+		/delete-property/ zephyr,console;
+		/delete-property/ zephyr,shell-uart;
+		sfs,servo = &servo;
+		sfs,motor = &motor;
+	};
+
+	power_stage: power-stage {
+		compatible = "sfs,stm32-shared-leg-power-stage";
+		pinctrl-0 = <&tim1_ch1_pa8 &tim1_ch1n_pc13
+			     &tim1_ch2_pa9 &tim1_ch2n_pa12
+			     &tim1_ch3_pa10 &tim1_ch3n_pb15
+			     &adc1_in1_pa0>;
+		pinctrl-names = "default";
+
+		timer = <&timers1>;
+		adc-master = <&adc1>;
+		adc-slave = <&adc2>;
+		opamps = <&opamp1 &opamp2 &opamp3>;
+		opamp-gain = "OPAMP_GAIN_16";
+
+		/* 20 kHz: TIM1 at 170 MHz, center-aligned, ARR = 4250 */
+		pwm-frequency = <20000>;
+
+		/*
+		 * TODO(bring-up): dead time of the ESC1 bridge, from the ST Motor
+		 * Control Workbench (MCSDK) project of the B-G431B-ESC1. Until it
+		 * is set, the firmware runs but never enables the gate drivers.
+		 */
+		dead-time-ns = <0>;
+
+		/* OP1_OUT PA2 = ADC1_IN3, OP2_OUT PA6 = ADC2_IN3,
+		 * OP3_OUT PB1 = ADC1_IN12, VBUS PA0 = ADC1_IN1
+		 */
+		phase-u-channel = <3>;
+		phase-v-channel = <3>;
+		phase-w-channel = <12>;
+		vbus-channel = <1>;
+		adc-vref-mv = <3300>;
+
+		/* 3 mOhm shunts, -64/7 = -9.143 V/V (MCSDK, NuttX, SimpleFOC) */
+		shunt-micro-ohms = <3000>;
+		current-sense-gain-milli = <(-9143)>;
+
+		/* 18k / (18k + 169k) */
+		vbus-divider = <18000 169000>;
+	};
+
+	motor: motor {
+		compatible = "sfs,sstep-motor";
+		power-stage = <&power_stage>;
+
+		/* 17HS19-2004S1 */
+		phase-resistance-milliohm = <1600>;
+		phase-inductance-microhenry = <3000>;
+		rated-current-milliamp = <2000>;
+		back-emf-uv-s-per-rad = <208600>;
+		full-steps-per-rev = <200>;
+
+		vbus-nominal-mv = <24000>;
+		vbus-min-mv = <10000>;
+		vbus-max-mv = <28000>;
+		trip-current-milliamp = <3500>;
+		aux-trip;
+
+		slow-loop-hz = <1000>;
+		microsteps = <16>;
+		current-bandwidth-hz = <1000>;
+		run-current-milliamp = <1500>;
+		hold-current-milliamp = <500>;
+		hold-delay-ms = <500>;
+		max-velocity = <16000>;
+		max-acceleration = <64000>;
+
+		motor_drv: driver {
+			compatible = "sfs,sstep-stepper-driver";
+		};
+
+		motor_ctrl: ctrl {
+			compatible = "sfs,sstep-stepper-ctrl";
+		};
+	};
+};
+
+/* DYNAMIXEL Protocol 2.0 bus: ST-LINK VCP for now, 1 Mbps as OpenMANIPULATOR-X */
+&usart2 {
+	current-speed = <1000000>;
+	fifo-enable;
+
+	servo: dxl-servo {
+		compatible = "sfs,x430-servo";
+		storage = <&storage_partition>;
+	};
+};

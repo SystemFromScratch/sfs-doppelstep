@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Stepper motor driver built on Stepper-C, with the motor, the limits of the stage
+  and the tuning of the control. Its children provide the standard classes:
+  sfs,sstep-stepper-driver (stepper) and sfs,sstep-stepper-ctrl (stepper_ctrl).
+
+compatible: "sfs,sstep-motor"
+
+include: base.yaml
+
+properties:
+  power-stage:
+    type: phandle
+    required: true
+    description: Power stage that drives the motor; selects the backend.
+
+  phase-resistance-milliohm:
+    type: int
+    required: true
+
+  phase-inductance-microhenry:
+    type: int
+    required: true
+
+  rated-current-milliamp:
+    type: int
+    required: true
+
+  back-emf-uv-s-per-rad:
+    type: int
+    required: true
+    description: Back-EMF constant [uV*s/rad]; 0 = unknown.
+
+  full-steps-per-rev:
+    type: int
+    required: true
+
+  vbus-nominal-mv:
+    type: int
+    required: true
+
+  vbus-min-mv:
+    type: int
+    required: true
+    description: Undervoltage trip [mV]; 0 = disabled.
+
+  vbus-max-mv:
+    type: int
+    required: true
+    description: Overvoltage trip [mV]; 0 = disabled.
+
+  trip-current-milliamp:
+    type: int
+    required: true
+    description: Overcurrent trip [mA].
+
+  aux-trip:
+    type: boolean
+    description: |
+      Also check the leg the samples do not show (phase W of the shared leg, which
+      carries iA + iB), at the trip current.
+
+  voltage-drive:
+    type: boolean
+    description: |
+      Open-loop voltage drive instead of current drive. Bring-up step 2 of the
+      Stepper-C integration guide (current polarity check).
+
+  slow-loop-hz:
+    type: int
+    required: true
+    description: Slow loop rate [Hz]; the PWM frequency must be an integer multiple of it.
+
+  microsteps:
+    type: int
+    required: true
+    description: Microsteps per full step.
+
+  current-bandwidth-hz:
+    type: int
+    required: true
+
+  run-current-milliamp:
+    type: int
+    required: true
+
+  hold-current-milliamp:
+    type: int
+    required: true
+
+  hold-delay-ms:
+    type: int
+    required: true
+    description: Standstill time before the hold current [ms].
+
+  max-velocity:
+    type: int
+    required: true
+    description: Maximum velocity [microsteps/s].
+
+  max-acceleration:
+    type: int
+    required: true
+    description: Maximum acceleration [microsteps/s^2].

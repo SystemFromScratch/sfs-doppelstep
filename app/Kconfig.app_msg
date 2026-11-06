@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Queues between the communication and the control task (src/app_msg.h).
+
+config SFS_CMD_TIMEOUT_MS
+	int "Time a command waits for its result [ms]"
+	default 50
+	help
+	  After it the host gets Result Fail. A command already in the queue may
+	  still execute later; the log records the timeout.
+
+config SFS_STATUS_PERIOD_MS
+	int "Period of the status publication [ms]"
+	default 1
+	range 1 1000
+	help
+	  The status is also published after every command. On a core without an
+	  FPU reading it can be expensive with stall detection on: see
+	  docs/porting.md.
+
+module = APP_MSG
+module-str = app_msg
+source "subsys/logging/Kconfig.template.log_config"

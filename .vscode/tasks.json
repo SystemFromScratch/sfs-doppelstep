@@ -35,7 +35,7 @@
         },
         {
             "label": "Zephyr: Build",
-            "detail": "west build -b b_g431b_esc1 -s apps/doppelstep -d build (Windows: in Docker)",
+            "detail": "west build -b b_g431b_esc1 -s app -d build (Windows: in Docker)",
             "type": "process",
             "command": "bash",
             "args": [".vscode/workspace-menu.sh", "Build firmware"],
@@ -63,7 +63,7 @@
         },
         {
             "label": "Zephyr: Pristine Build (simulated motor)",
-            "detail": "west build -p always ... -- -DEXTRA_CONF_FILE=sim.conf: Stepper-C drives a motor model, gate drivers off",
+            "detail": "west build -p always ... -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay: Stepper-C drives a motor model, gate drivers off",
             "type": "process",
             "command": "bash",
             "args": [".vscode/workspace-menu.sh", "Pristine build (simulated motor)"],
@@ -77,7 +77,7 @@
         },
         {
             "label": "Zephyr: Build (native_sim)",
-            "detail": "west build -b native_sim/native/64 -s apps/doppelstep -d build-native (Windows: in Docker)",
+            "detail": "west build -b native_sim/native/64 -s app -d build-native (Windows: in Docker)",
             "type": "process",
             "command": "bash",
             "args": [".vscode/workspace-menu.sh", "Build (native_sim)"],

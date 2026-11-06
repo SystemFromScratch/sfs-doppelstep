@@ -14,7 +14,7 @@ import pytest
 import dxl2
 from support import DXL_ID, START_POSITION, pulses_to_usteps, wait_until
 
-KT = 0.2086                       # N*m/A, sfs-stepper-sim params/motor_17hs19_2004s1.json
+KT = 0.2086                       # N*m/A, Stepper-Lab params/motor_17hs19_2004s1.json
 RUN_A = 1.5
 HOLD_A = 0.5
 HW_INPUT_VOLTAGE = 0x01           # Hardware Error Status bits (XM430 e-Manual)
@@ -86,4 +86,15 @@ def test_undervoltage_is_reported(firmware_factory):
     bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
     wait_until(lambda: bus.read(DXL_ID, dxl2.HARDWARE_ERROR_STATUS) & HW_INPUT_VOLTAGE, 1.0,
                what="input voltage error")
+    assert bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 0
+
+
+def test_torque_enable_in_a_fault_is_rejected(firmware_factory):
+    fw = firmware_factory(["-sim_vbus_mv=9000"])           # below CONFIG_SFS_STAGE_VBUS_MIN_MV
+    bus = dxl2.Bus(fw.pty)
+    bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
+    wait_until(lambda: bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 0, 1.0, what="trip")
+    with pytest.raises(dxl2.DxlError) as error:
+        bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
+    assert error.value.error == dxl2.ERR_RESULT_FAIL
     assert bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 0

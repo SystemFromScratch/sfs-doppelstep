@@ -1,0 +1,21 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Simulated motor on the board: the fast-loop interrupt of the real power stage
+ * keeps its timing, Stepper-C drives a motor model and the gate drivers stay off.
+ *   west build -b b_g431b_esc1 app -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay
+ * See docs/simulation.md.
+ */
+
+/ {
+	sim_stage: sim-power-stage {
+		compatible = "sfs,sim-power-stage";
+		timebase = <&power_stage>;
+		microsteps = <16>;
+		full-steps-per-rev = <200>;
+	};
+};
+
+&motor {
+	power-stage = <&sim_stage>;
+};

@@ -4,7 +4,7 @@
     "C_Cpp.default.intelliSenseMode": "linux-gcc-arm",
 
     "cmake.configureOnOpen": false,
-    "cmake.sourceDirectory": "${workspaceFolder}/apps/doppelstep",
+    "cmake.sourceDirectory": "${workspaceFolder}/app",
     "cmake.buildDirectory": "${workspaceFolder}/build",
 
     "cortex-debug.armToolchainPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin",

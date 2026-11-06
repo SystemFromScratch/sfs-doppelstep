@@ -11,7 +11,7 @@
 # Environment:
 #   TESTS_BUILD_DIR       build directory (default build-tests)
 #   TESTS_PRISTINE=1      pristine build
-#   SSTEP_SIM_SOURCE_DIR  local checkout of sfs-stepper-sim instead of the west project
+#   STEPPER_LAB_SOURCE_DIR  local checkout of Stepper-Lab instead of the west project
 #
 # Results: <build dir>/junit.xml, firmware logs of every test in
 # <build dir>/pytest/<test>/fw.log.
@@ -21,10 +21,10 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 build_dir=${TESTS_BUILD_DIR:-build-tests}
-west_args=(-b native_sim/native/64 -s apps/doppelstep -d "${build_dir}")
+west_args=(-b native_sim/native/64 -s app -d "${build_dir}")
 [ "${TESTS_PRISTINE:-0}" = 1 ] && west_args+=(-p always)
 cmake_args=(-DEXTRA_CONF_FILE=sim-test.conf)
-[ -n "${SSTEP_SIM_SOURCE_DIR:-}" ] && cmake_args+=("-DSSTEP_SIM_SOURCE_DIR=${SSTEP_SIM_SOURCE_DIR}")
+[ -n "${STEPPER_LAB_SOURCE_DIR:-}" ] && cmake_args+=("-DSTEPPER_LAB_SOURCE_DIR=${STEPPER_LAB_SOURCE_DIR}")
 
 echo "Building the test firmware (native_sim) into ${build_dir}."
 west build "${west_args[@]}" -- "${cmake_args[@]}"

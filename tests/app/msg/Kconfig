@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
+rsource "../../../app/Kconfig.app_msg"
+
+source "Kconfig.zephyr"

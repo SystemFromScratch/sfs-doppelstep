@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+
+menu "Doppelstep drivers"
+
+rsource "power_stage/Kconfig"
+rsource "motor/Kconfig"
+rsource "x430/Kconfig"
+
+endmenu

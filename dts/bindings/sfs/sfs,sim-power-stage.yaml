@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Simulation backend of the power_stage class: the motor model of Stepper-Lab
+  takes the place of the hardware. It never switches real outputs.
+
+  Without "timebase" a kernel timer runs the PWM periods and the scaling comes from
+  the properties of this node (pwm-frequency, timer-clock-hz, adc-vref-mv,
+  shunt-micro-ohms, current-sense-gain-milli, vbus-divider are then required).
+  With "timebase" timing and scaling come from that stage.
+
+compatible: "sfs,sim-power-stage"
+
+include: [base.yaml, power-stage-common.yaml]
+
+properties:
+  timebase:
+    type: phandle
+    description: Power stage whose fast-loop interrupt gives the PWM periods.
+
+  timer-clock-hz:
+    type: int
+    description: PWM timer clock of the simulated stage [Hz].
+
+  microsteps:
+    type: int
+    required: true
+    description: Microsteps per full step of the controller, for the rotor position.
+
+  full-steps-per-rev:
+    type: int
+    required: true
+    description: Full steps per revolution of the controller, checked against the model.

@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Plant model of Stepper-Lab (sil/c/sstep_plant.c) and its parameters.
+
+menuconfig SSTEP_PLANT
+	bool "Stepper-Lab plant model (power stage + stepper motor)"
+	help
+	  The C model of the Xcos plant block of Stepper-Lab, built in
+	  single precision without the switching stage. Its parameters come
+	  from params/*.json of the same repository, read at build time into
+	  the generated header sstep_plant_params.h.
+
+if SSTEP_PLANT
+
+config SSTEP_PLANT_MOTOR_PARAMS
+	string "Motor parameter file (params/<name>.json)"
+	default "motor_17hs19_2004s1"
+	help
+	  Written by tools/export_params.py of Stepper-Lab from the
+	  params/<name>.sci file of the Scilab model.
+
+config SSTEP_PLANT_STAGE_PARAMS
+	string "Power stage parameter file (params/<name>.json)"
+	default "stage_esc1_spice"
+	help
+	  Written by tools/run_tests.py --export of sfs-stepper-power-spice
+	  (ngspice): leg resistance, diode drop, effective dead time and the
+	  leg voltage error table.
+
+endif # SSTEP_PLANT

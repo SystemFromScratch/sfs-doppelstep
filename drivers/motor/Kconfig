@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig SSTEP_MOTOR
+	bool "Stepper motor driver built on Stepper-C"
+	default y
+	depends on DT_HAS_SFS_SSTEP_MOTOR_ENABLED
+	select STEPPER
+	select SSTEP
+	select POWER_STAGE
+
+if SSTEP_MOTOR
+
+config SSTEP_MOTOR_INIT_PRIORITY
+	int "Motor driver init priority"
+	default 75
+	help
+	  After the power stage.
+
+config SSTEP_MOTOR_CHILD_INIT_PRIORITY
+	int "Init priority of the stepper and stepper_ctrl child devices"
+	default 76
+	help
+	  After the parent device.
+
+config SSTEP_MOTOR_THREAD_CHECK
+	bool "Check that every call comes from one thread"
+	default y if ASSERT
+
+module = SSTEP_MOTOR
+module-str = sstep_motor
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # SSTEP_MOTOR

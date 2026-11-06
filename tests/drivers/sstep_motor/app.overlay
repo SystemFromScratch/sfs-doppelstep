@@ -1,0 +1,42 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The motor driver on a fake power stage (ESC1 scaling), with the 17HS19-2004S1.
+ */
+
+/ {
+	stage: fake-stage {
+		compatible = "sfs,fake-power-stage";
+	};
+
+	motor: motor {
+		compatible = "sfs,sstep-motor";
+		power-stage = <&stage>;
+		phase-resistance-milliohm = <1600>;
+		phase-inductance-microhenry = <3000>;
+		rated-current-milliamp = <2000>;
+		back-emf-uv-s-per-rad = <208600>;
+		full-steps-per-rev = <200>;
+		vbus-nominal-mv = <24000>;
+		vbus-min-mv = <10000>;
+		vbus-max-mv = <28000>;
+		trip-current-milliamp = <3500>;
+		aux-trip;
+		slow-loop-hz = <1000>;
+		microsteps = <16>;
+		current-bandwidth-hz = <1000>;
+		run-current-milliamp = <1500>;
+		hold-current-milliamp = <500>;
+		hold-delay-ms = <500>;
+		max-velocity = <16000>;
+		max-acceleration = <64000>;
+
+		motor_drv: driver {
+			compatible = "sfs,sstep-stepper-driver";
+		};
+
+		motor_ctrl: ctrl {
+			compatible = "sfs,sstep-stepper-ctrl";
+		};
+	};
+};

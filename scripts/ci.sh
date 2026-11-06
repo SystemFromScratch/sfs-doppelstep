@@ -7,7 +7,7 @@
 #   docker compose run --rm zephyr bash scripts/ci.sh
 #
 #   1. west workspace: init / update (scripts/west-init.sh)
-#   2. pristine builds without warnings: b_g431b_esc1, b_g431b_esc1 + sim.conf,
+#   2. pristine builds without warnings: b_g431b_esc1, b_g431b_esc1 + sim.overlay,
 #      native_sim (the test firmware)
 #   3. SIL and integration tests (scripts/run-tests.sh) -> build-tests/junit.xml
 #
@@ -25,9 +25,9 @@ KNOWN_WARNINGS='dynamixel-x430/src/x430_bus.c:[0-9]+:[0-9]+: warning: .*maybe-un
 
 bash scripts/west-init.sh
 
-# SSTEP_SIM_SOURCE_DIR: local checkout of sfs-stepper-sim (tests/README.md)
+# STEPPER_LAB_SOURCE_DIR: local checkout of Stepper-Lab (tests/README.md)
 sim_args=()
-[ -n "${SSTEP_SIM_SOURCE_DIR:-}" ] && sim_args=("-DSSTEP_SIM_SOURCE_DIR=${SSTEP_SIM_SOURCE_DIR}")
+[ -n "${STEPPER_LAB_SOURCE_DIR:-}" ] && sim_args=("-DSTEPPER_LAB_SOURCE_DIR=${STEPPER_LAB_SOURCE_DIR}")
 
 mkdir -p build-ci
 failed=0
@@ -54,10 +54,10 @@ build() {
     echo "::endgroup::"
 }
 
-build esc1 -b b_g431b_esc1 -s apps/doppelstep -d build-ci/esc1
-build esc1-sim -b b_g431b_esc1 -s apps/doppelstep -d build-ci/esc1-sim \
-    -- -DEXTRA_CONF_FILE=sim.conf "${sim_args[@]}"
-build native-tests -b native_sim/native/64 -s apps/doppelstep -d build-tests \
+build esc1 -b b_g431b_esc1 -s app -d build-ci/esc1
+build esc1-sim -b b_g431b_esc1 -s app -d build-ci/esc1-sim \
+    -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay "${sim_args[@]}"
+build native-tests -b native_sim/native/64 -s app -d build-tests \
     -- -DEXTRA_CONF_FILE=sim-test.conf "${sim_args[@]}"
 
 if [ "${failed}" -ne 0 ]; then

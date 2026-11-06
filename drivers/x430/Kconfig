@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig X430_SERVO
+	bool "Emulated DYNAMIXEL X430 servo on a UART bus"
+	default y
+	depends on DT_HAS_SFS_X430_SERVO_ENABLED
+	select SFS_DYNAMIXEL_X430
+	select SERIAL
+	select UART_INTERRUPT_DRIVEN
+	select UART_USE_RUNTIME_CONFIGURE
+
+if X430_SERVO
+
+config X430_SERVO_INIT_PRIORITY
+	int "X430 servo init priority"
+	default 80
+
+config SFS_DXL_RX_BUFFER_SIZE
+	int "UART receive ring buffer [bytes]"
+	default 512
+
+config SFS_DXL_POLL_MS
+	int "Bus Watchdog poll period [ms]"
+	default 10
+
+config SFS_DXL_NVM
+	bool "Store the EEPROM area and the Control Table backup in flash (NVS)"
+	default y
+	depends on NVS
+	help
+	  Uses the partition of the storage property. Writes are refused while
+	  the application says so: an erase of a single-bank flash stalls the CPU
+	  and with it the current loop.
+
+module = X430_SERVO
+module-str = x430_servo
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # X430_SERVO
