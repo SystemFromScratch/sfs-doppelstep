@@ -15,7 +15,7 @@ To compare timing, first measure the fast loop on the firmware before the change
 Build and flash:
 
 ```bash
-west build -p always -b b_g431b_esc1 -s app -d build
+west build -p always --sysbuild -b b_g431b_esc1 -s app -d build
 west flash -d build -r openocd
 ```
 
@@ -38,7 +38,7 @@ These checks do not need the outputs. A real trip is checked in part C.
 ## B: simulated motor on the board
 
 ```bash
-west build -p always -b b_g431b_esc1 -s app -d build -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay
+west build -p always --sysbuild -b b_g431b_esc1 -s app -d build -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay
 west flash -d build -r openocd
 ```
 
@@ -64,3 +64,18 @@ fault path through the interrupt. Checks 15 and 16 concern a finding from the si
 If checks 15 and 16 show a real problem, consider oversampling in the ADC, a lower current loop
 bandwidth (`current-bandwidth-hz`) or a higher measurement gain. The model predicts the effect, but
 real friction and ADC noise may reduce it or remove it, so measure before changing the control.
+
+## D: firmware update over USART2
+
+MCUboot serial recovery ([Firmware update](firmware-update.md)). Flash with the debug probe first
+(task **Zephyr: Flash**), at 1 Mbps unless a check says otherwise.
+
+| # | Check | Expected |
+|---|---|---|
+| 17 | Startup log after the probe flash | The application starts, so MCUboot accepted the signature |
+| 18 | VS Code configuration **Debug: OpenOCD on host** | Stops at `main` of the application |
+| 19 | Write a test value to Homing Offset (20), read it back | The value |
+| 20 | Reboot, then an SMP request repeated until answered, then `image upload` and `os reset` of an image with another boot banner | Upload completes, the new banner in the RTT log |
+| 21 | Baud Rate 1 (57600), Reboot | Complete status packet without error; the application answers again at 57600 after about 0.5 s plus startup |
+| 22 | Upload interrupted halfway (unplug USB), power on | The application does not start; a second upload succeeds and the application starts |
+| 23 | Read Homing Offset (20) | The value of check 19: the storage partition survived |

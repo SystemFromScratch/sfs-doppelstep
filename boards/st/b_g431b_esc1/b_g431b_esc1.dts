@@ -128,16 +128,29 @@
 	status = "okay";
 };
 
+/*
+ * 128 KiB of flash, 2 KiB pages:
+ *
+ *   boot_partition     MCUboot (sysbuild, docs/firmware-update.md)
+ *   slot0_partition    application, signed; serial recovery writes it
+ *   storage_partition  NVS: EEPROM area of the emulated DYNAMIXEL
+ */
 &flash0 {
 	partitions {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges;
 
-		slot0_partition: partition@0 {
+		boot_partition: partition@0 {
+			compatible = "zephyr,mapped-partition";
+			label = "mcuboot";
+			reg = <0x00000000 DT_SIZE_K(38)>;
+		};
+
+		slot0_partition: partition@9800 {
 			compatible = "zephyr,mapped-partition";
 			label = "image-0";
-			reg = <0x00000000 DT_SIZE_K(124)>;
+			reg = <0x00009800 DT_SIZE_K(86)>;
 		};
 
 		/* 2 x 2 KiB flash pages at the end of the 128 KiB of flash */

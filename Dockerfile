@@ -34,6 +34,12 @@ ARG JUNITPARSER_VERSION=5.0.3
 ARG NATSORT_VERSION=8.4.0
 ARG PLY_VERSION=3.11
 ARG TABULATE_VERSION=0.10.0
+# imgtool (MCUboot image signing by sysbuild): bootloader/mcuboot/scripts/requirements.txt
+# of MCUboot 2.5.0 (setuptools and PyYAML are already there)
+ARG CRYPTOGRAPHY_VERSION=50.0.2
+ARG INTELHEX_VERSION=2.3.0
+ARG CLICK_VERSION=8.5.1
+ARG CBOR2_VERSION=6.2.1
 
 # sha256.sum of the SDK release
 ARG ZEPHYR_SDK_MINIMAL_SHA256=ca9bc0ff66fafca1dac9d592a36d953cf16d096a9d09b1c0357f021cf9f6a7eb
@@ -79,7 +85,8 @@ RUN apt-get update \
 # CMake comes from pip because Zephyr follows recent CMake releases. pytest,
 # pyserial and the DYNAMIXEL SDK run the SIL and integration tests (tests/);
 # anytree, junitparser, natsort, ply and tabulate are what Twister needs for the
-# ztest suites on native_sim.
+# ztest suites on native_sim. cryptography, intelhex, click and cbor2 are what
+# imgtool needs to sign the application for MCUboot.
 # ---------------------------------------------------------------------------
 
 RUN python3 -m venv "${VIRTUAL_ENV}" \
@@ -99,7 +106,11 @@ RUN python3 -m venv "${VIRTUAL_ENV}" \
         "junitparser==${JUNITPARSER_VERSION}" \
         "natsort==${NATSORT_VERSION}" \
         "ply==${PLY_VERSION}" \
-        "tabulate==${TABULATE_VERSION}"
+        "tabulate==${TABULATE_VERSION}" \
+        "cryptography==${CRYPTOGRAPHY_VERSION}" \
+        "intelhex==${INTELHEX_VERSION}" \
+        "click==${CLICK_VERSION}" \
+        "cbor2==${CBOR2_VERSION}"
 
 # ---------------------------------------------------------------------------
 # Zephyr SDK - minimal bundle plus ONLY the ARM Cortex-M toolchain

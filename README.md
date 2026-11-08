@@ -12,7 +12,8 @@ in closed-loop microstepping current control by
 Target host: ROS 2 `dynamixel_hardware_interface` as used by
 [OpenMANIPULATOR-X](https://github.com/ROBOTIS-GIT/open_manipulator).
 
-The build result is `build/zephyr/zephyr.elf`; flashing and debugging work with
+The build result is MCUboot and the signed application (sysbuild, firmware update over
+USART2: `docs/firmware-update.md`); flashing and debugging work with
 OpenOCD (on-board ST-LINK/V2-1) and SEGGER J-Link (the ST-LINK converted to
 J-Link OB, or an external J-Link), through `west` and VS Code Cortex-Debug.
 
@@ -321,18 +322,21 @@ the J-Link Remote Server. Details: [docs/development.md](docs/development.md).
 ## Building
 
 ```bash
-west build -b b_g431b_esc1 -s app -d build              # incremental
-west build -p always -b b_g431b_esc1 -s app -d build    # pristine
-west build -d build -t menuconfig                       # Kconfig
+west build --sysbuild -b b_g431b_esc1 -s app -d build              # incremental
+west build -p always --sysbuild -b b_g431b_esc1 -s app -d build    # pristine
+west build -d build -t menuconfig                                  # Kconfig of the application
 ```
 
 `Ctrl+Shift+B` opens the **Workspace Menu** (initialize/update, build,
 pristine build, menuconfig, flash, RTT, GUI, documentation); see
 [VS Code tasks](#vs-code-tasks-windows-and-linux).
 
-Artifacts in `build/zephyr/`: **`zephyr.elf`** (debugging), `zephyr.hex`,
-`zephyr.bin`. Current size: about 74 KiB flash of the 124 KiB code partition,
-19 KiB RAM.
+Artifacts: `build/mcuboot/zephyr/zephyr.hex` (MCUboot, 37 KiB of its 38 KiB
+partition) and in `build/app/zephyr/`: **`zephyr.elf`** (debugging),
+`zephyr.signed.hex` (debug probe), `zephyr.signed.bin` (update over USART2).
+Current size of the application: about 75 KiB flash of the 86 KiB slot (with the
+simulated motor 85 KiB), 19 KiB RAM. Flash layout and update:
+`docs/firmware-update.md`.
 
 A pristine build is needed after changes to `prj.conf`, Kconfig, devicetree,
 `west.yml` or the toolchain.
@@ -369,8 +373,9 @@ J-Link OB firmware.
 | Debug: J-Link GDB Server on host (host.docker.internal:2331) | `scripts/host/jlink-gdb-server.ps1` |
 | Attach: … on host (no download) | attach to the running firmware |
 
-Every *Debug* configuration builds first, loads `zephyr.elf`, resets and stops
-at `main`.
+Every *Debug* configuration builds first, loads MCUboot and the signed
+application (`zephyr.elf` alone would not boot: MCUboot checks the signature),
+resets and stops at `main` of the application.
 
 ---
 
@@ -408,7 +413,7 @@ Sync/Bulk Read, Bus Watchdog …); the firmware maps the registers onto the moto
 | Moving (122), Moving Status (123) | from the status of the motor driver |
 | Hardware Error Status (70) | over/undervoltage → Input Voltage; overcurrent, W trip, HAL → Electrical Shock |
 | Bus Watchdog | `stepper_ctrl_stop()` |
-| REBOOT / FACTORY_RESET | outputs off, faults cleared |
+| REBOOT / FACTORY_RESET | outputs off, faults cleared; on the board (MCUboot) REBOOT then resets the MCU: silent for 500 ms plus startup, Present Position restarts (`docs/firmware-update.md`) |
 | CLEAR (multi-turn) | position redefined within one turn |
 | Baud Rate (8) | USART2 reconfigured after the status packet |
 
@@ -460,7 +465,7 @@ Two ways:
 ### A: on the board
 
 ```bash
-west build -p always -b b_g431b_esc1 -s app -d build -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay
+west build -p always --sysbuild -b b_g431b_esc1 -s app -d build -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay
 ```
 
 (task **Zephyr: Pristine Build (simulated motor)**; `sim.overlay` stays in the

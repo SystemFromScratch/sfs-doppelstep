@@ -32,6 +32,16 @@ config SFS_DXL_NVM
 	  the application says so: an erase of a single-bank flash stalls the CPU
 	  and with it the current loop.
 
+config SFS_DXL_REBOOT_RESETS_MCU
+	bool "Reboot (0x08) resets the MCU"
+	default y if BOOTLOADER_MCUBOOT
+	select REBOOT
+	help
+	  After the status packet, the driver resets the MCU, so MCUboot opens
+	  its serial recovery window (docs/firmware-update.md). The position
+	  restarts, unlike on an XM430. Off: Reboot stays emulated (native_sim
+	  and the SIL tests).
+
 module = X430_SERVO
 module-str = x430_servo
 source "subsys/logging/Kconfig.template.log_config"

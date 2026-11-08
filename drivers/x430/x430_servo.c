@@ -20,6 +20,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/storage/flash_map.h>
 #include <zephyr/sys/atomic.h>
+#include <zephyr/sys/reboot.h>
 #include <zephyr/sys/ring_buffer.h>
 
 #include <doppelstep/drivers/x430_servo.h>
@@ -59,6 +60,7 @@ struct x430_servo_data {
 	uint8_t baud;
 	bool eeprom_missing;       /* no EEPROM block at startup */
 	bool factory_baud_pending; /* apply the factory-baud-code property */
+	bool reset_pending;        /* Reboot: reset the MCU after the answer */
 	int64_t next_poll;
 };
 
@@ -215,6 +217,15 @@ static uint8_t hook_event(struct x430_device *device, enum x430_event event, voi
 		break;
 
 	case X430_EVENT_REBOOT:
+		data->baud = (uint8_t)x430_device_get(&data->device, X430_ADDR_BAUD_RATE);
+		/* MCUboot: a real reset opens its serial recovery window (in
+		 * process(), after the answer).
+		 */
+		if (IS_ENABLED(CONFIG_SFS_DXL_REBOOT_RESETS_MCU)) {
+			data->reset_pending = true;
+		}
+		break;
+
 	case X430_EVENT_BACKUP_RESTORED:
 		data->baud = (uint8_t)x430_device_get(&data->device, X430_ADDR_BAUD_RATE);
 		break;
@@ -308,6 +319,24 @@ int x430_servo_start(const struct device *dev, const struct x430_servo_callbacks
 	return 0;
 }
 
+/* Reboot with CONFIG_SFS_DXL_REBOOT_RESETS_MCU: the status packet is in the
+ * UART, the motor outputs are off (joint_bridge disables the motor in the event
+ * callback). Ten character times let the last bytes leave: with fifo-enable,
+ * uart_poll_out() returns as soon as the 8-byte TX FIFO has room.
+ */
+#if defined(CONFIG_SFS_DXL_REBOOT_RESETS_MCU)
+static void reset_after_answer(const struct device *dev)
+{
+	const struct x430_servo_data *data = dev->data;
+	const uint32_t baud = (data->baud < ARRAY_SIZE(baud_bps)) ? baud_bps[data->baud]
+								   : baud_bps[0];
+
+	LOG_INF("Reboot: MCU reset");
+	k_busy_wait((100000000U / baud) + 1U); /* 10 characters of 10 bits */
+	sys_reboot(SYS_REBOOT_COLD);
+}
+#endif /* CONFIG_SFS_DXL_REBOOT_RESETS_MCU */
+
 int x430_servo_process(const struct device *dev, k_timeout_t timeout)
 {
 	struct x430_servo_data *data = dev->data;
@@ -337,6 +366,12 @@ int x430_servo_process(const struct device *dev, k_timeout_t timeout)
 			LOG_WRN("RX ring buffer overrun (%ld)", (long)overruns);
 		}
 	}
+
+#if defined(CONFIG_SFS_DXL_REBOOT_RESETS_MCU)
+	if (data->reset_pending) {
+		reset_after_answer(dev);
+	}
+#endif
 	return 0;
 }
 

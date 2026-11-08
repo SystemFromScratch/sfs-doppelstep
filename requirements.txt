@@ -22,6 +22,10 @@
 # tools/gui - serial link to the DYNAMIXEL bus (Protocol 2.0)
 pyserial==3.5
 
+# Firmware update over USART2: SMP client for MCUboot serial recovery
+# (docs/firmware-update.md)
+smpmgr==0.19.1
+
 # Documentation (HTML site and PDF manual). MkDocs 2.0 removes the plugin
 # system used by the theme and by print-site.
 mkdocs>=1.6,<2

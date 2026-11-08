@@ -29,7 +29,9 @@ $VenvPython = Join-Path $Venv 'Scripts\python.exe'
 $Requirements = Join-Path $Root 'requirements.txt'
 $Gui = Join-Path $Root 'tools\gui\doppelstep_gui.py'
 $BuildDir = Join-Path $Root 'build'
-$Elf = Join-Path $BuildDir 'zephyr\zephyr.elf'
+# Sysbuild images (docs/firmware-update.md)
+$BootHex = Join-Path $BuildDir 'mcuboot\zephyr\zephyr.hex'
+$AppHex = Join-Path $BuildDir 'app\zephyr\zephyr.signed.hex'
 $Pdf = Join-Path $Root 'site\Doppelstep.pdf'
 $HostScripts = Join-Path $Root 'scripts\host'
 
@@ -65,16 +67,18 @@ function Invoke-ZephyrInDocker([string]$LinuxAction, [string[]]$RunOptions = @()
 # --- Debug probe on the host ----------------------------------------------------
 
 function Invoke-HostFlash {
-    if (-not (Test-Path $Elf)) {
+    if (-not ((Test-Path $BootHex) -and (Test-Path $AppHex))) {
         Invoke-ZephyrInDocker 'Build firmware'
     }
     if (-not (Get-Command openocd -ErrorAction SilentlyContinue)) {
         Stop-WithError 'openocd was not found in PATH. Install OpenOCD 0.12+ (for example xPack) and the ST-LINK driver.'
     }
     $cfg = Join-Path $Root 'boards\st\b_g431b_esc1\support\openocd.cfg'
-    # OpenOCD's Tcl parser takes forward slashes on Windows.
-    $image = $Elf -replace '\\', '/'
-    Invoke-Checked 'openocd' @('-f', $cfg, '-c', "program {$image} verify reset exit")
+    # MCUboot, then the signed application. OpenOCD's Tcl parser takes forward
+    # slashes on Windows.
+    $boot = $BootHex -replace '\\', '/'
+    $app = $AppHex -replace '\\', '/'
+    Invoke-Checked 'openocd' @('-f', $cfg, '-c', "program {$boot} verify", '-c', "program {$app} verify reset exit")
 }
 
 # --- Python tools ---------------------------------------------------------------

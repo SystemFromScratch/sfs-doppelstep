@@ -25,14 +25,14 @@ current platform. The other tasks run one action directly
 | Task | Linux / Dev Container | Windows host |
 |---|---|---|
 | Zephyr: West Init/Update | `scripts/west-init.sh` | same, in Docker |
-| Zephyr: Build | `west build -b b_g431b_esc1 -s app -d build` | same, in Docker |
-| Zephyr: Pristine Build | `west build -p always …` | same, in Docker |
-| Zephyr: Pristine Build (simulated motor) | `west build -p always … -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay` | same, in Docker |
+| Zephyr: Build | `west build --sysbuild -b b_g431b_esc1 -s app -d build`: MCUboot + signed application ([Firmware update](firmware-update.md)) | same, in Docker |
+| Zephyr: Pristine Build | `west build -p always --sysbuild …` | same, in Docker |
+| Zephyr: Pristine Build (simulated motor) | `west build -p always --sysbuild … -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay` | same, in Docker |
 | Zephyr: Build (native_sim) | `west build -b native_sim/native/64 … -d build-native` | same, in Docker |
 | Zephyr: Run tests (native_sim) | `scripts/run-tests.sh`: SIL and integration tests → `build-tests/junit.xml` | same, in Docker |
 | Zephyr: Run (native_sim) | `tools/sim/run_native.py run` (bus at `build-native/ttyDXL`) | same, in Docker; bus also on TCP 5555 of the host |
 | Zephyr: Clean | removes `build/` | removes `build/` |
-| Zephyr: Flash (OpenOCD, ST-LINK) | `west flash -r openocd` | `openocd … program build/zephyr/zephyr.elf` (OpenOCD on Windows) |
+| Zephyr: Flash (OpenOCD, ST-LINK) | `west flash -r openocd`: MCUboot and the signed application | `openocd … program build/mcuboot/zephyr/zephyr.hex`, then `build/app/zephyr/zephyr.signed.hex` (OpenOCD on Windows) |
 | Python: Create .venv | `.venv` (or `.venv-linux`) with `requirements.txt` | `.venv` with `requirements.txt` |
 | GUI: Run / Run (simulator) | `tools/gui/doppelstep_gui.py [--sim]` | same |
 | Docs: Serve | `mkdocs serve` on `http://127.0.0.1:8000` | same |

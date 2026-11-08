@@ -22,12 +22,14 @@ strict: true
 
 exclude_docs: |
   design/
+  superpowers/
 
 nav:
   - Overview: index.md
   - Architecture: architecture.md
   - Porting to a new MCU family: porting.md
   - Development environment: development.md
+  - Firmware update: firmware-update.md
   - Simulated motor: simulation.md
   - Tests: testing.md
   - Hardware checklist: hardware-checklist.md

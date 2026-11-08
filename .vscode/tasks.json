@@ -35,7 +35,7 @@
         },
         {
             "label": "Zephyr: Build",
-            "detail": "west build -b b_g431b_esc1 -s app -d build (Windows: in Docker)",
+            "detail": "west build --sysbuild -b b_g431b_esc1 -s app -d build: MCUboot + signed application (Windows: in Docker)",
             "type": "process",
             "command": "bash",
             "args": [".vscode/workspace-menu.sh", "Build firmware"],
@@ -49,7 +49,7 @@
         },
         {
             "label": "Zephyr: Pristine Build",
-            "detail": "west build -p always ... (Windows: in Docker)",
+            "detail": "west build -p always --sysbuild ... (Windows: in Docker)",
             "type": "process",
             "command": "bash",
             "args": [".vscode/workspace-menu.sh", "Pristine build"],
@@ -63,7 +63,7 @@
         },
         {
             "label": "Zephyr: Pristine Build (simulated motor)",
-            "detail": "west build -p always ... -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay: Stepper-C drives a motor model, gate drivers off",
+            "detail": "west build -p always --sysbuild ... -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay: Stepper-C drives a motor model, gate drivers off",
             "type": "process",
             "command": "bash",
             "args": [".vscode/workspace-menu.sh", "Pristine build (simulated motor)"],
@@ -131,7 +131,7 @@
         },
         {
             "label": "Zephyr: Flash (OpenOCD, ST-LINK)",
-            "detail": "west flash -r openocd (Windows: OpenOCD installed on the host)",
+            "detail": "west flash -r openocd: MCUboot + signed application (Windows: OpenOCD installed on the host)",
             "type": "process",
             "command": "bash",
             "args": [".vscode/workspace-menu.sh", "Flash (OpenOCD, ST-LINK)"],

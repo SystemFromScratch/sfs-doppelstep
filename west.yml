@@ -44,7 +44,14 @@ manifest:
         name-allowlist:
           - cmsis_6
           - hal_stm32
+          # bootloader (docs/firmware-update.md); MCUboot needs mbedtls and
+          # tf-psa-crypto for the RSA signature check and zcbor for the SMP
+          # messages of serial recovery
+          - mbedtls
+          - mcuboot
           - segger
+          - tf-psa-crypto
+          - zcbor
 
     - name: stepper-c
       remote: antonvynohradov

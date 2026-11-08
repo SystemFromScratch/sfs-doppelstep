@@ -61,10 +61,11 @@ ensure_workspace() {
 }
 
 # build_firmware [west build options...] [-- CMake options...]
+# Sysbuild: MCUboot and the signed application (docs/firmware-update.md).
 build_firmware() {
     ensure_workspace
-    echo "Building ${APP} for ${BOARD_TARGET} into ${BUILD_DIR}."
-    west build -b "${BOARD_TARGET}" -s "${APP}" -d "${BUILD_DIR}" "$@"
+    echo "Building MCUboot and ${APP} for ${BOARD_TARGET} into ${BUILD_DIR}."
+    west build --sysbuild -b "${BOARD_TARGET}" -s "${APP}" -d "${BUILD_DIR}" "$@"
 }
 
 build_native() {
@@ -86,7 +87,7 @@ run_native() {
 }
 
 require_build() {
-    [ -f "${BUILD_DIR}/zephyr/zephyr.elf" ] || build_firmware
+    [ -f "${BUILD_DIR}/app/zephyr/zephyr.signed.hex" ] || build_firmware
 }
 
 # --- Python tools -------------------------------------------------------------

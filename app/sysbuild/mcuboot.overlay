@@ -1,0 +1,23 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * MCUboot of the board build: serial recovery on USART2 at the default rate of
+ * the DYNAMIXEL bus (docs/firmware-update.md). The rate is fixed: the bootloader
+ * does not read the Baud Rate register of the application.
+ *
+ * This overlay replaces the app.overlay of MCUboot, so it repeats its
+ * code partition.
+ */
+
+/ {
+	chosen {
+		zephyr,code-partition = &boot_partition;
+		/delete-property/ zephyr,console;
+		/delete-property/ zephyr,shell-uart;
+		zephyr,uart-mcumgr = &usart2;
+	};
+};
+
+&usart2 {
+	current-speed = <1000000>;
+};

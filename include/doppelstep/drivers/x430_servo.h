@@ -44,7 +44,9 @@ int x430_servo_start(const struct device *dev, const struct x430_servo_callbacks
 
 /**
  * Wait up to @p timeout for received bytes, parse them and answer, run the callbacks
- * and, every CONFIG_SFS_DXL_POLL_MS, the Bus Watchdog.
+ * and, every CONFIG_SFS_DXL_POLL_MS, the Bus Watchdog. With
+ * CONFIG_SFS_DXL_REBOOT_RESETS_MCU it does not return after a Reboot instruction:
+ * it resets the MCU once the status packet has left.
  */
 int x430_servo_process(const struct device *dev, k_timeout_t timeout);
 

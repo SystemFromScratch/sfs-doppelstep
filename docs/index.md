@@ -11,7 +11,8 @@ in closed-loop microstepping current control by
 Target host: ROS 2 `dynamixel_hardware_interface` as used by
 [OpenMANIPULATOR-X](https://github.com/ROBOTIS-GIT/open_manipulator).
 
-The build result is `build/zephyr/zephyr.elf`; flashing and debugging work with
+The build result is MCUboot and the signed application (`build/app/zephyr/`, see
+[Firmware update](firmware-update.md)); flashing and debugging work with
 OpenOCD (on-board ST-LINK/V2-1) and SEGGER J-Link, through `west` and VS Code
 Cortex-Debug. Hardware details, the DYNAMIXEL register mapping, the
 configuration options and the bring-up checklist are in the repository

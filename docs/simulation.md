@@ -99,7 +99,7 @@ log names the model file and its main values.
 ### A: on the board
 
 ```bash
-west build -p always -b b_g431b_esc1 -s app -d build -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay
+west build -p always --sysbuild -b b_g431b_esc1 -s app -d build -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay
 ```
 
 Or use the VS Code task **Zephyr: Pristine Build (simulated motor)**. TIM1 and the ADCs

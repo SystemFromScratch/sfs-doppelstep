@@ -136,6 +136,10 @@ Motor protection depends on no task, because the interrupt handles electrical fa
 
 ## Startup
 
+On the board MCUboot runs first: it checks the signature of the application and waits 500 ms
+for a firmware update over USART2 ([Firmware update](firmware-update.md)). Then the
+application starts:
+
 1. Device initialisation at `POST_KERNEL`: power stage, motor driver, servo. Outputs stay off.
 2. `main` checks the devices and measures the current sensor offsets.
 3. `main` starts `control_task`, which publishes the first status, and connects the servo through
@@ -158,3 +162,4 @@ outputs stay off and the LED blinks fast.
 | Compiled features, threads, buffers, timeouts | Kconfig |
 | Board-specific Zephyr options | `app/boards/<board>.conf` |
 | Simulated motor on the board | `-DEXTRA_DTC_OVERLAY_FILE=sim.overlay` |
+| Bootloader, flash layout, serial recovery | `app/sysbuild.conf`, `app/sysbuild/`, partitions in the board devicetree |

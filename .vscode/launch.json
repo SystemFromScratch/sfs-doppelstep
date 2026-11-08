@@ -4,7 +4,7 @@
         {
             "type": "cortex-debug",
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "executable": "${workspaceFolder}/build/app/zephyr/zephyr.elf",
             "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
             "runToEntryPoint": "main",
             "showDevDebugOutput": "none",
@@ -19,12 +19,16 @@
                 "${workspaceFolder}/boards/st/b_g431b_esc1/support/openocd.cfg"
             ],
             "rtos": "Zephyr",
-            "preLaunchTask": "Zephyr: Build"
+            "preLaunchTask": "Zephyr: Build",
+            "loadFiles": [
+                "${workspaceFolder}/build/mcuboot/zephyr/zephyr.hex",
+                "${workspaceFolder}/build/app/zephyr/zephyr.signed.hex"
+            ]
         },
         {
             "type": "cortex-debug",
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "executable": "${workspaceFolder}/build/app/zephyr/zephyr.elf",
             "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
             "runToEntryPoint": "main",
             "showDevDebugOutput": "none",
@@ -34,12 +38,16 @@
             "serverpath": "/opt/SEGGER/JLink/JLinkGDBServerCLExe",
             "device": "STM32G431CB",
             "interface": "swd",
-            "preLaunchTask": "Zephyr: Build"
+            "preLaunchTask": "Zephyr: Build",
+            "loadFiles": [
+                "${workspaceFolder}/build/mcuboot/zephyr/zephyr.hex",
+                "${workspaceFolder}/build/app/zephyr/zephyr.signed.hex"
+            ]
         },
         {
             "type": "cortex-debug",
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "executable": "${workspaceFolder}/build/app/zephyr/zephyr.elf",
             "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
             "runToEntryPoint": "main",
             "showDevDebugOutput": "none",
@@ -49,7 +57,8 @@
             "gdbTarget": "host.docker.internal:3333",
             "overrideLaunchCommands": [
                 "monitor reset halt",
-                "-target-download",
+                "load ${workspaceFolder}/build/mcuboot/zephyr/zephyr.hex",
+                "load ${workspaceFolder}/build/app/zephyr/zephyr.signed.hex",
                 "monitor reset halt"
             ],
             "overrideRestartCommands": [
@@ -63,7 +72,7 @@
         {
             "type": "cortex-debug",
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "executable": "${workspaceFolder}/build/app/zephyr/zephyr.elf",
             "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
             "runToEntryPoint": "main",
             "showDevDebugOutput": "none",
@@ -74,7 +83,8 @@
             "overrideLaunchCommands": [
                 "monitor reset",
                 "monitor halt",
-                "-target-download",
+                "load ${workspaceFolder}/build/mcuboot/zephyr/zephyr.hex",
+                "load ${workspaceFolder}/build/app/zephyr/zephyr.signed.hex",
                 "monitor reset",
                 "monitor halt"
             ],
@@ -91,7 +101,7 @@
         {
             "type": "cortex-debug",
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "executable": "${workspaceFolder}/build/app/zephyr/zephyr.elf",
             "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
             "showDevDebugOutput": "none",
             "name": "Attach: OpenOCD on host (no download)",
@@ -102,7 +112,7 @@
         {
             "type": "cortex-debug",
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/zephyr/zephyr.elf",
+            "executable": "${workspaceFolder}/build/app/zephyr/zephyr.elf",
             "gdbPath": "/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb",
             "showDevDebugOutput": "none",
             "name": "Attach: J-Link GDB Server on host (no download)",
