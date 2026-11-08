@@ -11,7 +11,11 @@ import os
 import select
 import socket
 import struct
+import sys
 import time
+
+# Packets, CRC and errors: shared with the GUI (tools/gui/doppelstep_gui/protocol.py)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "gui"))
 
 # Control Table of the XM430-W350 (e-Manual): (address, size)
 MODEL_NUMBER = (0, 2)
@@ -42,78 +46,11 @@ PRESENT_INPUT_VOLTAGE = (144, 2)
 SIGNED = {HOMING_OFFSET, GOAL_VELOCITY, GOAL_POSITION, PRESENT_CURRENT, PRESENT_VELOCITY,
           PRESENT_POSITION, BUS_WATCHDOG}
 
-INST_PING = 0x01
-INST_READ = 0x02
-INST_WRITE = 0x03
-INST_FACTORY_RESET = 0x06
-INST_REBOOT = 0x08
-INST_CLEAR = 0x10
-INST_SYNC_READ = 0x82
-INST_SYNC_WRITE = 0x83
-INST_STATUS = 0x55
-
-BROADCAST_ID = 0xFE
-
-# Error numbers of the status packet (bit 7 = Alert: Hardware Error Status != 0)
-ERR_RESULT_FAIL = 1
-ERR_INSTRUCTION = 2
-ERR_CRC = 3
-ERR_DATA_RANGE = 4
-ERR_DATA_LENGTH = 5
-ERR_DATA_LIMIT = 6
-ERR_ACCESS = 7
-ALERT = 0x80
-
-
-def crc16(data):
-    """CRC-16 of Protocol 2.0 (polynomial 0x8005, initial value 0)."""
-    crc = 0
-    for byte in data:
-        crc ^= byte << 8
-        for _ in range(8):
-            crc = ((crc << 1) ^ 0x8005) if crc & 0x8000 else (crc << 1)
-            crc &= 0xFFFF
-    return crc
-
-
-def stuff(params):
-    """Byte stuffing: 0xFD after every 0xFF 0xFF 0xFD."""
-    out = bytearray()
-    for byte in params:
-        out.append(byte)
-        if out[-3:] == b"\xff\xff\xfd":
-            out.append(0xFD)
-    return bytes(out)
-
-
-def packet(dxl_id, inst, params=b""):
-    """Instruction packet with header, length and CRC."""
-    body = stuff(params)
-    data = bytes([0xFF, 0xFF, 0xFD, 0x00, dxl_id]) + struct.pack("<H", len(body) + 3)
-    data += bytes([inst]) + body
-    return data + struct.pack("<H", crc16(data))
-
-
-class DxlError(Exception):
-    """Status packet with an error number."""
-
-    def __init__(self, dxl_id, error):
-        super().__init__(f"ID {dxl_id}: error 0x{error:02x}")
-        self.error = error & 0x7F
-        self.alert = bool(error & ALERT)
-
-
-class Status:
-    """One status packet."""
-
-    def __init__(self, raw):
-        self.id = raw[4]
-        self.error = raw[8]
-        self.params = raw[9:-2]
-
-    @property
-    def alert(self):
-        return bool(self.error & ALERT)
+from doppelstep_gui.protocol import (  # noqa: E402,F401  (re-exported for the tests)
+    ALERT, BROADCAST_ID, ERR_ACCESS, ERR_CRC, ERR_DATA_LENGTH, ERR_DATA_LIMIT, ERR_DATA_RANGE,
+    ERR_INSTRUCTION, ERR_RESULT_FAIL, INST_CLEAR, INST_FACTORY_RESET, INST_PING, INST_READ,
+    INST_REBOOT, INST_STATUS, INST_SYNC_READ, INST_SYNC_WRITE, INST_WRITE, CLEAR_MULTI_TURN,
+    DxlError, Status, crc16, packet, stuff, take_status)
 
 
 class Bus:
@@ -160,18 +97,9 @@ class Bus:
         """Next status packet, or None after `timeout` seconds."""
         deadline = time.monotonic() + timeout
         while True:
-            start = self.rx.find(b"\xff\xff\xfd\x00")
-            if start >= 0 and len(self.rx) >= start + 7:
-                length = struct.unpack_from("<H", self.rx, start + 5)[0]
-                end = start + 7 + length
-                if len(self.rx) >= end:
-                    raw = bytes(self.rx[start:end])
-                    del self.rx[:end]
-                    if struct.unpack_from("<H", raw, len(raw) - 2)[0] != crc16(raw[:-2]):
-                        raise IOError("status packet with a wrong CRC")
-                    if raw[7] != INST_STATUS:
-                        raise IOError(f"not a status packet: instruction 0x{raw[7]:02x}")
-                    return Status(raw)
+            status = take_status(self.rx)
+            if status is not None:
+                return status
             left = deadline - time.monotonic()
             if left <= 0:
                 return None
@@ -221,7 +149,7 @@ class Bus:
 
     def clear_multi_turn(self, dxl_id):
         """Clear instruction: Present Position back into one turn."""
-        return self.transact(dxl_id, INST_CLEAR, bytes([0x01, 0x44, 0x58, 0x4C, 0x22]))
+        return self.transact(dxl_id, INST_CLEAR, CLEAR_MULTI_TURN)
 
     def factory_reset(self, dxl_id, option=0xFF):
         """0xFF all, 0x01 all but ID, 0x02 all but ID and Baud Rate."""

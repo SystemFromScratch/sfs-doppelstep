@@ -310,7 +310,7 @@ host, `.vscode/workspace-menu.sh`) and a `windows` override (Windows host,
 | Zephyr: West Init/Update, Build, Pristine Build, Clean | west workspace and firmware (`build/`) |
 | Zephyr: Flash (OpenOCD, ST-LINK) | Linux: `west flash -r openocd`; Windows: host OpenOCD |
 | Python: Create .venv | virtual environment with `requirements.txt` |
-| GUI: Run, GUI: Run (simulator) | `tools/gui/doppelstep_gui.py [--sim]` |
+| GUI: Run | `tools/gui/doppelstep_gui.py`: test bench and firmware update |
 | Docs: Serve, Docs: Build PDF | `mkdocs serve`, `site/Doppelstep.pdf` |
 
 Linux menu only: menuconfig, J-Link flash, debug servers, RTT logs, ccache.
@@ -573,11 +573,13 @@ GitHub Actions (`.github/workflows/ci.yml`) runs `scripts/ci.sh` in the same ima
 
 ## GUI
 
-A host-side desktop GUI (Control Table access, motion, live registers over
-the DYNAMIXEL bus) is planned. The tasks **GUI: Run** and
-**GUI: Run (simulator)** already start `tools/gui/doppelstep_gui.py [--sim]`
-from the `.venv` on Windows and Linux; the contract is in
-[tools/gui/README.md](tools/gui/README.md).
+A desktop GUI on the host (Python, Tkinter) talks to the board over the
+DYNAMIXEL bus (ST-LINK Virtual COM Port): motion and live plots with CSV
+recording, the whole Control Table, the register checks of the SIL tests as
+test scenarios with PASS/FAIL and an HTML report, and the firmware update
+through MCUboot serial recovery, verified by the image hash. Task
+**GUI: Run** starts `tools/gui/doppelstep_gui.py` from the `.venv` on Windows
+and Linux. Manual: [docs/gui/index.md](docs/gui/index.md).
 
 ---
 

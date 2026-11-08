@@ -72,7 +72,7 @@ doppelstep/
 ├── modules/                     build glue of the libraries
 ├── tests/                       ztest suites, SIL and integration tests
 ├── tools/
-│   ├── gui/                     host GUI (planned)
+│   ├── gui/                     host GUI: test bench, firmware update
 │   ├── sim/                     native_sim launcher, Protocol 2.0 smoke test
 │   └── docs/                    PDF manual builder, MkDocs hooks, cover page
 ├── docs/                        this documentation (MkDocs)

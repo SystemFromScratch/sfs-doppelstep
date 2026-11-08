@@ -19,11 +19,13 @@
 # the python.org Windows installer ("tcl/tk and IDLE"); on Debian/Ubuntu install
 # python3-tk and python3-venv with apt.
 
-# tools/gui - serial link to the DYNAMIXEL bus (Protocol 2.0)
+# tools/gui - serial link to the DYNAMIXEL bus (Protocol 2.0) and live plots.
+# Python 3.11 or newer (smpmgr, matplotlib).
 pyserial==3.5
+matplotlib==3.11.2
 
 # Firmware update over USART2: SMP client for MCUboot serial recovery
-# (docs/firmware-update.md)
+# (docs/firmware-update.md). The GUI uses its library smpclient (7.3.0).
 smpmgr==0.19.1
 
 # Documentation (HTML site and PDF manual). MkDocs 2.0 removes the plugin

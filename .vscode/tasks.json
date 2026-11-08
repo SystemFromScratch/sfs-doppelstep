@@ -157,26 +157,13 @@
         },
         {
             "label": "GUI: Run",
-            "detail": "tools/gui/doppelstep_gui.py on a serial port",
+            "detail": "tools/gui/doppelstep_gui.py: test bench and firmware update on the board",
             "type": "process",
             "command": "bash",
             "args": [".vscode/workspace-menu.sh", "Run GUI"],
             "windows": {
                 "command": "powershell.exe",
                 "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Run GUI"]
-            },
-            "options": { "cwd": "${workspaceFolder}" },
-            "problemMatcher": []
-        },
-        {
-            "label": "GUI: Run (simulator)",
-            "detail": "tools/gui/doppelstep_gui.py --sim, no hardware",
-            "type": "process",
-            "command": "bash",
-            "args": [".vscode/workspace-menu.sh", "Run GUI (simulator)"],
-            "windows": {
-                "command": "powershell.exe",
-                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".vscode/host-menu.ps1", "Run GUI (simulator)"]
             },
             "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
@@ -235,7 +222,6 @@
                 "Ccache clear",
                 "Create .venv",
                 "Run GUI",
-                "Run GUI (simulator)",
                 "Serve documentation",
                 "Build PDF documentation"
             ]
@@ -260,7 +246,6 @@
                 "J-Link Remote Server (host)",
                 "Create .venv",
                 "Run GUI",
-                "Run GUI (simulator)",
                 "Serve documentation",
                 "Build PDF documentation"
             ]

@@ -6,7 +6,8 @@
 #
 #   docker compose run --rm zephyr bash scripts/ci.sh
 #
-#   1. dependencies between the layers (scripts/check-layers.sh)
+#   1. dependencies between the layers (scripts/check-layers.sh), host-only tests
+#      of the GUI (tools/gui/tests: protocol, scenarios, update sequence)
 #   2. west workspace: init / update (scripts/west-init.sh)
 #   3. pristine builds without warnings: b_g431b_esc1 and b_g431b_esc1 + sim.overlay
 #      with sysbuild (MCUboot + signed application, then build_checks),
@@ -37,6 +38,10 @@ KNOWN_WARNINGS+='|^warning: Not secure symbol TEST_RANDOM_GENERATOR is enabled\.
 KNOWN_WARNINGS+='|^warning: MCUBOOT_UPDATE_FOOTER_SIZE \(defined at subsys/dfu/Kconfig:[0-9]+\) was assigned'
 
 bash scripts/check-layers.sh
+
+echo "::group::GUI tests (host-only)"
+python3 -m pytest tools/gui/tests -q -p no:cacheprovider
+echo "::endgroup::"
 
 bash scripts/west-init.sh
 

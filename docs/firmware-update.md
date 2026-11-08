@@ -65,6 +65,14 @@ With MCUboot, the Reboot instruction (0x08) resets the MCU after its status pack
 
 On `native_sim` Reboot stays emulated, so the SIL tests keep the XM430 behaviour.
 
+## Upload with the GUI
+
+The **Firmware update** tab of the [GUI](gui/index.md) runs the whole sequence in one process:
+Reboot, SMP echo repeated until MCUboot answers, image list, upload, image list again, reset, and
+a DYNAMIXEL ping of the new application. It passes only when slot 0 holds an image whose hash
+equals the SHA-256 TLV of the chosen `zephyr.signed.bin`. MCUboot lists only images that pass its
+signature check, so a listed image with that hash is the file, verified.
+
 ## Upload with smpmgr
 
 [smpmgr](https://github.com/intercreate/smpmgr) is in `requirements.txt`. The line options

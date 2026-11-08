@@ -11,8 +11,10 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
   `example-application`: application `app/`, drivers `drivers/` with public APIs in
   `include/doppelstep/drivers/`, bindings `dts/bindings/`, board `boards/st/b_g431b_esc1`, build
   glue of the libraries `modules/<lib>/`.
-- Host side of the repository: `tools/gui/` (GUI, planned; entry point
-  `tools/gui/doppelstep_gui.py`, `--sim`), `tools/sim/` (native_sim launcher
+- Host side of the repository: `tools/gui/` (GUI: test bench and firmware
+  update on the board; entry point `tools/gui/doppelstep_gui.py`, package
+  `tools/gui/doppelstep_gui/`, whose `protocol.py` is also used by
+  `tools/sim/dxl2.py`), `tools/sim/` (native_sim launcher
   `run_native.py`, Protocol 2.0 smoke test `dxl_smoke_test.py`; standard
   library only), `tools/docs/` + `mkdocs.yml` + `docs/` (MkDocs site and PDF
   manual), `requirements.txt` (host Python).

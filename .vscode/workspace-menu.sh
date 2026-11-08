@@ -137,7 +137,7 @@ ensure_chromium() {
 
 run_gui() {
     [ -f "${GUI}" ] || die "GUI not present yet: expected ${GUI} (see tools/gui/README.md)."
-    ensure_venv 'serial, tkinter'
+    ensure_venv 'serial, tkinter, matplotlib, smpclient'
     "$(venv_dir)/bin/python" -c 'import tkinter' 2>/dev/null ||
         die 'Tkinter is missing (Debian/Ubuntu: apt install python3-tk, then delete the venv).'
     [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] ||
@@ -247,9 +247,6 @@ case "${action}" in
         ;;
     'Run GUI')
         run_gui
-        ;;
-    'Run GUI (simulator)')
-        run_gui --sim
         ;;
     'Serve documentation')
         serve_docs

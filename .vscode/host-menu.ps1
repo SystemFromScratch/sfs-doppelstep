@@ -117,7 +117,7 @@ function Start-Gui([string[]]$GuiArgs) {
     if (-not (Test-Path $Gui)) {
         Stop-WithError "GUI not present yet: expected tools\gui\doppelstep_gui.py (see tools\gui\README.md)."
     }
-    Confirm-Venv 'serial, tkinter'
+    Confirm-Venv 'serial, tkinter, matplotlib, smpclient'
     if (-not (Test-PythonImport $VenvPython 'import tkinter')) {
         Stop-WithError 'Tkinter is missing in this Python. Reinstall Python from python.org with "tcl/tk and IDLE", delete .venv and run "Create .venv" again.'
     }
@@ -168,7 +168,6 @@ switch ($Action) {
     'J-Link Remote Server (host)' { & (Join-Path $HostScripts 'jlink-remote-server.ps1') }
     'Create .venv' { Initialize-Venv }
     'Run GUI' { Start-Gui @() }
-    'Run GUI (simulator)' { Start-Gui @('--sim') }
     'Serve documentation' { Start-DocsServer }
     'Build PDF documentation' { Build-PdfDocs }
     default {

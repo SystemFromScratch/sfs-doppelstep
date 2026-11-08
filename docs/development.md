@@ -34,7 +34,7 @@ current platform. The other tasks run one action directly
 | Zephyr: Clean | removes `build/` | removes `build/` |
 | Zephyr: Flash (OpenOCD, ST-LINK) | `west flash -r openocd`: MCUboot and the signed application | `openocd … program build/mcuboot/zephyr/zephyr.hex`, then `build/app/zephyr/zephyr.signed.hex` (OpenOCD on Windows) |
 | Python: Create .venv | `.venv` (or `.venv-linux`) with `requirements.txt` | `.venv` with `requirements.txt` |
-| GUI: Run / Run (simulator) | `tools/gui/doppelstep_gui.py [--sim]` | same |
+| GUI: Run | `tools/gui/doppelstep_gui.py` | same |
 | Docs: Serve | `mkdocs serve` on `http://127.0.0.1:8000` | same |
 | Docs: Build PDF | `tools/docs/build_pdf.py` → `site/Doppelstep.pdf` | same (prints with Microsoft Edge) |
 
