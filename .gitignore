@@ -6,7 +6,7 @@
 flash.bin
 /twister-out*/
 
-# Documentation build output (mkdocs build, tools/docs/build_pdf.py)
+# Documentation build output (mkdocs build, tools/docs/build_manual.py)
 /site/
 
 # Build caches

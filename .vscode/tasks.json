@@ -184,7 +184,7 @@
         },
         {
             "label": "Docs: Build PDF",
-            "detail": "MkDocs + Chromium/Edge -> site/Doppelstep.pdf",
+            "detail": "WeasyPrint -> site/Doppelstep.pdf",
             "type": "process",
             "command": "bash",
             "args": [".vscode/workspace-menu.sh", "Build PDF documentation"],

@@ -657,3 +657,22 @@ body:has(.sfs-hero) .md-content__inner::before {
 .md-typeset .sfs-portfolio .sfs-actions {
   margin-top: 0;
 }
+
+/* Figures: images alone on their line get a caption (tools/docs/hooks.py) */
+.md-typeset figure.dps-figure {
+  margin: 1.2em auto;
+  text-align: center;
+}
+
+.md-typeset figure.dps-figure img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid rgba(11, 37, 69, 0.18);
+  border-radius: 8px;
+}
+
+/* Landing page: the quick start needs no chapter title on the web (the eyebrow says it). */
+.sfs-home .md-typeset h1.sfs-print-only,
+.sfs-markdown h1.sfs-print-only {
+  display: none;
+}

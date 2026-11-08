@@ -13,6 +13,11 @@ project on the board:
 - **Firmware update**: MCUboot serial recovery over the same port, verified by the image hash
   ([Firmware update](../firmware-update.md)).
 
+The screenshots on this page show the GUI connected to the `native_sim` firmware with the
+simulated motor (port `socket://localhost:5555`, see
+[Simulated motor](../simulation.md#b-on-the-pc)); every value in them comes from the firmware.
+On the board, choose the ST-LINK Virtual COM Port instead.
+
 ## Starting the GUI
 
 | Platform | VS Code task | Script | Virtual environment |
@@ -59,6 +64,8 @@ them zooms and saves a PNG. **Record CSV** writes every sample (10 per second) w
 `time_s, goal_position_deg, present_position_deg, present_velocity_rpm, present_current_ma,
 input_voltage_v, torque_enable, moving, hardware_error_status, realtime_tick_ms`.
 
+![The Motion tab: Goal Position 1024, then 2560, with Profile Velocity 60 and Profile Acceleration 20; 1500 mA run current while moving, 500 mA hold current at rest](../assets/images/gui/gui-motion.png)
+
 !!! note "Torque Enable refused"
     While `dead-time-ns` is 0 in `app/boards/b_g431b_esc1.overlay` the firmware answers Torque
     Enable with Result Fail and never enables the gate drivers
@@ -67,6 +74,16 @@ input_voltage_v, torque_enable, moving, hardware_error_status, realtime_tick_ms`
 !!! warning "No encoder"
     Present Position is the commanded open-loop position. The GUI cannot see lost steps: watch the
     shaft (a mark on it helps).
+
+## Control Table
+
+**Read all** reads every register of the emulated XM430-W350 and shows its address, size, area,
+access, raw value and, where the register has a unit, the converted value. **Refresh every
+second** repeats the read. Double-click a writable register, or select it and press **Write
+selected …**, to write a new value. EEPROM registers (addresses below 64) are locked while the
+torque is on, as on the real servo.
+
+![The Control Table tab after Read all: the EEPROM area with the factory values (ID 1, Baud Rate 3 = 1 Mbps, Operating Mode 3)](../assets/images/gui/gui-control-table.png)
 
 ## Test scenarios
 
@@ -111,6 +128,8 @@ check ends the scenario, as an assert in pytest); **ERROR** the device stopped a
 values and notes. **Save HTML report** writes one self-contained file with the connection, every
 scenario and check, and the last firmware update of the session.
 
+![The Test scenarios tab after a run against the native_sim firmware: 19 scenarios PASS. "Reboot disables the torque" is deselected because it checks the MCU reset of the board, which native_sim emulates differently](../assets/images/gui/gui-test-scenarios.png)
+
 ## Firmware update
 
 1. Build the board (`west build --sysbuild …`). The tab preselects
@@ -119,6 +138,8 @@ scenario and check, and the last firmware update of the session.
 2. Connect as usual, or leave the GUI disconnected when MCUboot already waits in serial recovery
    (no valid image in slot 0, for example after an interrupted upload).
 3. **Update firmware** and confirm.
+
+![The Firmware update tab with a signed image loaded: version, size against slot 0, build time and the SHA-256 of the image TLV](../assets/images/gui/gui-firmware.png)
 
 | Step | Passes when |
 |---|---|

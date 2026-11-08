@@ -12,7 +12,7 @@
 # - Debug probe: GDB servers and flashing with the tools installed on Windows
 #   (scripts/host/).
 # - GUI and documentation: Python virtual environment .venv with
-#   requirements.txt; the PDF manual is printed with Microsoft Edge.
+#   requirements.txt; the PDF manual is rendered with WeasyPrint (Pango from MSYS2).
 
 param(
     [Parameter(Mandatory = $true)]
@@ -126,9 +126,9 @@ function Start-Gui([string[]]$GuiArgs) {
 }
 
 function Build-PdfDocs {
-    Confirm-Venv 'mkdocs, material, playwright, pypdf'
-    Write-Host 'Building the PDF manual (MkDocs + Microsoft Edge/Chromium).'
-    Invoke-Checked $VenvPython @((Join-Path $Root 'tools\docs\build_pdf.py'))
+    Confirm-Venv 'mkdocs, material, weasyprint'
+    Write-Host 'Building the PDF manual (WeasyPrint; Pango from MSYS2 mingw-w64-x86_64-pango).'
+    Invoke-Checked $VenvPython @((Join-Path $Root 'tools\docs\build_manual.py'))
     Write-Host "PDF manual: $Pdf" -ForegroundColor Green
 }
 

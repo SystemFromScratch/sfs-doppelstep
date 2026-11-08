@@ -25,16 +25,32 @@ The board has three half-bridges, while a two-phase stepper has two coils. Doppe
 the **shared-leg topology** of Stepper-C: each coil sits between its own leg and the common
 leg W.
 
-| Motor | ESC1 output |
-|---|---|
-| Phase A (coil A+ / A−) | U / W |
-| Phase B (coil B+ / B−) | V / W |
+![Wiring of the 17HS19-2004S1 to the B-G431B-ESC1: coil A between U and W, coil B between V and W, with the MCU pins of every leg](assets/images/motor-wiring.svg)
 
-W carries the sum of both coil currents, iA + iB. The firmware measures its shunt too and
-switches the outputs off when |iW| exceeds the trip current (`aux-trip` of the motor node).
+| Motor lead (17HS19-2004S1) | Coil end | ESC1 output | Leg pins (TIM1) | Current sense |
+|---|---|---|---|---|
+| Black | A+ | U | CH1 / CH1N: PA8 / PC13 | OPAMP1 → PA2 (ADC1_IN3) |
+| Green | A− | W | CH3 / CH3N: PA10 / PB15 | OPAMP3 → PB1 (ADC1_IN12) |
+| Red | B+ | V | CH2 / CH2N: PA9 / PA12 | OPAMP2 → PA6 (ADC2_IN3) |
+| Blue | B− | W | CH3 / CH3N: PA10 / PB15 | OPAMP3 → PB1 (ADC1_IN12) |
 
-The tested motor is a **17HS19-2004S1** (NEMA 17, 2.0 A rated, 200 steps per revolution).
-Another motor needs its values in the motor node ([Configuration](configuration.md)).
+The lead colours are those of the motor datasheet. Other motors, and some batches, use other
+colours: identify the two coils with an ohmmeter before connecting (about 1.6 Ω within a coil,
+open between the coils). Swapping the two ends of one coil reverses the sign of its current;
+bring-up step 3 checks it.
+
+W carries the sum of both coil currents, iA + iB, up to √2 times the phase current. The
+firmware measures its shunt too and switches the outputs off when |iW| exceeds the trip
+current (`aux-trip` of the motor node).
+
+The supply goes to the power input pads of the board (+ and −). The firmware accepts
+10–28 V (`vbus-min-mv`, `vbus-max-mv`) and is tuned for 24 V; use a laboratory supply with a
+current limit for the first runs. The USB cable to the ST-LINK carries the DYNAMIXEL bus, the
+debugger and the RTT log.
+
+The tested motor is a **17HS19-2004S1** (NEMA 17, 2.0 A rated, 1.6 Ω and 3.0 mH per coil,
+200 steps per revolution). Another motor needs its values in the motor node
+([Configuration](configuration.md)).
 
 ## Current and voltage scaling
 

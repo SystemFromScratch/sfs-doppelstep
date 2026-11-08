@@ -13,7 +13,6 @@
 #                          .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 #   Linux:                 python3 -m venv .venv
 #                          .venv/bin/python -m pip install -r requirements.txt
-#                          .venv/bin/python -m playwright install chromium
 #
 # Tkinter (GUI) is part of Python and cannot be installed with pip: it is in
 # the python.org Windows installer ("tcl/tk and IDLE"); on Debian/Ubuntu install
@@ -29,11 +28,10 @@ matplotlib==3.11.2
 smpmgr==0.19.1
 
 # Documentation (HTML site and PDF manual). MkDocs 2.0 removes the plugin
-# system used by the theme and by print-site.
+# system used by the theme.
 mkdocs>=1.6,<2
 mkdocs-material>=9.5,<10
-mkdocs-print-site-plugin>=2.6,<3
-# PDF rendering: Chromium through Playwright (Linux: python -m playwright
-# install chromium; Windows uses the installed Microsoft Edge).
-playwright>=1.45
-pypdf>=4.0
+# PDF manual (tools/docs/build_manual.py). WeasyPrint needs the Pango library:
+# Linux: apt install libpango-1.0-0 libpangoft2-1.0-0; Windows: MSYS2
+# mingw-w64-x86_64-pango (found in C:\msys64\mingw64\bin automatically).
+weasyprint>=62

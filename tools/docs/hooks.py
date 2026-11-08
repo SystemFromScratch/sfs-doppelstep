@@ -9,7 +9,8 @@ into a captioned figure (rendered with the md_in_html extension):
     <figure class="dps-figure"><img ...><figcaption>Caption text</figcaption></figure>
 
 The Markdown files stay plain, so they also render on GitHub, and the printed
-manual gets numbered captions ("Figure 3: ...") from mkdocs-print-site-plugin.
+manual (tools/docs/build_manual.py, which runs the same hook) gets numbered
+captions ("Figure 3: ...").
 The change is made on the Markdown so that the print page sees it as well.
 """
 

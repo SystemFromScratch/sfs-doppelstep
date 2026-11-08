@@ -36,3 +36,9 @@ trademark; its name and logo may not be used to endorse or promote products deri
 Doppelstep without prior written permission. DYNAMIXEL and ROBOTIS are trademarks of
 ROBOTIS Co., Ltd.; STM32 is a registered trademark of STMicroelectronics International N.V.
 Doppelstep is not affiliated with or endorsed by them.
+
+## Full license text
+
+```text
+--8<-- "LICENSE"
+```

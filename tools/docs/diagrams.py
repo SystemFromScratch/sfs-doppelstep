@@ -346,12 +346,123 @@ def test_setup() -> None:
     s.save(os.path.join(OUT, "test-setup.svg"))
 
 
+# Motor wiring. Board side: pins of app/boards/b_g431b_esc1.overlay and UM2516 Rev 4,
+# Table 4 (boards/st/b_g431b_esc1/doc/index.rst). Motor side: values of the motor node and
+# the lead colours of the 17HS19-2004S1 datasheet.
+WIRE_BLACK = "#1B1B1B"
+WIRE_GREEN = "#2E7D32"
+WIRE_RED = "#C62828"
+WIRE_BLUE = "#1565C0"
+LEGS = (  # name, centre y, PWM pins, current sense
+    ("U", 160, "TIM1 CH1 / CH1N: PA8 / PC13", "OPAMP1 → PA2, ADC1_IN3"),
+    ("V", 275, "TIM1 CH2 / CH2N: PA9 / PA12", "OPAMP2 → PA6, ADC2_IN3"),
+    ("W", 390, "TIM1 CH3 / CH3N: PA10 / PB15", "OPAMP3 → PB1, ADC1_IN12"),
+)
+
+
+def _coil(s: Svg, x, y_top, y_bottom, color) -> None:
+    """A winding drawn as four half loops between two terminals at x - 30."""
+    loops = 4
+    step = (y_bottom - y_top - 20) / loops
+    d = f"M{x - 30},{y_top} L{x},{y_top} L{x},{y_top + 10}"
+    for _ in range(loops):
+        d += f" a{step / 2},{step / 2} 0 0 1 0,{step}"
+    d += f" L{x},{y_bottom} L{x - 30},{y_bottom}"
+    s.path(d, color=color, width=2.2)
+
+
+def motor_wiring() -> None:
+    """The two coils of the stepper on the three legs of the B-G431B-ESC1 (shared leg W),
+    with the MCU pins of every leg, the bus and the supply. Matches docs/hardware.md."""
+    s = Svg(1000, 640, "Wiring of the 17HS19-2004S1 stepper motor to the B-G431B-ESC1")
+
+    # Board frame
+    s.rect(20, 70, 540, 480, fill=WHITE, stroke=BLUE, rx=14, sw=2)
+    s.text(40, 98, "B-G431B-ESC1", size=17, weight="bold", fill=BLUE, anchor="start")
+    s.text(540, 98, "pins: UM2516 Rev 4, Table 4", size=12, fill=GREY, anchor="end")
+
+    # MCU and the PWM / current sense lines to the legs
+    box(s, 40, 115, 190, 330, "STM32G431CB", ["Cortex-M4F, 170 MHz", "", "TIM1: PWM 20 kHz,",
+                                               "center-aligned", "", "OPAMP1..3 + ADC1/2:",
+                                               "phase currents", "", "ADC1_IN1: VBUS"],
+        fill=SOFT_BLUE, stroke=BLUE, color=BLUE)
+    for name, y, pwm, sense in LEGS:
+        s.line(230, y, 290, y, color=TEAL, width=2)
+        s.rect(290, y - 45, 200, 90, fill=SOFT_TEAL, stroke=TEAL, rx=10)
+        s.text(390, y - 22, f"Leg {name}", size=15, weight="bold", fill=TEAL)
+        s.text(390, y - 2, pwm, size=11.5, fill=GREY)
+        s.text(390, y + 15, "3 mΩ low-side shunt →", size=11.5, fill=GREY)
+        s.text(390, y + 32, sense, size=11.5, fill=GREY)
+        s.line(490, y, 530, y, color=NAVY, width=2.2)
+        s.rect(530, y - 16, 32, 32, fill=NAVY, stroke=NAVY, rx=4)
+        s.text(546, y + 6, name, size=16, weight="bold", fill=WHITE)
+
+    # Supply input and debugger
+    box(s, 290, 460, 200, 76, "Power input + / −", ["VBUS 10–28 V, nominal 24 V",
+                                                       "sense: PA0, 18 kΩ / 169 kΩ"],
+        fill=SOFT_ORANGE, stroke=ORANGE, color=ORANGE, size=14)
+    s.line(390, 536, 390, 590, color=ORANGE, width=2.2)
+    s.text(400, 574, "DC supply with", size=12, fill=ORANGE, anchor="start")
+    s.text(400, 590, "a current limit", size=12, fill=ORANGE, anchor="start")
+    box(s, 40, 460, 190, 76, "ST-LINK/V2-1", ["USB: VCP = USART2", "PB3 TX / PB4 RX, 1 Mbps",
+                                               ], fill=SOFT_GREEN, stroke=GREEN, color=GREEN,
+        size=14)
+    s.line(135, 536, 135, 590, color=GREEN, width=2.2)
+    s.text(145, 574, "USB to the host:", size=12, fill=GREEN, anchor="start")
+    s.text(145, 590, "DYNAMIXEL bus, SWD, RTT log", size=12, fill=GREEN, anchor="start")
+
+    # Motor
+    s.rect(650, 70, 330, 400, fill=WHITE, stroke=GREY, rx=14, sw=2)
+    s.text(815, 98, "17HS19-2004S1 (NEMA 17)", size=16, weight="bold", fill=NAVY)
+    s.text(815, 118, "2.0 A · 1.6 Ω · 3.0 mH per coil · 200 steps/rev", size=12, fill=GREY)
+    term = {"A+": 160, "A-": 225, "B+": 275, "B-": 340}
+    _coil(s, 740, term["A+"], term["A-"], NAVY)
+    _coil(s, 740, term["B+"], term["B-"], NAVY)
+    s.text(760, 197, "coil A", size=13, weight="bold", fill=NAVY, anchor="start")
+    s.text(760, 312, "coil B", size=13, weight="bold", fill=NAVY, anchor="start")
+    s.parts.append(f'<circle cx="890" cy="250" r="52" fill="{LIGHT}" stroke="{GREY}" '
+                   f'stroke-width="1.6"/>')
+    s.text(890, 255, "rotor", size=13, fill=GREY)
+    for name, y in term.items():
+        s.parts.append(f'<circle cx="710" cy="{y}" r="5" fill="{WHITE}" stroke="{NAVY}" '
+                       f'stroke-width="2"/>')
+        s.text(700, y - 9, name.replace("-", "−"), size=12, weight="bold", fill=NAVY,
+               anchor="end")
+
+    # Leads: U → A+ (black), V → B+ (red), W → A− (green) and B− (blue)
+    s.path(f"M562,160 L705,160", color=WIRE_BLACK, width=3)
+    s.path(f"M562,275 L594,275 A6,6 0 0 1 606,275 L705,275", color=WIRE_RED, width=3)
+    s.path(f"M562,390 L600,390 L600,{term['A-']} L705,{term['A-']}", color=WIRE_GREEN, width=3)
+    s.path(f"M600,390 L630,390 L630,{term['B-']} L705,{term['B-']}", color=WIRE_BLUE, width=3)
+    s.parts.append(f'<circle cx="600" cy="390" r="5" fill="{NAVY}"/>')
+    s.text(615, 152, "black", size=12, fill=WIRE_BLACK, anchor="start")
+    s.text(615, 267, "red", size=12, fill=WIRE_RED, anchor="start")
+    s.text(640, 217, "green", size=12, fill=WIRE_GREEN, anchor="end")
+    s.text(640, 332, "blue", size=12, fill=WIRE_BLUE, anchor="start")
+
+    # Notes
+    notes = [
+        ("Coil A: U to W. Coil B: V to W.", NAVY, "bold"),
+        ("W is the shared leg: it carries iA + iB,", GREY, "normal"),
+        ("up to √2 × the phase current.", GREY, "normal"),
+        ("Lead colours from the motor datasheet: check", GREY, "normal"),
+        ("the pairs with an ohmmeter (≈ 1.6 Ω in a coil,", GREY, "normal"),
+        ("open between the coils).", GREY, "normal"),
+        ("A reversed coil flips its current sign:", ORANGE, "bold"),
+        ("bring-up step 3 checks it.", ORANGE, "bold"),
+    ]
+    for i, (value, color, weight) in enumerate(notes):
+        s.text(660, 490 + i * 18, value, size=12, fill=color, weight=weight, anchor="start")
+    s.save(os.path.join(OUT, "motor-wiring.svg"))
+
+
 def main() -> None:
     os.makedirs(OUT, exist_ok=True)
     hero()
     architecture()
     command_path()
     test_setup()
+    motor_wiring()
     for name in sorted(os.listdir(OUT)):
         if name.endswith(".svg"):
             print("wrote", os.path.join("docs", "assets", "images", name))

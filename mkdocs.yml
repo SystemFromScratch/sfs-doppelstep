@@ -1,9 +1,10 @@
 # MkDocs configuration of the Doppelstep documentation.
 #
 #   HTML preview:  mkdocs serve
-#   HTML site:     mkdocs build                     (output: site/)
-#   PDF manual:    python tools/docs/build_pdf.py   (output: site/Doppelstep.pdf)
-#   Hero image:    python tools/docs/diagrams.py    (docs/assets/images/hero-3d.svg)
+#   HTML site:     mkdocs build                       (output: site/)
+#   PDF manual:    python tools/docs/build_manual.py  (output: site/Doppelstep.pdf,
+#                                                      settings: extra.manual below)
+#   Diagrams:      python tools/docs/diagrams.py      (docs/assets/images/*.svg)
 #
 # Dependencies: requirements.txt. VS Code: tasks "Docs: Serve" and
 # "Docs: Build PDF" (docs/development.md).
@@ -101,10 +102,29 @@ theme:
 
 extra:
   generator: false
-  # Shown on the PDF cover page. tools/docs/build_pdf.py sets both variables
-  # (git describe and today's date); plain `mkdocs build` uses the defaults.
-  doc_version: !ENV [DPS_DOCS_VERSION, "development snapshot"]
-  doc_date: !ENV [DPS_DOCS_DATE, ""]
+  # ---------------------------------------------------------------- PDF manual
+  # Read by tools/docs/build_manual.py (WeasyPrint): cover, imprint, contents,
+  # numbered chapters in nav order, the About pages unnumbered, the license as an
+  # appendix. Version: the latest vX.Y.Z tag, otherwise `git describe`.
+  manual:
+    title: Doppelstep
+    subtitle: Your stepper motor, seen as a DYNAMIXEL smart servo
+    eyebrow: Open-source Zephyr RTOS firmware
+    product: firmware
+    website: systemfromscratch.github.io
+    output: site/Doppelstep.pdf
+    cover_image: assets/images/hero-3d.svg
+    appendices: [license.md]
+    unnumbered: [about.md, NAMING.md]
+    web_only: [index.md]
+    keywords: >-
+      Zephyr RTOS, stepper motor, microstepping, current control, DYNAMIXEL Protocol 2.0,
+      XM430-W350, B-G431B-ESC1, STM32G431, MCUboot, ROS 2
+    vendor_trademarks: >-
+      DYNAMIXEL and ROBOTIS are trademarks of ROBOTIS Co., Ltd. STM32 is a registered
+      trademark of STMicroelectronics International N.V. Arm and Cortex are trademarks of
+      Arm Limited. Hardware and protocol names are used only to describe compatibility;
+      Doppelstep is not affiliated with or endorsed by their owners.
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/AntonVynohradov
@@ -250,7 +270,6 @@ extra:
 
 extra_css:
   - assets/stylesheets/extra.css
-  - assets/stylesheets/print.css
 
 hooks:
   - tools/docs/hooks.py      # captioned figures from plain Markdown images
@@ -270,6 +289,9 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -278,18 +300,3 @@ markdown_extensions:
 
 plugins:
   - search
-  # Must be the last plugin: it combines all pages into site/print_page/,
-  # which tools/docs/build_pdf.py prints to PDF. From the landing page only the
-  # Markdown of docs/index.md (quick start) is printed, as chapter 1.
-  - print-site:
-      add_to_navigation: false
-      print_page_title: Doppelstep
-      add_cover_page: true
-      cover_page_template: tools/docs/cover_page.tpl
-      add_table_of_contents: true
-      toc_title: Table of contents
-      toc_depth: 4
-      enumerate_headings: true
-      enumerate_figures: true
-      add_full_urls: false
-      add_print_site_banner: false

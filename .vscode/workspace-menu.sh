@@ -119,20 +119,15 @@ ensure_venv() {
     echo "${venv} is ready: ${py}"
 }
 
-# Chromium of Playwright for the PDF renderer, once per machine or container.
-ensure_chromium() {
-    local py cache
-    py=$(venv_dir)/bin/python
-    cache=${PLAYWRIGHT_BROWSERS_PATH:-${HOME}/.cache/ms-playwright}
-    if compgen -G "${cache}/chromium-*" >/dev/null; then
+# Pango for WeasyPrint (PDF manual), once per machine or container.
+ensure_pango() {
+    if "$(venv_dir)/bin/python" -c 'import weasyprint' 2>/dev/null; then
         return 0
     fi
-    echo 'Installing Chromium for the PDF renderer (Playwright).'
-    if [ "$(id -u)" = 0 ]; then
-        "${py}" -m playwright install --with-deps chromium
-    else
-        "${py}" -m playwright install chromium
-    fi
+    [ "$(id -u)" = 0 ] ||
+        die 'WeasyPrint needs Pango: sudo apt install libpango-1.0-0 libpangoft2-1.0-0'
+    echo 'Installing Pango for the PDF renderer (WeasyPrint).'
+    apt-get update && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0
 }
 
 run_gui() {
@@ -147,9 +142,9 @@ run_gui() {
 }
 
 build_pdf() {
-    ensure_venv 'mkdocs, material, playwright, pypdf'
-    ensure_chromium
-    "$(venv_dir)/bin/python" tools/docs/build_pdf.py
+    ensure_venv 'mkdocs, material, yaml'
+    ensure_pango
+    "$(venv_dir)/bin/python" tools/docs/build_manual.py
     echo "PDF manual: ${PDF}"
 }
 
@@ -243,7 +238,7 @@ case "${action}" in
         rm -rf "${BUILD_DIR}"
         ;;
     'Create .venv')
-        ensure_venv 'serial, mkdocs, material, playwright, pypdf'
+        ensure_venv 'serial, mkdocs, material'
         ;;
     'Run GUI')
         run_gui

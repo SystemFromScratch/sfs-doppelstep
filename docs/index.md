@@ -48,4 +48,4 @@ ready, nothing is built at the start ([Development environment](development.md#c
 | Read the code: layers, threads, the path of a command | [Architecture](architecture.md) |
 | Port it to another microcontroller | [Porting to a new MCU family](porting.md) |
 | Run and extend the tests | [Tests and CI](testing.md) |
-| Get the whole manual as a PDF | [Doppelstep.pdf](https://systemfromscratch.github.io/sfs-doppelstep/Doppelstep.pdf), or build it: `python tools/docs/build_pdf.py` ([how](development.md#documentation-and-pdf-manual)) |
+| Get the whole manual as a PDF | [Doppelstep.pdf](https://systemfromscratch.github.io/sfs-doppelstep/Doppelstep.pdf), or build it: `python tools/docs/build_manual.py` ([how](development.md#documentation-and-pdf-manual)) |

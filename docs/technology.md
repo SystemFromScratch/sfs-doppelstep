@@ -21,7 +21,7 @@ the Python tools.
 | CI | **GitHub Actions** with an environment image in the **GitHub Container Registry**, ccache |
 | Host tools | **Python**: Tkinter GUI, **matplotlib**, **pyserial**, **smpmgr** / smpclient |
 | Debugging | **OpenOCD** (ST-LINK), **SEGGER J-Link**, VS Code **Cortex-Debug** |
-| Documentation | **MkDocs Material**, a PDF manual printed with Chromium |
+| Documentation | **MkDocs Material**, a PDF manual rendered with **WeasyPrint** |
 
 ## Firmware platform
 
@@ -152,7 +152,7 @@ Details: [GUI](gui/index.md).
 | Component | Role |
 |---|---|
 | **MkDocs** with **Material for MkDocs** | This website, in the SystemFromScratch® style, built in strict mode (a broken link fails the build) |
-| **mkdocs-print-site-plugin**, **Playwright** / Chromium, **pypdf** | The printable PDF manual from the same sources, with a cover, a table of contents with page numbers and bookmarks |
+| **WeasyPrint** (with Pango) | The printable A4 PDF manual from the same sources (`tools/docs/build_manual.py`): cover, imprint, contents with page numbers, numbered chapters and figures, the license as an appendix, bookmarks |
 
 ## Engineering practices
 
