@@ -57,6 +57,50 @@ Cortex-Debug configurations "… on host" connect to from the Dev Container.
 The first start runs `scripts/west-init.sh` (`west init -l`,
 `west update --narrow --fetch-opt=--tags`) into the `doppelstep-west` volume.
 
+Both build the stage `tools` of the `Dockerfile`: the tools only, the workspace stays in the
+volume. A J-Link archive in `docker/jlink/` goes into this local image only.
+
+## CI and the environment image
+
+The stage `ci` of the `Dockerfile` adds the west workspace of `west.yml` (Zephyr, the modules,
+MCUboot) in `/workdir`. GitHub Actions publishes it to the GitHub Container Registry as
+`ghcr.io/systemfromscratch/sfs-doppelstep-env:<hash>`, where `<hash>` is taken from the files
+the image is made from: `Dockerfile`, `.dockerignore`, `west.yml`, `scripts/west-init.sh`,
+`tests/requirements.txt`.
+
+| Event | Image with that hash in ghcr.io | Missing |
+|---|---|---|
+| Push to `main` | pulled; `:main` points at it | built, published as `:<hash>` and `:main` |
+| Pull request, other branch | pulled | built in the job for that run, not published |
+
+The firmware job then runs `scripts/ci.sh` in the image, with the repository mounted at
+`/workdir/doppelstep` and `WEST_UPDATE=0`: the workspace is the one the image was built with, so
+the projects that follow `main` (X430 emulator, Stepper-Lab, power-spice) change only with a new
+image, that is with a change of one of the files above. The repository is private, and so is the
+package; the workflow reads and writes it with `GITHUB_TOKEN`. The image never contains the
+J-Link Software (not redistributable): `docker/jlink/` holds no archive in a checkout.
+
+## Codespaces
+
+**Code → Codespaces → … → New with options**, configuration
+**Doppelstep (Codespaces: build and native_sim tests)** (`.devcontainer/codespaces/`). It starts
+from `ghcr.io/systemfromscratch/sfs-doppelstep-env:main` on 4 cores; nothing is downloaded or
+built at the start. `setup.sh` makes `/workspaces` the west topdir: links to the workspace of the
+image and a west configuration that points at the clone. When `west.yml` of the branch differs
+from the one of the image it says so; run `west update --narrow --fetch-opt=--tags` then.
+
+In a codespace:
+
+```bash
+west build -p always --sysbuild -b b_g431b_esc1 -s app -d build   # board images
+bash scripts/run-tests.sh                                          # SIL and integration tests
+bash scripts/ci.sh                                                 # everything, as CI
+```
+
+Flashing, debugging and the GUI need the board and a display: they stay local. If a codespace
+cannot pull the image, give the repository access to the package: package settings on GitHub,
+**Manage Codespaces access**.
+
 ## Python virtual environment
 
 The GUI and the documentation use the packages in `requirements.txt`. The

@@ -7,7 +7,9 @@
 
     "build": {
         "dockerfile": "../Dockerfile",
-        "context": ".."
+        "context": "..",
+        // tools only; the west workspace is in the volume doppelstep-west
+        "target": "tools"
     },
 
     "remoteUser": "root",

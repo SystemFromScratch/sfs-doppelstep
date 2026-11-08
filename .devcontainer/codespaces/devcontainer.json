@@ -1,0 +1,43 @@
+{
+    // GitHub Codespaces: build the firmware and run the native_sim tests online,
+    // in the environment image CI publishes (stage ci of the Dockerfile: tools and
+    // the west workspace of west.yml). No debug probe and no display here: flash,
+    // debug and the GUI stay on a local machine. docs/development.md, "Codespaces".
+    "name": "Doppelstep (Codespaces: build and native_sim tests)",
+
+    "image": "ghcr.io/systemfromscratch/sfs-doppelstep-env:main",
+
+    "remoteUser": "root",
+
+    // A Zephyr build is slow on 2 cores
+    "hostRequirements": {
+        "cpus": 4
+    },
+
+    "containerEnv": {
+        "CCACHE_DIR": "/workdir/.ccache",
+        "ZEPHYR_TOOLCHAIN_VARIANT": "zephyr",
+        "ZEPHYR_SDK_INSTALL_DIR": "/opt/zephyr-sdk",
+        "BOARD": "b_g431b_esc1"
+    },
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools",
+                "trond-snekvik.devicetree",
+                "trond-snekvik.kconfig-lang"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "bash"
+            }
+        }
+    },
+
+    // The repository is cloned to /workspaces/<repository>; the west workspace of
+    // the image is in /workdir. setup.sh makes /workspaces the west topdir.
+    "postCreateCommand": "bash .devcontainer/codespaces/setup.sh",
+
+    "postStartCommand": "west --version && arm-zephyr-eabi-gcc --version | head -n 1"
+}

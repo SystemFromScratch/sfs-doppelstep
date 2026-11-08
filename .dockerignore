@@ -1,5 +1,9 @@
-# Only docker/jlink/ is needed in the build context (optional J-Link archive).
+# Only what the image needs in the build context:
+# - docker/jlink/: optional J-Link archive (stage tools; never in CI, see .gitignore there)
+# - west.yml and scripts/west-init.sh: the west workspace of the stage ci
 *
 !docker/
 !docker/jlink/
 !docker/jlink/**
+!west.yml
+!scripts/west-init.sh

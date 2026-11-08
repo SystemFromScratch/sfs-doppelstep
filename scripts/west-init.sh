@@ -6,6 +6,10 @@
 #
 # --fetch-opt=--tags also fetches the release tags of the libraries, so that
 # their CMake version scripts (git describe) report the real version.
+#
+# WEST_UPDATE=0 keeps an existing workspace as it is: GitHub Actions runs on
+# the workspace baked into the ci image, fetched with the same west.yml (the
+# image tag hashes it), so the projects that follow main stay as in the image.
 
 set -euo pipefail
 
@@ -18,5 +22,9 @@ if [ ! -d "${topdir}/.west" ]; then
 fi
 
 cd "${topdir}"
-west update --narrow --fetch-opt=--tags
+if [ "${WEST_UPDATE:-1}" = 0 ]; then
+    echo "west: WEST_UPDATE=0, keeping the workspace in ${topdir}"
+else
+    west update --narrow --fetch-opt=--tags
+fi
 west list

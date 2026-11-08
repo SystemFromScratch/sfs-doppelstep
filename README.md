@@ -549,7 +549,9 @@ docker compose run --rm zephyr bash scripts/run-tests.sh   # tests (task "Zephyr
 docker compose run --rm zephyr bash scripts/ci.sh          # layers, builds, all tests, as CI
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) runs `scripts/ci.sh` in the same image. Details:
+GitHub Actions (`.github/workflows/ci.yml`) runs `scripts/ci.sh` in the environment image of the
+repository, published to the GitHub Container Registry, which also serves GitHub Codespaces:
+[docs/development.md](docs/development.md#ci-and-the-environment-image). Details:
 [docs/testing.md](docs/testing.md). CI cannot see the real hardware:
 [docs/hardware-checklist.md](docs/hardware-checklist.md) lists the checks on the board.
 

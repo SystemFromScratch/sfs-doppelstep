@@ -1,8 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Firmware builds and SIL / integration tests in the Docker image of the
+# Firmware builds and SIL / integration tests in the environment image of the
 # repository: the same scripts/ci.sh a developer runs locally
 # (docker compose run --rm zephyr bash scripts/ci.sh). See tests/README.md.
+#
+# Environment image: stage ci of the Dockerfile (tools and the west workspace
+# of west.yml), ghcr.io/systemfromscratch/sfs-doppelstep-env:<hash>. The tag
+# is a hash of the files the image is made from, so a run uses the image of
+# exactly its Dockerfile and west.yml:
+#   - the image exists in ghcr.io: it is pulled
+#   - it does not exist, push to main: it is built and published (also as :main,
+#     the image of Codespaces)
+#   - it does not exist, pull request or branch: it is built in the job for
+#     this run only, without publishing
+# docs/development.md, section "CI and the environment image".
 
 name: CI
 
@@ -16,37 +27,129 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  packages: read
+
+env:
+  IMAGE: ghcr.io/systemfromscratch/sfs-doppelstep-env
+  # The files the image is made from: a change gives a new tag
+  IMAGE_INPUTS: Dockerfile .dockerignore west.yml scripts/west-init.sh tests/requirements.txt
+
 jobs:
-  firmware:
-    name: Layers, builds and tests (b_g431b_esc1, native_sim)
+  image:
+    name: Environment image
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    env:
-      # west workspace in a host directory (cached) instead of the named volume
-      DOPPELSTEP_WEST: ${{ runner.temp }}/west
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      ref: ${{ steps.tag.outputs.ref }}
+      available: ${{ steps.check.outputs.exists == 'true' || steps.publish.outcome == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Docker image (cached layers)
-        uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - name: Tag from the image inputs
+        id: tag
+        run: |
+          # IMAGE_INPUTS is a list of files: split on purpose
+          # shellcheck disable=SC2086
+          hash="$(sha256sum ${IMAGE_INPUTS} | sha256sum | cut -c1-12)"
+          echo "ref=${IMAGE}:${hash}" >> "$GITHUB_OUTPUT"
+          echo "Image: ${IMAGE}:${hash}" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Already in ghcr.io?
+        id: check
+        run: |
+          if docker manifest inspect "${{ steps.tag.outputs.ref }}" > /dev/null 2>&1; then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "Found ${{ steps.tag.outputs.ref }}"
+          else
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+              echo "Not found: ${{ steps.tag.outputs.ref }}"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.check.outputs.exists != 'true' && github.ref == 'refs/heads/main'
+
+      - name: Build and publish
+        id: publish
+        if: steps.check.outputs.exists != 'true' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
         with:
           context: .
-          load: true
-          tags: doppelstep:1.0.1-4          # compose.yaml image
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          target: ci
+          push: true
+          tags: |
+            ${{ steps.tag.outputs.ref }}
+            ${{ env.IMAGE }}:main
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.description=Doppelstep build environment: Zephyr SDK, tools and the west workspace
+          cache-from: type=gha,scope=env
+          cache-to: type=gha,scope=env,mode=max
 
-      - name: west workspace and ccache
+      - name: Point :main at the image of this commit
+        if: steps.check.outputs.exists == 'true' && github.ref == 'refs/heads/main'
+        run: docker buildx imagetools create -t "${IMAGE}:main" "${{ steps.tag.outputs.ref }}"
+
+  firmware:
+    name: Layers, builds and tests (b_g431b_esc1, native_sim)
+    needs: image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull the environment image
+        if: needs.image.outputs.available == 'true'
+        run: docker pull "${{ needs.image.outputs.ref }}"
+
+      # Pull request or branch with a new Dockerfile / west.yml: this run only
+      - uses: docker/setup-buildx-action@v3
+        if: needs.image.outputs.available != 'true'
+      - name: Build the environment image (not published)
+        if: needs.image.outputs.available != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ci
+          load: true
+          tags: ${{ needs.image.outputs.ref }}
+          cache-from: type=gha,scope=env
+
+      - name: ccache
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/west
-          key: west-${{ hashFiles('west.yml') }}-${{ github.run_id }}
-          restore-keys: west-${{ hashFiles('west.yml') }}-
+          path: ${{ runner.temp }}/ccache
+          key: ccache-${{ needs.image.outputs.ref }}-${{ github.run_id }}
+          restore-keys: ccache-${{ needs.image.outputs.ref }}-
 
+      # WEST_UPDATE=0: the workspace of the image, fetched with this west.yml
       - name: Builds, SIL and integration tests
-        run: docker compose run --rm zephyr bash scripts/ci.sh
+        run: |
+          mkdir -p "${RUNNER_TEMP}/ccache"
+          docker run --rm \
+              -e WEST_UPDATE=0 -e CCACHE_MAXSIZE=2G -e CCACHE_COMPRESS=1 \
+              -v "${GITHUB_WORKSPACE}:/workdir/doppelstep" \
+              -v "${RUNNER_TEMP}/ccache:/workdir/.ccache" \
+              "${{ needs.image.outputs.ref }}" bash scripts/ci.sh
 
       - name: Test summary
         if: always()

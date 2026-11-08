@@ -134,7 +134,7 @@ pseudoterminal driver polls for the first byte of a packet every 10 ms.
 `scripts/ci.sh` runs the same steps on a PC and in GitHub Actions:
 
 1. `scripts/check-layers.sh`: the dependency rules of [the architecture](architecture.md#four-rules).
-2. `west update`.
+2. `west update` (skipped in GitHub Actions, `WEST_UPDATE=0`: the image holds the workspace).
 3. Pristine builds without warnings of `b_g431b_esc1`, `b_g431b_esc1` with `sim.overlay`,
    and the `native_sim` test firmware. The only known warning is the X430 emulator's
    `-Wmaybe-uninitialized` under host gcc, which is reported upstream.
@@ -142,15 +142,14 @@ pseudoterminal driver polls for the first byte of a packet every 10 ms.
 5. The SIL and integration tests.
 6. The SIL motion tests on the Stepper-C fixed-point backend.
 
-The workflow caches:
-
-- the Docker image layers (GitHub Actions cache),
-- the west workspace and ccache (`DOPPELSTEP_WEST`, a host directory instead of the
-  named volume).
+In GitHub Actions `scripts/ci.sh` runs in the environment image (tools and the west workspace,
+[development environment](development.md#ci-and-the-environment-image)); ccache is kept in the
+GitHub Actions cache.
 
 It uploads the test reports, the firmware logs and the ESC1 images, and writes a test table
 to the job summary.
 
 The pinned test packages are in `tests/requirements.txt` and in the `Dockerfile`
-(`ARG PYTEST_VERSION ...`). Keep both in step and raise the image revision in
-`compose.yaml` (`doppelstep:1.0.1-<n>`) when the Dockerfile changes.
+(`ARG PYTEST_VERSION ...`). Keep both in step. For the local image, raise the revision in
+`compose.yaml` (`doppelstep:1.0.1-<n>`) when the Dockerfile changes; the CI image gets a new tag
+by itself.

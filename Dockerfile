@@ -3,9 +3,16 @@
 # Build and debug environment of Doppelstep (Zephyr 4.5, B-G431B-ESC1).
 # Same base and tool versions as Zephyr-SmartFusion2-workspace, plus the
 # Python packages of the libraries and the debug runners.
+#
+# Two stages:
+#   tools  the tools only; the west workspace lives in a volume (local Dev
+#          Container and compose.yaml build this target)
+#   ci     tools plus the west workspace of west.yml in /workdir: the image of
+#          GitHub Actions and Codespaces, published to ghcr.io by
+#          .github/workflows/ci.yml (docs/development.md)
 
 # Zephyr 4.5 needs Python 3.12 or later; Debian bookworm ships 3.11.
-FROM --platform=linux/amd64 python:3.12.15-slim-bookworm@sha256:2ed6491b93cd49272ee6de2b5a38440c3448360322c089fc23e370722d74179d
+FROM --platform=linux/amd64 python:3.12.15-slim-bookworm@sha256:2ed6491b93cd49272ee6de2b5a38440c3448360322c089fc23e370722d74179d AS tools
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -180,3 +187,28 @@ WORKDIR /workdir/doppelstep
 # The workspace is mounted at runtime.
 
 CMD ["/bin/bash"]
+
+# ---------------------------------------------------------------------------
+# ci: the west workspace of west.yml baked into the image
+#
+# west init -l needs the manifest repository in place, so west.yml and
+# west-init.sh are copied to /workdir/doppelstep, the workspace is fetched, and
+# the copy is removed again: the repository is mounted there at run time
+# (GitHub Actions) or linked (Codespaces, .devcontainer/codespaces/).
+# ---------------------------------------------------------------------------
+
+FROM tools AS ci
+
+COPY west.yml /workdir/doppelstep/west.yml
+COPY scripts/west-init.sh /workdir/doppelstep/scripts/west-init.sh
+# west.yml.image: the manifest the workspace was fetched with, compared with the
+# repository by the Codespaces setup (.devcontainer/codespaces/setup.sh).
+RUN set -eux; \
+    cd /workdir; \
+    bash /workdir/doppelstep/scripts/west-init.sh; \
+    cp /workdir/doppelstep/west.yml /workdir/.west/west.yml.image; \
+    rm -rf /workdir/doppelstep; \
+    mkdir /workdir/doppelstep; \
+    git config --system --add safe.directory '*'
+
+WORKDIR /workdir/doppelstep

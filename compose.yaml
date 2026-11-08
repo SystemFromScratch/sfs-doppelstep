@@ -12,9 +12,12 @@ x-zephyr: &zephyr
   image: doppelstep:1.0.1-4
   build:
     context: .
+    # tools only: the west workspace lives in the volume below. The stage ci
+    # (workspace in the image) is the GitHub Actions / Codespaces image.
+    target: tools
   working_dir: /workdir/doppelstep
   volumes:
-    # west workspace: named volume, or a host directory (CI: DOPPELSTEP_WEST=<path>)
+    # west workspace: named volume, or a host directory (DOPPELSTEP_WEST=<path>)
     - ${DOPPELSTEP_WEST:-west}:/workdir
     - .:/workdir/doppelstep
   environment:
