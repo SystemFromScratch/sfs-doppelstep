@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-label="A Goal Position write, from the bus to the motor and back">
+<title>A Goal Position write, from the bus to the motor and back</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5A6472"/></marker><marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0F8B9A"/></marker><marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#E07A00"/></marker><marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2E7D32"/></marker></defs>
+<rect x="0" y="0" width="1000" height="600" rx="12" fill="#FFFFFF"/>
+<rect x="10" y="30" width="160" height="54" rx="10" fill="#FFFFFF" stroke="#5A6472" stroke-width="1.8"/>
+<text x="90" y="53" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="14.5" font-weight="bold" fill="#5A6472" text-anchor="middle">Host</text>
+<text x="90" y="72" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#5A6472" text-anchor="middle">ROS 2 / SDK</text>
+<line x1="90" y1="84" x2="90" y2="570" stroke="#C9D3E0" stroke-width="1.6" stroke-dasharray="6 4"/>
+<rect x="190" y="30" width="160" height="54" rx="10" fill="#FFFFFF" stroke="#0F8B9A" stroke-width="1.8"/>
+<text x="270" y="53" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="14.5" font-weight="bold" fill="#0F8B9A" text-anchor="middle">X430 driver</text>
+<text x="270" y="72" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#5A6472" text-anchor="middle">comm_task</text>
+<line x1="270" y1="84" x2="270" y2="570" stroke="#C9D3E0" stroke-width="1.6" stroke-dasharray="6 4"/>
+<rect x="390" y="30" width="160" height="54" rx="10" fill="#FFFFFF" stroke="#1E5AA8" stroke-width="1.8"/>
+<text x="470" y="53" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="14.5" font-weight="bold" fill="#1E5AA8" text-anchor="middle">joint_bridge</text>
+<text x="470" y="72" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#5A6472" text-anchor="middle">comm_task</text>
+<line x1="470" y1="84" x2="470" y2="570" stroke="#C9D3E0" stroke-width="1.6" stroke-dasharray="6 4"/>
+<rect x="610" y="30" width="160" height="54" rx="10" fill="#FFFFFF" stroke="#1E5AA8" stroke-width="1.8"/>
+<text x="690" y="53" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="14.5" font-weight="bold" fill="#1E5AA8" text-anchor="middle">control_task</text>
+<text x="690" y="72" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#5A6472" text-anchor="middle">1 kHz loop</text>
+<line x1="690" y1="84" x2="690" y2="570" stroke="#C9D3E0" stroke-width="1.6" stroke-dasharray="6 4"/>
+<rect x="810" y="30" width="160" height="54" rx="10" fill="#FFFFFF" stroke="#0F8B9A" stroke-width="1.8"/>
+<text x="890" y="53" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="14.5" font-weight="bold" fill="#0F8B9A" text-anchor="middle">Motor driver</text>
+<text x="890" y="72" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#5A6472" text-anchor="middle">Stepper-C</text>
+<line x1="890" y1="84" x2="890" y2="570" stroke="#C9D3E0" stroke-width="1.6" stroke-dasharray="6 4"/>
+<line x1="90" y1="118" x2="264" y2="118" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="180.0" y="111" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="middle">write Goal Position (116)</text>
+<line x1="270" y1="156" x2="464" y2="156" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="370.0" y="149" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="middle">write callback</text>
+<rect x="375" y="170" width="190" height="46" rx="6" fill="#F2F5FA" stroke="#1E5AA8" stroke-width="1.5"/>
+<text x="470" y="189" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="11.5" font-weight="normal" fill="#1E5AA8" text-anchor="middle">convert units and profile</text>
+<text x="470" y="205" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="11.5" font-weight="normal" fill="#1E5AA8" text-anchor="middle">read the latest status</text>
+<line x1="470" y1="242" x2="684" y2="242" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="580.0" y="235" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="middle">app_call(MOVE_TO) → cmd_q</text>
+<line x1="690" y1="282" x2="884" y2="282" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="790.0" y="275" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="middle">stepper_ctrl_configure_ramp()</text>
+<line x1="690" y1="318" x2="884" y2="318" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="790.0" y="311" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="middle">stepper_ctrl_move_to()</text>
+<rect x="595" y="334" width="190" height="46" rx="6" fill="#F2F5FA" stroke="#1E5AA8" stroke-width="1.5"/>
+<text x="690" y="353" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="11.5" font-weight="normal" fill="#1E5AA8" text-anchor="middle">publish the status → status_q</text>
+<text x="690" y="369" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="11.5" font-weight="normal" fill="#1E5AA8" text-anchor="middle">then answer</text>
+<line x1="690" y1="406" x2="476" y2="406" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)" stroke-dasharray="6 4"/>
+<text x="580.0" y="399" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="middle">result, sequence number ← rsp_q</text>
+<rect x="375" y="420" width="190" height="46" rx="6" fill="#F2F5FA" stroke="#1E5AA8" stroke-width="1.5"/>
+<text x="470" y="439" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="11.5" font-weight="normal" fill="#1E5AA8" text-anchor="middle">late answer? discarded</text>
+<text x="470" y="455" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="11.5" font-weight="normal" fill="#1E5AA8" text-anchor="middle">by its sequence number</text>
+<line x1="470" y1="490" x2="276" y2="490" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)" stroke-dasharray="6 4"/>
+<text x="370.0" y="483" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="middle">result (0 or −errno)</text>
+<line x1="270" y1="530" x2="96" y2="530" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)" stroke-dasharray="6 4"/>
+<text x="180.0" y="523" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="middle">status packet: OK or Result Fail</text>
+<text x="890" y="470" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0F8B9A" text-anchor="middle">fast loop keeps running</text>
+<text x="890" y="488" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0F8B9A" text-anchor="middle">in the 20 kHz interrupt</text>
+</svg>

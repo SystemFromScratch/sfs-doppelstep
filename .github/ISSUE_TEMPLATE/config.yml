@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://systemfromscratch.github.io/sfs-doppelstep/
+    about: Getting started, hardware bring-up, the DYNAMIXEL mapping and the architecture.
+  - name: Commercial support and custom development
+    url: https://systemfromscratch.github.io/
+    about: Firmware for your product, Zephyr drivers, bootloaders and CRA readiness by SystemFromScratch®.

@@ -2,6 +2,8 @@
 
 **Your stepper, seen as a smart servo.**
 
+[![CI](https://github.com/SystemFromScratch/sfs-doppelstep/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SystemFromScratch/sfs-doppelstep/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-systemfromscratch.github.io-2f8cff)](https://systemfromscratch.github.io/sfs-doppelstep/)
 [![Zephyr RTOS v4.5.0](https://img.shields.io/badge/Zephyr_RTOS-v4.5.0-2f8cff)](docs/technology.md#zephyr-rtos)
 [![MCUboot](https://img.shields.io/badge/bootloader-MCUboot_RSA--2048-2f8cff)](docs/firmware-update.md)
 [![DYNAMIXEL Protocol 2.0](https://img.shields.io/badge/bus-DYNAMIXEL_Protocol_2.0-0B2545)](docs/dynamixel.md)
@@ -24,6 +26,27 @@ on a PC against a physical model of the motor before it reaches the hardware.
 
 It is a complete, documented firmware product, published under the Apache License 2.0 so that
 you can repeat it step by step, or build your own product on it.
+
+### Try it in your browser
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/SystemFromScratch/sfs-doppelstep?quickstart=1&devcontainer_path=.devcontainer%2Fcodespaces%2Fdevcontainer.json)
+
+The codespace starts from the published environment image with Zephyr, the toolchain and the
+libraries already in place: nothing to install, nothing to download at the start. In its
+terminal:
+
+```bash
+bash scripts/run-tests.sh                                          # firmware on native_sim + 28 SIL and integration tests
+west build -p always --sysbuild -b b_g431b_esc1 -s app -d build   # MCUboot + signed firmware for the board
+```
+
+The first command builds the firmware as a Linux program with a simulated stepper motor and
+drives it over DYNAMIXEL Protocol 2.0 the way ROS 2 does; the second builds the images you
+would flash on a B-G431B-ESC1. A codespace with 4 cores is used; GitHub's free monthly
+Codespaces hours cover many runs.
+
+Full documentation, also as a PDF manual:
+**[systemfromscratch.github.io/sfs-doppelstep](https://systemfromscratch.github.io/sfs-doppelstep/)**.
 
 ## Why it is worth a look
 
@@ -56,6 +79,17 @@ Measured with the CI build of this version.
 | Bootloader | MCUboot, 37 148 B |
 | Tests | 55 ztest cases, 28 SIL and integration tests, 8 fixed-point motion tests |
 
+## Architecture
+
+<p align="center">
+  <img src="docs/assets/images/architecture.svg" width="820"
+       alt="Layers of the Doppelstep firmware: the host, the X430 servo driver, comm_task and control_task connected by message queues, the Stepper-C motor driver, the STM32 or simulation power stage backend, and the B-G431B-ESC1 with the motor">
+</p>
+
+Three Zephyr drivers and an application that owns the threads. Faults are handled in the
+20 kHz interrupt, independent of any thread. Layers, rules and the path of a command:
+[docs/architecture.md](docs/architecture.md).
+
 ## Technology stack
 
 | Layer | Technology |
@@ -72,7 +106,7 @@ Measured with the CI build of this version.
 What each one does, which version, and why it was chosen:
 [docs/technology.md](docs/technology.md).
 
-## Quick start, no hardware
+## Quick start on your PC, no hardware
 
 You need Docker and Git:
 

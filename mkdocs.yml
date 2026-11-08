@@ -19,6 +19,7 @@ site_description: >-
   B-G431B-ESC1 and answers on the bus as a DYNAMIXEL XM430-W350 smart servo
   (Protocol 2.0), tested on the PC with a simulated motor.
 site_author: Anton Vynohradov
+site_url: https://systemfromscratch.github.io/sfs-doppelstep/
 repo_url: https://github.com/SystemFromScratch/sfs-doppelstep
 repo_name: SystemFromScratch/sfs-doppelstep
 edit_uri: ""

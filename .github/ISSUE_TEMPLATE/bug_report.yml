@@ -1,0 +1,52 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Thank you for the report. For a security issue, do not use this form: see SECURITY.md.
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it happen?
+      options:
+        - native_sim (PC, simulated motor)
+        - B-G431B-ESC1 with the simulated motor (sim.overlay)
+        - B-G431B-ESC1 with a real motor
+        - Build, CI or development environment
+        - GUI or host tools
+        - Documentation
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: "Output of `git describe --always --dirty`"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The build command, the host program (ROS 2, DynamixelSDK, Wizard, GUI) and the writes or packets that show the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: RTT log on the board, stdout of zephyr.exe, or build-tests/pytest/<test>/fw.log.
+      render: text
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware
+      description: Motor, supply voltage, bus adapter, changes to the overlay (only for the board).

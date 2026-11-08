@@ -151,6 +151,13 @@ jobs:
               -v "${RUNNER_TEMP}/ccache:/workdir/.ccache" \
               "${{ needs.image.outputs.ref }}" bash scripts/ci.sh
 
+      # The container runs as root, and pytest creates its temporary directories
+      # with mode 0700: give the build directories and ccache back to the runner
+      # user, or upload-artifact and the ccache save fail with EACCES.
+      - name: Hand the build directories back to the runner
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}/ccache"
+
       - name: Test summary
         if: always()
         run: python3 scripts/junit_summary.py build-tests/junit.xml >> "$GITHUB_STEP_SUMMARY"

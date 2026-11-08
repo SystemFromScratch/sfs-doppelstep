@@ -26,11 +26,7 @@ The whole firmware runs on the PC as a `native_sim` program, with the motor mode
 DYNAMIXEL Protocol 2.0, the way a host program does. The tests run in the Docker image,
 both on a developer PC and in GitHub Actions, with the same command.
 
-```text
-pytest ──Protocol 2.0──► pseudoterminal ──► zephyr.exe (native_sim, real time)
-   │                                          X430 emulator → Stepper-C → sstep_plant.c
-   └──── model log every 100 ms (rotor position, speed, currents) ◄──┘
-```
+![SIL and integration tests: pytest drives the native_sim firmware with the motor model](assets/images/test-setup.svg)
 
 ## Running them
 

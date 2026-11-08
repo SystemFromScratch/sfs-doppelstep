@@ -5,30 +5,7 @@ drivers. The application owns the threads and the queues and connects the driver
 explains the layers, their rules and the path of a command, so you can read the code or add to
 it. For a new MCU, continue with [Porting to a new MCU family](porting.md).
 
-```text
- ROS 2 / DynamixelSDK / DYNAMIXEL Wizard            host PC
-        │ Protocol 2.0, 1 Mbps
- ───────┼─────────────────────────────────────────────────────── firmware
-        ▼ UART
- ┌──────────────┐  callbacks  ┌─────────────┐ ──cmd_q──▶ ┌──────────────┐
- │ x430 driver  │ ──────────▶ │ comm_task + │ ◀──rsp_q── │ control_task │
- │ X430 emulator│             │ joint_bridge│ ◀─status_q─│              │
- └──────────────┘             └─────────────┘            └──────┬───────┘
-                                                                │ stepper, stepper_ctrl,
-                                                                ▼ sstep_motor_*
-                                                         ┌──────────────┐
-                                                         │ motor driver │
-                                                         │ Stepper-C    │
-                                                         └──────┬───────┘
-                                                                │ power_stage API
-                                                                ▼ fast loop in the interrupt
-                                                         ┌──────────────┐
-                                                         │ power_stage  │ STM32 or simulation
-                                                         │ backend      │ backend
-                                                         └──────┬───────┘
-        on the B-G431B-ESC1: TIM1 + ADC1/ADC2 (LL), OPAMP1..3   ▼
-        L6387 gate drivers → 3 half-bridges → stepper motor (shared leg W)
-```
+![Layers of the firmware, from the host to the motor](assets/images/architecture.svg)
 
 ## Layout
 
@@ -115,14 +92,7 @@ the log records the timeout.
 
 Goal Position:
 
-```text
-host ─UART→ x430_servo_process → write callback → joint_bridge
-    converts the units and the profile, reads the latest status
-    app_call(MOVE_TO) ─cmd_q→ control_task: configure_ramp + move_to
-                                 publishes the status, then answers
-    waits on rsp_q    ←rsp_q─ result and sequence number
-    result → DYNAMIXEL status ─UART→ host
-```
+![A Goal Position write, from the bus to the motor and back](assets/images/command-path.svg)
 
 The host gets the result in the status packet, so `joint_bridge` waits for it. Because the status
 is published before the answer, the sender always sees a status that reflects its command.

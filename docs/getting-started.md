@@ -64,10 +64,11 @@ action, on Windows and on Linux. The tasks **Zephyr: Run tests (native_sim)** an
 
 ### In the browser, with GitHub Codespaces
 
-**Code → Codespaces → … → New with options**, configuration
-**Doppelstep (Codespaces: build and native_sim tests)**. It starts from the published
-environment image, so nothing is downloaded or built at the start. Then run
-`bash scripts/run-tests.sh` in its terminal.
+[Open Doppelstep in GitHub Codespaces](https://codespaces.new/SystemFromScratch/sfs-doppelstep?quickstart=1&devcontainer_path=.devcontainer%2Fcodespaces%2Fdevcontainer.json): the link selects the configuration
+**Doppelstep (Codespaces: build and native_sim tests)**. By hand: **Code → Codespaces → … →
+New with options**, then that configuration. It starts from the published environment image,
+so nothing is downloaded or built at the start. Then run `bash scripts/run-tests.sh` in its
+terminal.
 
 ## 2. On the board, simulated motor
 

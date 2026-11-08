@@ -1,0 +1,24 @@
+name: Feature request or port
+description: A new feature, board or MCU family
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What do you need, and why?
+      description: The use case, for example a robot arm, a ROS 2 setup or a product.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: >-
+        How it could work. For a new board or MCU family, see docs/porting.md: which power stage,
+        current sensing and timer the hardware has.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I can help with the implementation or with tests on hardware

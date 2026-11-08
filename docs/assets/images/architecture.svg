@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 760" width="1000" height="760" role="img" aria-label="Doppelstep architecture: from the host to the motor">
+<title>Doppelstep architecture: from the host to the motor</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5A6472"/></marker><marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0F8B9A"/></marker><marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#E07A00"/></marker><marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2E7D32"/></marker></defs>
+<rect x="0" y="0" width="1000" height="760" rx="12" fill="#FFFFFF"/>
+<rect x="40" y="24" width="340" height="66" rx="10" fill="#F2F5FA" stroke="#5A6472" stroke-width="1.5"/>
+<text x="210.0" y="46.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#0B2545" text-anchor="middle">Host PC</text>
+<text x="210.0" y="66.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">ROS 2 · DynamixelSDK · DYNAMIXEL Wizard</text>
+<rect x="20" y="140" width="960" height="480" rx="14" fill="#FFFFFF" stroke="#1E5AA8" stroke-width="2"/>
+<text x="300" y="166" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="16" font-weight="bold" fill="#1E5AA8" text-anchor="start">Firmware on Zephyr RTOS v4.5.0</text>
+<line x1="155" y1="90" x2="155" y2="188" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="167" y="120" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="start">DYNAMIXEL Protocol 2.0, 1 Mbps, UART</text>
+<text x="960" y="166" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#5A6472" text-anchor="end">application (app/) in blue · drivers (drivers/) in teal</text>
+<rect x="40" y="190" width="230" height="104" rx="10" fill="#E6F4F5" stroke="#0F8B9A" stroke-width="1.5"/>
+<text x="155.0" y="214.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#0F8B9A" text-anchor="middle">X430 servo driver</text>
+<text x="155.0" y="234.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">X430 emulator + DXL2-C</text>
+<text x="155.0" y="251.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">child node of the UART</text>
+<text x="155.0" y="268.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">Control Table, NVS</text>
+<line x1="270" y1="242" x2="336" y2="242" stroke="#0F8B9A" stroke-width="1.6" marker-end="url(#arrow-teal)"/>
+<text x="303.0" y="234.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0F8B9A" text-anchor="middle">callbacks</text>
+<rect x="338" y="190" width="220" height="104" rx="10" fill="#EAF1FB" stroke="#1E5AA8" stroke-width="1.5"/>
+<text x="448.0" y="214.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#1E5AA8" text-anchor="middle">comm_task + joint_bridge</text>
+<text x="448.0" y="234.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">priority 2</text>
+<text x="448.0" y="251.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">on receive, every 10 ms</text>
+<text x="448.0" y="268.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">servo units ↔ motor units</text>
+<rect x="760" y="190" width="200" height="104" rx="10" fill="#EAF1FB" stroke="#1E5AA8" stroke-width="1.5"/>
+<text x="860.0" y="214.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#1E5AA8" text-anchor="middle">control_task</text>
+<text x="860.0" y="234.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">priority −2, cooperative</text>
+<text x="860.0" y="251.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">1 kHz, absolute schedule</text>
+<text x="860.0" y="268.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">the only caller of the motor</text>
+<line x1="562" y1="214" x2="756" y2="214" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="659" y="208" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="11.5" font-weight="normal" fill="#0B2545" text-anchor="middle">cmd_q · commands, depth 2</text>
+<line x1="756" y1="244" x2="562" y2="244" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="659" y="238" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="11.5" font-weight="normal" fill="#0B2545" text-anchor="middle">rsp_q · results, depth 2</text>
+<line x1="756" y1="274" x2="562" y2="274" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="659" y="268" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="11.5" font-weight="normal" fill="#0B2545" text-anchor="middle">status_q · latest status, depth 1</text>
+<line x1="860" y1="294" x2="860" y2="356" stroke="#1E5AA8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="850.0" y="329.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#1E5AA8" text-anchor="end">stepper · stepper_ctrl · sstep_motor_*</text>
+<rect x="660" y="358" width="300" height="96" rx="10" fill="#E6F4F5" stroke="#0F8B9A" stroke-width="1.5"/>
+<text x="810.0" y="378.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#0F8B9A" text-anchor="middle">Motor driver: Stepper-C</text>
+<text x="810.0" y="398.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">sfs,sstep-motor (+ driver, ctrl children)</text>
+<text x="810.0" y="415.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">slow loop 1 kHz · current loop 20 kHz</text>
+<text x="810.0" y="432.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">trips: overcurrent, VBUS, leg W</text>
+<line x1="860" y1="454" x2="860" y2="518" stroke="#0F8B9A" stroke-width="1.6" marker-end="url(#arrow-teal)"/>
+<text x="850" y="474" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0F8B9A" text-anchor="end">power_stage API · fast loop in the interrupt</text>
+<path d="M860,498 L500,498 L500,518" stroke="#0F8B9A" stroke-width="1.6" fill="none" marker-end="url(#arrow-teal)"/>
+<text x="510" y="492" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="11.5" font-weight="normal" fill="#0F8B9A" text-anchor="start">or, selected by the devicetree</text>
+<rect x="360" y="520" width="280" height="84" rx="10" fill="#FFFFFF" stroke="#0F8B9A" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="500.0" y="543.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#0F8B9A" text-anchor="middle">Simulation backend</text>
+<text x="500.0" y="563.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">sfs,sim-power-stage</text>
+<text x="500.0" y="580.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">Stepper-Lab plant model (RK4)</text>
+<rect x="660" y="520" width="300" height="84" rx="10" fill="#E6F4F5" stroke="#0F8B9A" stroke-width="1.5"/>
+<text x="810.0" y="543.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#0F8B9A" text-anchor="middle">STM32 backend</text>
+<text x="810.0" y="563.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">sfs,stm32-shared-leg-power-stage</text>
+<text x="810.0" y="580.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">LL: TIM1, ADC1/ADC2, OPAMP1..3</text>
+<rect x="40" y="340" width="290" height="264" rx="10" fill="#F2F5FA" stroke="#C9D3E0" stroke-width="1.5"/>
+<text x="56" y="368" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="14" font-weight="bold" fill="#0B2545" text-anchor="start">Rules, checked in CI</text>
+<text x="64" y="396" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="bold" fill="#1E5AA8" text-anchor="middle">1</text>
+<text x="82" y="396" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="normal" fill="#0B2545" text-anchor="start">Drivers create no threads</text>
+<text x="82" y="418" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="normal" fill="#0B2545" text-anchor="start">and no queues</text>
+<text x="64" y="440" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="bold" fill="#1E5AA8" text-anchor="middle">2</text>
+<text x="82" y="440" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="normal" fill="#0B2545" text-anchor="start">The servo driver and the motor</text>
+<text x="82" y="462" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="normal" fill="#0B2545" text-anchor="start">driver never know each other:</text>
+<text x="82" y="484" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="normal" fill="#0B2545" text-anchor="start">only joint_bridge knows both</text>
+<text x="64" y="506" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="bold" fill="#1E5AA8" text-anchor="middle">3</text>
+<text x="82" y="506" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="normal" fill="#0B2545" text-anchor="start">Only a power_stage backend</text>
+<text x="82" y="528" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="normal" fill="#0B2545" text-anchor="start">touches registers</text>
+<text x="64" y="550" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="bold" fill="#1E5AA8" text-anchor="middle">4</text>
+<text x="82" y="550" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="normal" fill="#0B2545" text-anchor="start">The devicetree selects</text>
+<text x="82" y="572" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="normal" fill="#0B2545" text-anchor="start">the hardware</text>
+<line x1="810" y1="604" x2="810" y2="664" stroke="#E07A00" stroke-width="1.6" marker-end="url(#arrow-orange)"/>
+<text x="820.0" y="638.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#E07A00" text-anchor="start">PWM, ADC samples</text>
+<rect x="500" y="664" width="460" height="76" rx="10" fill="#FFF7EC" stroke="#E07A00" stroke-width="1.5"/>
+<text x="730.0" y="683.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#E07A00" text-anchor="middle">B-G431B-ESC1 and the motor</text>
+<text x="730.0" y="703.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">L6387 gate drivers → 3 half-bridges U, V, W</text>
+<text x="730.0" y="720.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">stepper coils A (U–W) and B (V–W)</text>
+<rect x="40" y="664" width="420" height="76" rx="10" fill="#EAF5EA" stroke="#2E7D32" stroke-width="1.5"/>
+<text x="250.0" y="683.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#2E7D32" text-anchor="middle">Faults never wait for a thread</text>
+<text x="250.0" y="703.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">the interrupt switches the outputs off;</text>
+<text x="250.0" y="720.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">the host sees Hardware Error Status</text>
+</svg>

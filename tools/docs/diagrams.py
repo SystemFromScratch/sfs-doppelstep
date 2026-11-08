@@ -29,7 +29,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from svgkit import BLUE, HERO_DEFS, HERO_STYLE, Iso  # noqa: E402
+from svgkit import (BLUE, GREEN, GREY, HERO_DEFS, HERO_STYLE, LIGHT, LINE, NAVY,  # noqa: E402
+                    ORANGE, TEAL, WHITE, Iso, Svg)
+
+SOFT_BLUE = "#EAF1FB"
+SOFT_TEAL = "#E6F4F5"
+SOFT_ORANGE = "#FFF7EC"
+SOFT_GREEN = "#EAF5EA"
 
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
                                     "docs", "assets", "images"))
@@ -149,9 +155,203 @@ def hero() -> None:
         f.write(iso.svg(label, HERO_DEFS, HERO_STYLE + HERO_EXTRA_STYLE, glow_at=(8, 4)))
 
 
+# ==============================================================================
+# 2D DIAGRAMS (drawn from the code: app/src, drivers/, app_msg.h, the devicetree)
+# ==============================================================================
+
+def box(s: Svg, x, y, w, h, title, lines=(), fill=LIGHT, stroke=LINE, color=NAVY,
+        size=15, mono_lines=False, dash=False) -> None:
+    """A rounded box with a bold title and smaller lines below it."""
+    s.rect(x, y, w, h, fill=fill, stroke=stroke, rx=10, dash=dash)
+    top = y + h / 2 - (len(lines) * 17) / 2 + (5 if not lines else -2)
+    s.text(x + w / 2, top, title, size=size, weight="bold", fill=color)
+    for i, value in enumerate(lines):
+        s.text(x + w / 2, top + 20 + i * 17, value, size=12.5, fill=GREY, mono=mono_lines)
+
+
+def arrow(s: Svg, x1, y1, x2, y2, color=GREY, label="", dx=0, dy=-8, size=12, dash=False,
+          anchor="middle") -> None:
+    kind = {TEAL: "teal", ORANGE: "orange", GREEN: "green"}.get(color, "end")
+    s.line(x1, y1, x2, y2, color=color, arrow=kind, dash=dash)
+    if label:
+        s.text((x1 + x2) / 2 + dx, (y1 + y2) / 2 + dy, label, size=size, fill=color,
+               anchor=anchor)
+
+
+def architecture() -> None:
+    """Layers of the firmware: host, drivers, application threads and queues, Stepper-C,
+    power stage backends, board. Matches docs/architecture.md and app/src/app_msg.h."""
+    s = Svg(1000, 760, "Doppelstep architecture: from the host to the motor")
+
+    # Host
+    box(s, 40, 24, 340, 66, "Host PC", ["ROS 2 · DynamixelSDK · DYNAMIXEL Wizard"],
+        fill=LIGHT, stroke=GREY)
+
+    # Firmware frame, then the bus arrow on top of it
+    s.rect(20, 140, 960, 480, fill=WHITE, stroke=BLUE, rx=14, sw=2)
+    s.text(300, 166, "Firmware on Zephyr RTOS v4.5.0", size=16, weight="bold", fill=BLUE,
+           anchor="start")
+    arrow(s, 155, 90, 155, 188, color=NAVY)
+    s.text(167, 120, "DYNAMIXEL Protocol 2.0, 1 Mbps, UART", size=12, fill=NAVY,
+           anchor="start")
+    s.text(960, 166, "application (app/) in blue · drivers (drivers/) in teal", size=12,
+           fill=GREY, anchor="end")
+
+    # Row A: servo driver, comm_task, queues, control_task
+    box(s, 40, 190, 230, 104, "X430 servo driver",
+        ["X430 emulator + DXL2-C", "child node of the UART", "Control Table, NVS"],
+        fill=SOFT_TEAL, stroke=TEAL, color=TEAL)
+    arrow(s, 270, 242, 336, 242, color=TEAL, label="callbacks", dy=-8)
+    box(s, 338, 190, 220, 104, "comm_task + joint_bridge",
+        ["priority 2", "on receive, every 10 ms", "servo units ↔ motor units"],
+        fill=SOFT_BLUE, stroke=BLUE, color=BLUE)
+    box(s, 760, 190, 200, 104, "control_task",
+        ["priority −2, cooperative", "1 kHz, absolute schedule", "the only caller of the motor"],
+        fill=SOFT_BLUE, stroke=BLUE, color=BLUE)
+    for i, (name, forward, depth) in enumerate((("cmd_q", True, "commands, depth 2"),
+                                                 ("rsp_q", False, "results, depth 2"),
+                                                 ("status_q", False, "latest status, depth 1"))):
+        y = 214 + i * 30
+        if forward:
+            arrow(s, 562, y, 756, y, color=NAVY)
+        else:
+            arrow(s, 756, y, 562, y, color=NAVY)
+        s.text(659, y - 6, f"{name} · {depth}", size=11.5, fill=NAVY)
+
+    # Row B: motor driver
+    arrow(s, 860, 294, 860, 356, color=BLUE, label="stepper · stepper_ctrl · sstep_motor_*",
+          dx=-10, dy=4, anchor="end")
+    box(s, 660, 358, 300, 96, "Motor driver: Stepper-C",
+        ["sfs,sstep-motor (+ driver, ctrl children)", "slow loop 1 kHz · current loop 20 kHz",
+         "trips: overcurrent, VBUS, leg W"],
+        fill=SOFT_TEAL, stroke=TEAL, color=TEAL)
+
+    # Row C: power stage backends
+    arrow(s, 860, 454, 860, 518, color=TEAL)
+    s.text(850, 474, "power_stage API · fast loop in the interrupt", size=12, fill=TEAL,
+           anchor="end")
+    s.path("M860,498 L500,498 L500,518", color=TEAL, arrow="teal")
+    s.text(510, 492, "or, selected by the devicetree", size=11.5, fill=TEAL, anchor="start")
+    box(s, 360, 520, 280, 84, "Simulation backend",
+        ["sfs,sim-power-stage", "Stepper-Lab plant model (RK4)"],
+        fill=WHITE, stroke=TEAL, color=TEAL, dash=True)
+    box(s, 660, 520, 300, 84, "STM32 backend",
+        ["sfs,stm32-shared-leg-power-stage", "LL: TIM1, ADC1/ADC2, OPAMP1..3"],
+        fill=SOFT_TEAL, stroke=TEAL, color=TEAL)
+
+    # Rules
+    s.rect(40, 340, 290, 264, fill=LIGHT, stroke=LINE, rx=10)
+    s.text(56, 368, "Rules, checked in CI", size=14, weight="bold", fill=NAVY, anchor="start")
+    rules = [
+        ("1", "Drivers create no threads"),
+        ("", "and no queues"),
+        ("2", "The servo driver and the motor"),
+        ("", "driver never know each other:"),
+        ("", "only joint_bridge knows both"),
+        ("3", "Only a power_stage backend"),
+        ("", "touches registers"),
+        ("4", "The devicetree selects"),
+        ("", "the hardware"),
+    ]
+    for i, (num, value) in enumerate(rules):
+        y = 396 + i * 22
+        if num:
+            s.text(64, y, num, size=13, weight="bold", fill=BLUE)
+        s.text(82, y, value, size=13, fill=NAVY, anchor="start")
+
+    # Board
+    arrow(s, 810, 604, 810, 664, color=ORANGE, label="PWM, ADC samples", dx=10, dy=4,
+          anchor="start")
+    box(s, 500, 664, 460, 76, "B-G431B-ESC1 and the motor",
+        ["L6387 gate drivers → 3 half-bridges U, V, W", "stepper coils A (U–W) and B (V–W)"],
+        fill=SOFT_ORANGE, stroke=ORANGE, color=ORANGE)
+    box(s, 40, 664, 420, 76, "Faults never wait for a thread",
+        ["the interrupt switches the outputs off;", "the host sees Hardware Error Status"],
+        fill=SOFT_GREEN, stroke=GREEN, color=GREEN)
+    s.save(os.path.join(OUT, "architecture.svg"))
+
+
+def command_path() -> None:
+    """Sequence of a Goal Position write, from app/src/joint_bridge.c, app_msg.c and
+    control_task.c."""
+    lanes = [
+        (90, "Host", "ROS 2 / SDK", GREY),
+        (270, "X430 driver", "comm_task", TEAL),
+        (470, "joint_bridge", "comm_task", BLUE),
+        (690, "control_task", "1 kHz loop", BLUE),
+        (890, "Motor driver", "Stepper-C", TEAL),
+    ]
+    s = Svg(1000, 600, "A Goal Position write, from the bus to the motor and back")
+    top, bottom = 30, 570
+    for x, name, sub, color in lanes:
+        s.rect(x - 80, top, 160, 54, fill=WHITE, stroke=color, rx=10, sw=1.8)
+        s.text(x, top + 23, name, size=14.5, weight="bold", fill=color)
+        s.text(x, top + 42, sub, size=12, fill=GREY)
+        s.line(x, top + 54, x, bottom, color=LINE, dash=True)
+
+    def msg(y, a, b, label, color=NAVY, back=False):
+        x1, x2 = lanes[a][0], lanes[b][0]
+        s.line(x1, y, x2 + (-6 if x2 > x1 else 6), y, color=color, arrow="end", dash=back)
+        s.text((x1 + x2) / 2, y - 7, label, size=12, fill=color)
+
+    def note(y, lane, lines, color):
+        x = lanes[lane][0]
+        h = 14 + 16 * len(lines)
+        s.rect(x - 95, y, 190, h, fill=LIGHT, stroke=color, rx=6)
+        for i, value in enumerate(lines):
+            s.text(x, y + 19 + i * 16, value, size=11.5, fill=color)
+
+    msg(118, 0, 1, "write Goal Position (116)")
+    msg(156, 1, 2, "write callback")
+    note(170, 2, ["convert units and profile", "read the latest status"], BLUE)
+    msg(242, 2, 3, "app_call(MOVE_TO) → cmd_q")
+    msg(282, 3, 4, "stepper_ctrl_configure_ramp()")
+    msg(318, 3, 4, "stepper_ctrl_move_to()")
+    note(334, 3, ["publish the status → status_q", "then answer"], BLUE)
+    msg(406, 3, 2, "result, sequence number ← rsp_q", back=True)
+    note(420, 2, ["late answer? discarded", "by its sequence number"], BLUE)
+    msg(490, 2, 1, "result (0 or −errno)", back=True)
+    msg(530, 1, 0, "status packet: OK or Result Fail", back=True)
+    s.text(890, 470, "fast loop keeps running", size=12, fill=TEAL)
+    s.text(890, 488, "in the 20 kHz interrupt", size=12, fill=TEAL)
+    s.save(os.path.join(OUT, "command-path.svg"))
+
+
+def test_setup() -> None:
+    """SIL and integration tests: pytest drives the native_sim firmware with the plant model
+    over Protocol 2.0 (scripts/run-tests.sh, tests/conftest.py)."""
+    s = Svg(1000, 300, "SIL and integration tests on the PC")
+    box(s, 30, 70, 210, 110, "pytest", ["tests/sil: dxl2.py client", "tests/integration:",
+                                       "DynamixelSDK"], fill=SOFT_GREEN, stroke=GREEN,
+        color=GREEN)
+    arrow(s, 240, 110, 316, 110, color=NAVY, label="Protocol 2.0", dy=-8)
+    box(s, 318, 80, 150, 60, "pseudoterminal", ["ttyDXL"], fill=LIGHT, stroke=GREY)
+    arrow(s, 468, 110, 536, 110, color=NAVY)
+    s.rect(538, 40, 432, 180, fill=SOFT_BLUE, stroke=BLUE, rx=12, sw=1.8)
+    s.text(554, 64, "zephyr.exe · native_sim, real time", size=14, weight="bold", fill=BLUE,
+           anchor="start")
+    chain = [("X430 emulator", TEAL), ("Stepper-C", TEAL), ("sstep_plant.c", ORANGE)]
+    for i, (name, color) in enumerate(chain):
+        x = 556 + i * 138
+        s.rect(x, 86, 122, 48, fill=WHITE, stroke=color, rx=8)
+        s.text(x + 61, 115, name, size=13, weight="bold", fill=color)
+        if i:
+            arrow(s, x - 16, 110, x - 2, 110, color=color)
+    s.text(754, 166, "the same application as on the board,", size=12.5, fill=GREY)
+    s.text(754, 184, "with the simulation power stage and the motor model", size=12.5,
+           fill=GREY)
+    s.path("M754,220 L754,250 L135,250 L135,184", color=ORANGE, arrow="orange")
+    s.text(444, 270, "model log every 100 ms: rotor position, lag, speed, currents", size=12.5,
+           fill=ORANGE)
+    s.save(os.path.join(OUT, "test-setup.svg"))
+
+
 def main() -> None:
     os.makedirs(OUT, exist_ok=True)
     hero()
+    architecture()
+    command_path()
+    test_setup()
     for name in sorted(os.listdir(OUT)):
         if name.endswith(".svg"):
             print("wrote", os.path.join("docs", "assets", "images", name))

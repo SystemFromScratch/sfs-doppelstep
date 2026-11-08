@@ -40,6 +40,8 @@ name comes from: Doppelstep is the *double* (German *Doppelgänger*) of a servo
 | Power stage | A timer switches three half-bridges; the ADCs measure the currents and the supply voltage | [Hardware and bring-up](hardware.md) |
 | Motor | A NEMA 17 stepper, wired with one shared leg for both coils | [Hardware and bring-up](hardware.md#motor-wiring) |
 
+![The firmware between the host and the motor](assets/images/architecture.svg)
+
 ## Who it is for
 
 | You are… | Doppelstep gives you |

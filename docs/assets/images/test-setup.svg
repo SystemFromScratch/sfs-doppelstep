@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 300" width="1000" height="300" role="img" aria-label="SIL and integration tests on the PC">
+<title>SIL and integration tests on the PC</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5A6472"/></marker><marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0F8B9A"/></marker><marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#E07A00"/></marker><marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2E7D32"/></marker></defs>
+<rect x="0" y="0" width="1000" height="300" rx="12" fill="#FFFFFF"/>
+<rect x="30" y="70" width="210" height="110" rx="10" fill="#EAF5EA" stroke="#2E7D32" stroke-width="1.5"/>
+<text x="135.0" y="97.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#2E7D32" text-anchor="middle">pytest</text>
+<text x="135.0" y="117.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">tests/sil: dxl2.py client</text>
+<text x="135.0" y="134.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">tests/integration:</text>
+<text x="135.0" y="151.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">DynamixelSDK</text>
+<line x1="240" y1="110" x2="316" y2="110" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="278.0" y="102.0" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="middle">Protocol 2.0</text>
+<rect x="318" y="80" width="150" height="60" rx="10" fill="#F2F5FA" stroke="#5A6472" stroke-width="1.5"/>
+<text x="393.0" y="99.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#0B2545" text-anchor="middle">pseudoterminal</text>
+<text x="393.0" y="119.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">ttyDXL</text>
+<line x1="468" y1="110" x2="536" y2="110" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="538" y="40" width="432" height="180" rx="12" fill="#EAF1FB" stroke="#1E5AA8" stroke-width="1.8"/>
+<text x="554" y="64" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="14" font-weight="bold" fill="#1E5AA8" text-anchor="start">zephyr.exe · native_sim, real time</text>
+<rect x="556" y="86" width="122" height="48" rx="8" fill="#FFFFFF" stroke="#0F8B9A" stroke-width="1.5"/>
+<text x="617" y="115" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="bold" fill="#0F8B9A" text-anchor="middle">X430 emulator</text>
+<rect x="694" y="86" width="122" height="48" rx="8" fill="#FFFFFF" stroke="#0F8B9A" stroke-width="1.5"/>
+<text x="755" y="115" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="bold" fill="#0F8B9A" text-anchor="middle">Stepper-C</text>
+<line x1="678" y1="110" x2="692" y2="110" stroke="#0F8B9A" stroke-width="1.6" marker-end="url(#arrow-teal)"/>
+<rect x="832" y="86" width="122" height="48" rx="8" fill="#FFFFFF" stroke="#E07A00" stroke-width="1.5"/>
+<text x="893" y="115" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="13" font-weight="bold" fill="#E07A00" text-anchor="middle">sstep_plant.c</text>
+<line x1="816" y1="110" x2="830" y2="110" stroke="#E07A00" stroke-width="1.6" marker-end="url(#arrow-orange)"/>
+<text x="754" y="166" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">the same application as on the board,</text>
+<text x="754" y="184" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#5A6472" text-anchor="middle">with the simulation power stage and the motor model</text>
+<path d="M754,220 L754,250 L135,250 L135,184" stroke="#E07A00" stroke-width="1.6" fill="none" marker-end="url(#arrow-orange)"/>
+<text x="444" y="270" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12.5" font-weight="normal" fill="#E07A00" text-anchor="middle">model log every 100 ms: rotor position, lag, speed, currents</text>
+</svg>
