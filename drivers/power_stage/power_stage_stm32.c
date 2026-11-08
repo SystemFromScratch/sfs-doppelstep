@@ -94,6 +94,7 @@ static void *volatile fast_ctx;
 static volatile uint16_t offset_u = ADC_MID;
 static volatile uint16_t offset_v = ADC_MID;
 static volatile uint16_t offset_w = ADC_MID;
+static volatile bool offsets_valid;     /* the W trip means nothing before calibration */
 static volatile uint16_t w_trip_counts; /* 0 = disabled */
 static volatile uint32_t isr_count;
 static volatile uint32_t fast_cycles_max;
@@ -143,7 +144,7 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 			};
 			const uint16_t trip = w_trip_counts;
 			const bool w_trip =
-				(trip != 0U) &&
+				(trip != 0U) && offsets_valid &&
 				((uint16_t)abs((int32_t)raw_w - (int32_t)offset_w) > trip);
 
 			fn(&sample, w_trip, fast_ctx);
@@ -449,6 +450,7 @@ static int stm32_calibrate(const struct device *dev, uint32_t samples)
 		return -EINVAL;
 	}
 
+	offsets_valid = false;
 	cal_sum_u = 0U;
 	cal_sum_v = 0U;
 	cal_sum_w = 0U;
@@ -466,6 +468,7 @@ static int stm32_calibrate(const struct device *dev, uint32_t samples)
 	offset_u = (uint16_t)((cal_sum_u + samples / 2U) / samples);
 	offset_v = (uint16_t)((cal_sum_v + samples / 2U) / samples);
 	offset_w = (uint16_t)((cal_sum_w + samples / 2U) / samples);
+	offsets_valid = true;
 	LOG_INF("current offsets U %u, V %u, W %u counts", offset_u, offset_v, offset_w);
 	return 0;
 }

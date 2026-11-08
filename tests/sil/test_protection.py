@@ -80,7 +80,7 @@ def test_overload_trips_and_is_reported(firmware_factory):
 
 
 def test_undervoltage_is_reported(firmware_factory):
-    fw = firmware_factory(["-sim_vbus_mv=9000"])           # below CONFIG_SFS_STAGE_VBUS_MIN_MV
+    fw = firmware_factory(["-sim_vbus_mv=9000"])           # below vbus-min-mv of the motor node
     bus = dxl2.Bus(fw.pty)
     assert bus.read(DXL_ID, dxl2.PRESENT_INPUT_VOLTAGE) == 90
     bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
@@ -90,7 +90,7 @@ def test_undervoltage_is_reported(firmware_factory):
 
 
 def test_torque_enable_in_a_fault_is_rejected(firmware_factory):
-    fw = firmware_factory(["-sim_vbus_mv=9000"])           # below CONFIG_SFS_STAGE_VBUS_MIN_MV
+    fw = firmware_factory(["-sim_vbus_mv=9000"])           # below vbus-min-mv of the motor node
     bus = dxl2.Bus(fw.pty)
     bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
     wait_until(lambda: bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 0, 1.0, what="trip")

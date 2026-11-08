@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   firmware:
-    name: Build and test (b_g431b_esc1, native_sim)
+    name: Layers, builds and tests (b_g431b_esc1, native_sim)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -34,7 +34,7 @@ jobs:
         with:
           context: .
           load: true
-          tags: doppelstep:1.0.1-2          # compose.yaml image
+          tags: doppelstep:1.0.1-3          # compose.yaml image
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -61,6 +61,8 @@ jobs:
             build-tests/junit.xml
             build-tests/pytest/**/*.log
             build-ci/*.log
+            build-ci/twister/twister.json
+            build-tests-fixed/junit.xml
           if-no-files-found: ignore
 
       - name: Firmware images

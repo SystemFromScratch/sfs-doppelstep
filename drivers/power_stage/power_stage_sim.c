@@ -52,6 +52,7 @@ static struct power_stage_info info;
 
 static volatile power_stage_fast_cb_t fast_cb;
 static void *volatile fast_ctx;
+static volatile bool offsets_valid;   /* as on real hardware: no trip before calibration */
 static volatile uint32_t aux_trip_ma; /* 0 = disabled */
 static volatile uint32_t isr_count;
 
@@ -65,7 +66,7 @@ static void model_period(void)
 	isr_count++;
 	sim_plant_sample(&sample, &i_w_ma);
 	if (cb != NULL) {
-		cb(&sample, (trip != 0U) && (i_w_ma > trip), fast_ctx);
+		cb(&sample, (trip != 0U) && offsets_valid && (i_w_ma > trip), fast_ctx);
 	}
 	sim_plant_step();
 }
@@ -244,8 +245,12 @@ static int sim_get_info(const struct device *dev, struct power_stage_info *out)
 static int sim_calibrate(const struct device *dev, uint32_t samples)
 {
 	ARG_UNUSED(dev);
+	if (samples == 0U) {
+		return -EINVAL;
+	}
 	/* the model has no sensor offset */
-	return (samples == 0U) ? -EINVAL : 0;
+	offsets_valid = true;
+	return 0;
 }
 
 static int sim_set_fast_callback(const struct device *dev, power_stage_fast_cb_t cb, void *ctx)

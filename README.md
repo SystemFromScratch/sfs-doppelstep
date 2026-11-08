@@ -54,79 +54,89 @@ this repository.
         │ Protocol 2.0, 1 Mbps (ST-LINK Virtual COM Port for now)
  ───────┼─────────────────────────────────────────────────────── B-G431B-ESC1
         ▼ USART2 (PB3/PB4)
- ┌──────────────────────────────┐   UART ISR → ring buffer → thread "dxl"
- │ dxl_bus.c                    │   x430_bus_receive / x430_bus_poll
- │  X430 emulator (XM430-W350)  │   hooks: Torque Enable, Goal Position, ...
- │  joint.c (unit conversions)  │   live registers from the motor snapshot
- └──────────────┬───────────────┘
-                │ motor_*() commands (synchronous)      ▲ snapshot
- ┌──────────────▼───────────────┐                       │
- │ motor.c   thread "motor"     │ sstep_slow_loop() at 1 kHz, every command
- │  Stepper-C (float backend)   │
- └──────────────┬───────────────┘
-                │ sstep_fast_loop() in the zero-latency ADC interrupt, 20 kHz
- ┌──────────────▼───────────────┐
- │ power_stage.c                │ TIM1 center-aligned complementary PWM (U,V,W)
- │  OPAMP1..3 (Zephyr driver)   │ ADC1 (iU, VBUS, iW) + ADC2 (iV), injected,
- │  TIM1 / ADC1 / ADC2 (LL)     │ triggered by TIM1 TRGO2 at the counter top
- └──────────────────────────────┘
-                │
-        L6387 gate drivers → 3 half-bridges → stepper motor
+ ┌──────────────┐  callbacks  ┌─────────────┐ ──cmd_q──▶ ┌──────────────┐
+ │ x430 driver  │ ──────────▶ │ comm_task + │ ◀──rsp_q── │ control_task │
+ │ X430 emulator│             │ joint_bridge│ ◀─status_q─│ slow loop    │
+ └──────────────┘             └─────────────┘            └──────┬───────┘
+                                                                │ stepper, stepper_ctrl
+                                                                ▼
+                                                         ┌──────────────┐
+                                                         │ motor driver │
+                                                         │ Stepper-C    │
+                                                         └──────┬───────┘
+                                       fast loop in the zero-latency ADC interrupt, 20 kHz
+                                                                ▼
+                                                         ┌──────────────┐
+                                                         │ power_stage  │ TIM1 + ADC1/ADC2 (LL)
+                                                         │ STM32 backend│ OPAMP1..3
+                                                         └──────┬───────┘
+        L6387 gate drivers → 3 half-bridges → stepper motor     ▼
         phase A between U and W, phase B between V and W (shared-leg topology)
 ```
 
 | Context | Rate | Work |
 |---|---|---|
 | ADC1_2 interrupt (zero latency, priority 0) | PWM rate, 20 kHz | read currents and VBUS, shared-leg (W) trip, `sstep_fast_loop()` |
-| thread `motor` (cooperative, −2) | 1 kHz, absolute schedule | `sstep_slow_loop()`, queued commands, status snapshot |
-| thread `dxl` (preemptive, 2) | on RX + every 10 ms | X430 parser and answers, Bus Watchdog, live registers |
+| `control_task` (cooperative, −2) | 1 kHz, absolute schedule | `sstep_motor_process()`, commands on receipt, publication of the status |
+| `comm_task` (preemptive, 2) | on RX + every 10 ms | `x430_servo_process()`, `joint_bridge`, live registers |
 | `main` | — | startup, STATUS LED |
+
+Layers, rules and the path of a command: [docs/architecture.md](docs/architecture.md). For another
+MCU family: [docs/porting.md](docs/porting.md).
 
 ---
 
 ## Repository structure
 
 ```text
-doppelstep/                             west manifest repository (this repo)
-├── west.yml                            Zephyr v4.5.0, Stepper-C v1.0.0, X430 emulator (main), DXL2-C v1.0.0,
-│                                       sfs-stepper-sim and sfs-stepper-power-spice (main)
-├── apps/                               everything Zephyr; BOARD_ROOT and DTS_ROOT of the applications
-│   ├── doppelstep/                     Zephyr application (west build -s apps/doppelstep)
-│   │   ├── CMakeLists.txt              BOARD_ROOT, DTS_ROOT, EXTRA_ZEPHYR_MODULES
-│   │   ├── Kconfig                     motor, power stage, control, DYNAMIXEL options
-│   │   ├── prj.conf                    options common to every board
-│   │   ├── sim.conf                    simulated motor on the board (EXTRA_CONF_FILE)
-│   │   ├── boards/b_g431b_esc1.overlay power stage node, DYNAMIXEL UART (1 Mbps)
-│   │   ├── boards/b_g431b_esc1.conf    FPU, zero-latency IRQ, OPAMP, RTT
-│   │   ├── boards/native_sim_native_64.* native_sim: bus on uart1 (PTY), 1 ms tick, stdout logs
-│   │   └── src/
-│   │       ├── main.c                  startup, STATUS LED
-│   │       ├── power_stage.[ch]        TIM1 + ADC1/ADC2 (LL) + OPAMPs, fast-loop ISR
-│   │       ├── power_stage_native.c    native_sim: same API, timer-driven, model always on
-│   │       ├── sim_plant.[ch]          simulated motor (sfs-stepper-sim model, RK4)
-│   │       ├── motor.[ch]              Stepper-C instance, slow-loop thread, commands
-│   │       ├── dxl_bus.[ch]            UART, X430 bus/device, hooks, events
-│   │       ├── joint.[ch]              microsteps <-> DYNAMIXEL units, profiles
-│   │       └── nvm.[ch]                EEPROM area / backup in flash (NVS)
-│   ├── boards/st/b_g431b_esc1/         out-of-tree board (not in Zephyr 4.5)
-│   │   ├── b_g431b_esc1.dts            pinout from UM2516 Table 4, 170 MHz from 8 MHz HSE
-│   │   ├── board.cmake                 runners: openocd (default), jlink, stm32cubeprogrammer, pyocd
-│   │   └── support/openocd.cfg         ST-LINK/V2-1, STM32G4
-│   ├── dts/bindings/sfs/               sfs,stm32-shared-leg-power-stage
-│   └── modules/                        Zephyr module glue for the libraries (workspace side)
-│       ├── stepper-c/zephyr/           module.yml, Kconfig (CONFIG_SSTEP_*), CMakeLists.txt
-│       ├── dynamixel-x430/zephyr/      module.yml, Kconfig (sources Kconfig.x430), CMakeLists.txt
-│       └── sfs-stepper-sim/zephyr/     plant model sstep_plant.c, params/*.json -> sstep_plant_params.h
+doppelstep/                             west manifest repository and Zephyr module (this repo)
+├── west.yml                            Zephyr v4.5.0, Stepper-C v1.2.0, X430 emulator (main), DXL2-C v1.0.0,
+│                                       Stepper-Lab and sfs-stepper-power-spice (main)
+├── zephyr/module.yml                   the repository is a Zephyr module: board, bindings, drivers
+├── CMakeLists.txt, Kconfig             build modules/ and drivers/
+├── app/                                Zephyr application (west build -s app)
+│   ├── Kconfig, Kconfig.app_msg        threads, queues, startup
+│   ├── prj.conf                        options common to every board
+│   ├── sim.overlay                     simulated motor on the board (EXTRA_DTC_OVERLAY_FILE)
+│   ├── sim-test.conf                   log period of the model for the tests
+│   ├── boards/b_g431b_esc1.overlay     power stage, motor, servo: the hardware of this board
+│   ├── boards/b_g431b_esc1.conf        FPU, zero-latency IRQ, OPAMP, RTT
+│   ├── boards/native_sim_native_64.*   simulated stage, servo on uart1 (PTY), 1 ms tick, stdout logs
+│   └── src/
+│       ├── main.c                      startup, STATUS LED
+│       ├── control_task.c              slow loop, commands, publication of the status
+│       ├── comm_task.c                 DYNAMIXEL bus
+│       ├── joint_bridge.[ch]           X430 registers <-> motor commands
+│       ├── joint.[ch]                  microsteps <-> DYNAMIXEL units, profiles
+│       ├── app_msg.[ch], app_tasks.h   queues and task ids
+│       └── sim_log.c                   periodic log line of the simulated motor
+├── drivers/
+│   ├── power_stage/                    STM32 and simulation backends, model adapter
+│   ├── motor/                          Stepper-C behind the classes stepper and stepper_ctrl
+│   └── x430/                           X430 emulator on a UART, NVS
+├── include/doppelstep/drivers/         public driver APIs
+├── dts/bindings/                       sfs,* bindings, vendor prefix sfs
+├── boards/st/b_g431b_esc1/             out-of-tree board (not in Zephyr 4.5)
+│   ├── b_g431b_esc1.dts                pinout from UM2516 Table 4, 170 MHz from 8 MHz HSE
+│   ├── board.cmake                     runners: openocd (default), jlink, stm32cubeprogrammer, pyocd
+│   └── support/openocd.cfg             ST-LINK/V2-1, STM32G4
+├── modules/                            build glue of the libraries
+│   ├── stepper-c/                      Kconfig (CONFIG_SSTEP_*), CMakeLists.txt
+│   ├── dynamixel-x430/                 Kconfig (sources Kconfig.x430), CMakeLists.txt
+│   └── stepper-lab/                    plant model sstep_plant.c, params/*.json -> sstep_plant_params.h
 ├── tools/
 │   ├── gui/                            host GUI (planned, see tools/gui/README.md)
 │   ├── sim/                            native_sim launcher (PTY link, TCP bridge), Protocol 2.0 smoke test
 │   └── docs/                           PDF manual builder, MkDocs hooks, cover page
-├── docs/                               MkDocs sources (index, development, simulation, GUI, NAMING.md)
-├── tests/                              SIL (tests/sil) and integration (tests/integration) tests, pytest
-├── .github/workflows/ci.yml            builds + tests in the Docker image (scripts/ci.sh)
+├── docs/                               MkDocs sources (architecture, porting, simulation, tests, ...)
+├── tests/
+│   ├── app/, drivers/                  ztest suites, run by Twister
+│   └── sil/, integration/              pytest against the native_sim firmware
+├── .github/workflows/ci.yml            layers, builds + tests in the Docker image (scripts/ci.sh)
 ├── scripts/
 │   ├── west-init.sh                    west init -l + west update (in the container)
-│   ├── run-tests.sh / ci.sh            tests on native_sim / builds + tests (CI)
+│   ├── run-tests.sh / ci.sh            tests on native_sim / the whole of CI
+│   ├── check-layers.sh                 dependency rules between the layers
 │   ├── junit_summary.py                test table for the GitHub job summary
 │   └── host/                           GDB servers on the Windows host (OpenOCD, J-Link)
 ├── docker/jlink/                       optional J-Link Software archive for the image
@@ -153,7 +163,7 @@ West workspace inside the container (topdir `/workdir`, a named Docker volume):
 ├── zephyr/
 └── modules/
     ├── hal/stm32  hal/cmsis_6  debug/segger
-    └── lib/stepper-c  lib/dynamixel-x430  lib/dxl2-c
+    └── lib/stepper-c  lib/dynamixel-x430  lib/dxl2-c  lib/stepper-lab  lib/sfs-stepper-power-spice
 ```
 
 The repository folder on Windows may keep any name (for example
@@ -175,12 +185,13 @@ container rebuilds); only this repository and `build/` live in the Windows folde
 | CMake | 3.30.5 (pip) | `Dockerfile` |
 | PyYAML / pylink-square | 6.0.3 / 2.0.1 | `Dockerfile` |
 | Zephyr | **v4.5.0** | `west.yml` |
-| Stepper-C | **v1.0.0** | `west.yml` |
+| Stepper-C | **v1.2.0** | `west.yml` |
 | DYNAMIXEL-X430 emulator | `main` (until its first release) | `west.yml` |
 | DXL2-C | v1.0.0 (= `X430_DXL2_GIT_TAG` of the emulator) | `west.yml` |
-| sfs-stepper-sim | `main` (until its first release): plant model and parameters of the simulated motor | `west.yml` |
+| Stepper-Lab | `main` (until its first release): plant model and parameters of the simulated motor | `west.yml` |
 | sfs-stepper-power-spice | `main` (until its first release): ngspice source of the stage parameters, not built | `west.yml` |
-| Board | `b_g431b_esc1` (this repository) | `apps/boards/` |
+| Twister packages | anytree, junitparser, natsort, ply, tabulate | `Dockerfile` |
+| Board | `b_g431b_esc1` (this repository) | `boards/` |
 
 The X430 emulator normally downloads DXL2-C with CMake FetchContent; the module
 glue points `FETCHCONTENT_SOURCE_DIR_DXL2` at the west project instead, so a
@@ -194,7 +205,7 @@ build needs no network access. It warns when the `dxl2-c` revision in
 B-G431B-ESC1: STM32G431CBU6 (Cortex-M4F, 170 MHz, 128 KiB flash, 32 KiB SRAM),
 L6387 gate drivers, STL180N6F7 MOSFETs, three 3 mΩ low-side shunts on the
 internal OPAMPs, detachable ST-LINK/V2-1. Pinout: UM2516 Rev 4, Table 4
-(see `apps/boards/st/b_g431b_esc1/doc/index.rst`).
+(see `boards/st/b_g431b_esc1/doc/index.rst`).
 
 **Motor wiring (Stepper-C shared-leg topology):**
 
@@ -204,7 +215,7 @@ internal OPAMPs, detachable ST-LINK/V2-1. Pinout: UM2516 Rev 4, Table 4
 | Phase B (coil B+ / B−) | V / W |
 
 W is shared and carries iA + iB; the firmware measures its shunt too and trips
-on `|iW| > i_trip` (`CONFIG_SFS_STAGE_PHASE_W_TRIP`).
+on `|iW| > i_trip` (`aux-trip` of the motor node).
 
 **Current and voltage scaling** come from the power-stage devicetree node:
 3 mΩ shunts, gain −64/7 (≈ −9.14, OPAMP PGA 16 with VINM0 as bias input, as in
@@ -310,9 +321,9 @@ the J-Link Remote Server. Details: [docs/development.md](docs/development.md).
 ## Building
 
 ```bash
-west build -b b_g431b_esc1 -s apps/doppelstep -d build              # incremental
-west build -p always -b b_g431b_esc1 -s apps/doppelstep -d build    # pristine
-west build -d build -t menuconfig                                   # Kconfig
+west build -b b_g431b_esc1 -s app -d build              # incremental
+west build -p always -b b_g431b_esc1 -s app -d build    # pristine
+west build -d build -t menuconfig                       # Kconfig
 ```
 
 `Ctrl+Shift+B` opens the **Workspace Menu** (initialize/update, build,
@@ -320,8 +331,8 @@ pristine build, menuconfig, flash, RTT, GUI, documentation); see
 [VS Code tasks](#vs-code-tasks-windows-and-linux).
 
 Artifacts in `build/zephyr/`: **`zephyr.elf`** (debugging), `zephyr.hex`,
-`zephyr.bin`. Current size: about 70 KiB flash of the 124 KiB code partition,
-18 KiB RAM.
+`zephyr.bin`. Current size: about 74 KiB flash of the 124 KiB code partition,
+19 KiB RAM.
 
 A pristine build is needed after changes to `prj.conf`, Kconfig, devicetree,
 `west.yml` or the toolchain.
@@ -342,7 +353,7 @@ west debugserver  -d build -r jlink       # GDB server on :2331
 west attach       -d build -r openocd|jlink
 ```
 
-The openocd runner uses `apps/boards/st/b_g431b_esc1/support/openocd.cfg` and the
+The openocd runner uses `boards/st/b_g431b_esc1/support/openocd.cfg` and the
 OpenOCD of the Zephyr SDK (Zephyr thread awareness). In mode B the J-Link runner
 in the container can still reach the probe through `scripts/host/jlink-remote-server.ps1`
 (`--dev-id <host IP> --dev-id-type ip`); this path is not yet verified with the
@@ -380,59 +391,57 @@ Server's RTT telnet port 19021.
 
 Model **XM430-W350** (Model Number 1020), one ID, Protocol 2.0. The emulator
 validates every access (ranges, limits, EEPROM lock, Indirect Address, Fast
-Sync/Bulk Read, Bus Watchdog …); the firmware maps the registers onto Stepper-C:
+Sync/Bulk Read, Bus Watchdog …); the firmware maps the registers onto the motor driver (`app/src/joint_bridge.c`):
 
 | Register | Mapping |
 |---|---|
-| Torque Enable (64) | `sstep_enable()` / `sstep_disable()`; refused (Result Fail) while the dead time is not set or with a fault |
+| Torque Enable (64) | `stepper_enable()` / `stepper_disable()`; refused (Result Fail) while the dead time is not set or with a fault |
 | Operating Mode (11) | 3 position, 4 extended position, 1 velocity; 0, 5, 16 are refused (Data Range Error) |
-| Goal Position (116) | `sstep_move_to()`; limits from Profile Velocity/Acceleration (velocity- or time-based, Drive Mode bit 2), Velocity Limit and `CONFIG_SFS_CTRL_V_MAX` / `ACCEL_MAX` |
-| Goal Velocity (104) | `sstep_run()` (velocity mode) |
+| Goal Position (116) | `stepper_ctrl_move_to()`; limits from Profile Velocity/Acceleration (velocity- or time-based, Drive Mode bit 2), Velocity Limit and the `max-velocity` / `max-acceleration` properties of the motor node |
+| Goal Velocity (104) | `stepper_ctrl_run()` or `stepper_ctrl_stop()` (velocity mode) |
 | Drive Mode (10) bit 0, Homing Offset (20) | direction and offset of the position mapping |
-| Current Limit (38) | run current = min(limit × 2.69 mA, `CONFIG_SFS_CTRL_I_RUN_MA`) |
+| Current Limit (38) | run current = min(limit × 2.69 mA, `run-current-milliamp`) |
 | Present Position (132), Position Trajectory (140) | commanded position (no encoder) |
 | Present Velocity (128), Velocity Trajectory (136) | commanded velocity |
 | Present Current (126) | phase current amplitude √(iA² + iB²) |
 | Present Input Voltage (144) | measured VBUS (0.1 V) |
-| Moving (122), Moving Status (123) | from the Stepper-C state |
+| Moving (122), Moving Status (123) | from the status of the motor driver |
 | Hardware Error Status (70) | over/undervoltage → Input Voltage; overcurrent, W trip, HAL → Electrical Shock |
-| Bus Watchdog | `sstep_stop()` |
+| Bus Watchdog | `stepper_ctrl_stop()` |
 | REBOOT / FACTORY_RESET | outputs off, faults cleared |
 | CLEAR (multi-turn) | position redefined within one turn |
 | Baud Rate (8) | USART2 reconfigured after the status packet |
 
-Unit conversions (`apps/doppelstep/src/joint.c`): 4096 pulses per joint revolution,
+Unit conversions (`app/src/joint.c`): 4096 pulses per joint revolution,
 0.229 rev/min, 214.577 rev/min², 2.69 mA; 3200 microsteps per motor revolution
-(200 × 16), gear ratio `CONFIG_SFS_DXL_GEAR_MOTOR_REVS / CONFIG_SFS_DXL_GEAR_JOINT_REVS`
-(1/1).
+(200 × 16), gear ratio `gear-motor-revs / gear-joint-revs` of the servo node (1/1).
 
 **Startup position:** the motor has no encoder. At power-on the rotor position
-is reported as Present Position **2048** (`CONFIG_SFS_DXL_START_POSITION`,
+is reported as Present Position **2048** (`start-position` of the servo node,
 0 rad for `dynamixel_hardware_interface`): power the joint up in that position.
 With torque off the rotor can be moved by hand and the reported position is
 then no longer the real one.
 
-**Factory values of this firmware:** ID `CONFIG_SFS_DXL_ID` (1) and Baud Rate
-code `CONFIG_SFS_DXL_FACTORY_BAUD_CODE` (3 = 1 Mbps, the OpenMANIPULATOR-X bus
-speed). They apply while no EEPROM block is stored and after FACTORY_RESET; a
+**Factory values of this firmware:** `factory-id` (1) and `factory-baud-code`
+(3 = 1 Mbps, the OpenMANIPULATOR-X bus speed) of the servo node. They apply while no EEPROM block is stored and after FACTORY_RESET; a
 real XM430 leaves the factory at 57600 bps. ID and Baud Rate written over the
-bus are stored in flash (NVS, `storage_partition`); flash writes are refused
+bus are stored in flash (NVS, the `storage` partition of the servo node); flash writes are refused
 while the power stage is enabled (single-bank flash: an erase stalls the CPU).
 
 **OpenMANIPULATOR-X:** its `ros2_control` description expects five
 XM430-W350 on one bus (IDs 11–15, 1 Mbps, Operating Mode 3, Drive Mode 4 =
 time-based profile). This firmware answers for **one** ID, so over the VCP the
-host sees one joint; set `CONFIG_SFS_DXL_ID` to the joint's ID (for example
+host sees one joint; set `factory-id` to the joint's ID (for example
 11). Fast Sync/Bulk Read answers come only from the IDs of one emulator bus.
 
 ---
 
 ## Simulated motor
 
-For development without a motor, `CONFIG_SFS_SIM_PLANT=y` puts a motor model
+For development without a motor, a `sfs,sim-power-stage` node puts a motor model
 behind the power stage, so the whole chain ROS 2 → Protocol 2.0 → X430
 emulator → Stepper-C runs as it will with the motor. The model is the plant
-model of [sfs-stepper-sim](https://github.com/AntonVynohradov/sfs-stepper-sim)
+model of [Stepper-Lab](https://github.com/AntonVynohradov/Stepper-Lab)
 (`sil/c/sstep_plant.c`, the code of its Xcos block) with its `params/*.json`;
 the power stage values come from the ngspice model of
 [sfs-stepper-power-spice](https://github.com/AntonVynohradov/sfs-stepper-power-spice).
@@ -451,30 +460,30 @@ Two ways:
 ### A: on the board
 
 ```bash
-west build -p always -b b_g431b_esc1 -s apps/doppelstep -d build -- -DEXTRA_CONF_FILE=sim.conf
+west build -p always -b b_g431b_esc1 -s app -d build -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay
 ```
 
-(task **Zephyr: Pristine Build (simulated motor)**; `sim.conf` stays in the
+(task **Zephyr: Pristine Build (simulated motor)**; `sim.overlay` stays in the
 CMake cache, so **Zephyr: Build** keeps the simulated motor until the next
 **Zephyr: Pristine Build**.)
 
 ```text
- TIM1 TRGO2 → ADC → zero-latency interrupt, 20 kHz (real timing)
-   sim_plant_sample()   ADC counts of the model (iA, iB, VBUS)    ─┐
-   sstep_fast_loop()    Stepper-C, unchanged                       │ instead of the
-   sim_plant_step()     one PWM period of the model (RK4)         ─┘ ADC readings
- power_stage_pwm_write() → compare values → model;  MOE stays 0 (gate drivers off)
+ TIM1 TRGO2 → ADC → zero-latency interrupt, 20 kHz (real timing), real samples ignored
+   sim_plant_sample()   ADC counts of the model (iA, iB, VBUS)
+   sstep_fast_loop()    Stepper-C, unchanged
+   sim_plant_step()     one PWM period of the model (RK4)
+ compare values → model;  the backend never switches the real outputs: MOE stays 0
 ```
 
-- **Model:** `sstep_plant.c` of sfs-stepper-sim in single precision with the
+- **Model:** `sstep_plant.c` of Stepper-Lab in single precision with the
   averaged shared-leg stage plus the ngspice leg voltage error table
   (`CONFIG_SFS_SIM_LEG_ERROR`), one PWM period of computation delay as on the
-  hardware. Parameters from sfs-stepper-sim `params/*.json`, each overridable
+  hardware. Parameters from Stepper-Lab `params/*.json`, each overridable
   with `CONFIG_SFS_SIM_*` (−1 = file value); load torque, locked rotor. The
   switching stage and the ngspice simulations stay offline (too heavy for
   50 µs); their results enter as parameters.
-- **Safety:** the timer runs, but the main output enable is never set; the
-  board may run with or without a motor and bus voltage. `dead-time-ns` does
+- **Safety:** the timer runs, but the simulation backend never calls the output enable of
+  the real stage; the board may run with or without a motor and bus voltage. `dead-time-ns` does
   not have to be set.
 - **What the host sees:** Present Current and Present Input Voltage come from
   the model. Present Position and Present Velocity are the commanded values,
@@ -483,21 +492,19 @@ CMake cache, so **Zephyr: Build** keeps the simulated motor until the next
   position, lag in electrical degrees (above 90 the motor is close to losing
   steps; a multiple of 360 is 4 lost full steps), speed, phase currents and
   voltages, load, and the longest fast-loop callback in CPU cycles and µs.
-- **Load torque** (`CONFIG_SFS_SIM_LOAD_UNM`, or `sim_plant_set_load()` from the
-  debugger) is a constant active torque, like gravity on a joint: it pulls the
+- **Load torque** (`CONFIG_SFS_SIM_LOAD_UNM`, or `power_stage_sim_set_load()`) is a constant active torque, like gravity on a joint: it pulls the
   rotor back when the motor loses synchronism or the torque is off.
 
 ### B: on the PC (`native_sim`)
 
 The same application built for `native_sim/native/64` is a Linux program
 (`build-native/zephyr/zephyr.exe`, in the Docker image on Windows). The
-simulated motor is always on; `src/power_stage_native.c` replaces the STM32
-power stage with the ESC1 scaling, and a 1 ms kernel timer runs the 20
+overlay selects the simulation backend with the ESC1 values, and a 1 ms kernel timer runs the 20
 fast-loop periods of each tick before the slow loop, as on the MCU. The
 emulated EEPROM is kept in `build-native/flash.bin`.
 
 ```bash
-west build -b native_sim/native/64 -s apps/doppelstep -d build-native   # task "Zephyr: Build (native_sim)"
+west build -b native_sim/native/64 -s app -d build-native   # task "Zephyr: Build (native_sim)"
 python3 tools/sim/run_native.py run [--tcp 5555]                       # task "Zephyr: Run (native_sim)"
 python3 tools/sim/dxl_smoke_test.py build-native/ttyDXL                # ping, torque, move, without ROS 2
 ```
@@ -527,20 +534,19 @@ as possible, for tests without a host program).
 
 ## Tests and CI
 
-The firmware is tested on the PC: `native_sim` with the simulated motor, driven by pytest
-over Protocol 2.0. The SIL tests use a raw client, `tools/sim/dxl2.py`. The integration
-tests use the official DynamixelSDK in the ros2_control loop.
+The firmware is tested on the PC. ztest suites run the drivers, the queues and the unit
+conversions under Twister. Pytest drives the whole `native_sim` firmware with the simulated motor
+over Protocol 2.0: the SIL tests use a raw client, `tools/sim/dxl2.py`, and the integration tests
+use the official DynamixelSDK in the ros2_control loop.
 
 ```bash
 docker compose run --rm zephyr bash scripts/run-tests.sh   # tests (task "Zephyr: Run tests (native_sim)")
-docker compose run --rm zephyr bash scripts/ci.sh          # builds without warnings + tests, as CI
+docker compose run --rm zephyr bash scripts/ci.sh          # layers, builds, all tests, as CI
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) runs `scripts/ci.sh` in the same image. The
-suite (about 20 s) covers motion and profiles, the load angle against `T = Kt·I·sin δ`,
-the overload and undervoltage reporting, Bus Watchdog, Reboot and Factory Reset, the
-EEPROM across a power cycle, and the 100 Hz Sync Read / Write loop. Details:
-[docs/testing.md](docs/testing.md).
+GitHub Actions (`.github/workflows/ci.yml`) runs `scripts/ci.sh` in the same image. Details:
+[docs/testing.md](docs/testing.md). CI cannot see the real hardware:
+[docs/hardware-checklist.md](docs/hardware-checklist.md) lists the checks on the board.
 
 ---
 
@@ -548,13 +554,15 @@ EEPROM across a power cycle, and the 100 Hz Sync Read / Write loop. Details:
 
 | What | Where |
 |---|---|
-| Motor (R, L, rated current, Ke, steps), stage limits, control (microsteps, bandwidth, currents, v_max, accel) | `apps/doppelstep/Kconfig` (defaults: Stepper-C documentation, 17HS19-2004S1 on B-G431B-ESC1) |
-| PWM frequency, dead time, ADC channels, shunt, amplifier gain, VBUS divider | `apps/doppelstep/boards/b_g431b_esc1.overlay` (power-stage node) |
-| Stepper-C build options (backend FLOAT, topologies, sine table) | `CONFIG_SSTEP_*` (`apps/modules/stepper-c/zephyr/Kconfig`) |
+| Motor (R, L, rated current, Ke, steps), stage limits, control (microsteps, bandwidth, currents, v_max, accel) | motor node, `app/boards/<board>.overlay` |
+| PWM frequency, dead time, ADC channels, shunt, amplifier gain, VBUS divider | power stage node, `app/boards/b_g431b_esc1.overlay` |
+| DYNAMIXEL ID, factory baud, start position, gear, NVS partition | servo node, child of the UART |
+| Threads, queues, offset samples | `CONFIG_SFS_*`, `app/Kconfig` |
+| Stepper-C build options (backend, topologies, sine table, `-O2`) | `CONFIG_SSTEP_*`, `modules/stepper-c/Kconfig` |
 | X430 model, devices per bus, protocol features | `CONFIG_X430_*` (Kconfig.x430 of the emulator) |
-| DYNAMIXEL ID, factory baud, start position, gear | `CONFIG_SFS_DXL_*` |
-| Simulated motor (model parameters, log) | `CONFIG_SFS_SIM_*`, `apps/doppelstep/sim.conf` |
-| Board-specific options (FPU, RTT, OPAMP / native_sim tick and logs) | `apps/doppelstep/boards/<board>.conf` |
+| Bus buffer, poll period, persistent storage | `CONFIG_SFS_DXL_*`, `drivers/x430/Kconfig` |
+| Simulated motor (model parameters, log) | `CONFIG_SFS_SIM_*`, `app/sim.overlay` |
+| Board-specific options (FPU, RTT, OPAMP / native_sim tick and logs) | `app/boards/<board>.conf` |
 
 ---
 
@@ -588,21 +596,21 @@ Dependencies: `requirements.txt` (the tasks create the `.venv`).
 Follows the Stepper-C integration guide.
 
 1. **Dead time (required).** `dead-time-ns` in
-   `apps/doppelstep/boards/b_g431b_esc1.overlay` is 0 until the value of the B-G431B-ESC1 MCSDK (Motor Control Workbench)
+   `app/boards/b_g431b_esc1.overlay` is 0 until the value of the B-G431B-ESC1 MCSDK (Motor Control Workbench)
    project is entered. With 0 the firmware runs, but never enables the gate
-   drivers (Torque Enable answers Result Fail, log: "dead-time-ns … not set").
+   drivers (Torque Enable answers Result Fail, log: "enable refused").
    Check the gate driver input polarity (TIM1 CHx/CHxN active high) against the
    same project.
 2. **Outputs off:** RTT log shows the current offsets (≈ 2048 counts) and the
    ADC readings; compare `Present Input Voltage` with a multimeter.
-3. **Polarity:** `CONFIG_SFS_CTRL_VOLTAGE_DRIVE=y`, low `CONFIG_SFS_CTRL_I_RUN_MA`;
+3. **Polarity:** `voltage-drive;` and a low `run-current-milliamp` in the motor node;
    after Torque Enable the measured phase A current must be positive. If not,
-   `CONFIG_SFS_STAGE_CURRENT_SENSE_INVERT=y`.
+   `current-sense-invert;` in the power stage node.
 4. **Current loop:** back to current drive, low run current, check the
    current settles at `i_run_ma`.
 5. **Motion:** small Goal Position steps (DYNAMIXEL Wizard), then the
    OpenMANIPULATOR-X profile.
-6. **Protection:** lowered `CONFIG_SFS_STAGE_I_TRIP_MA` / `VBUS_MAX_MV`, check
+6. **Protection:** lowered `trip-current-milliamp` / `vbus-max-mv`, check
    the trips and the Hardware Error Status.
 
 ---
@@ -613,6 +621,10 @@ Follows the Stepper-C integration guide.
 - Stall detection: a lost synchronism (load above the holding torque at the hold
   current) is not reported to the host; `tests/sil/test_protection.py` documents it
   as an expected failure.
+- The driver refactor is not yet checked on the board:
+  [docs/hardware-checklist.md](docs/hardware-checklist.md).
+- Rotor vibration at rest in the model: one ADC step in the current loop excites the mechanical
+  resonance (up to about 3 rpm, 0.2 microstep). Not measured on a real motor (same checklist).
 - Fast-loop execution time on the target (Stepper-C: measure on the MCU); the
   RTT log of the simulated motor shows the longest fast-loop callback.
 - Present Temperature: NTC on PB14 is not converted yet (no NTC data in UM2516);
@@ -626,7 +638,7 @@ Follows the Stepper-C integration guide.
 ## Naming
 
 **Doppelstep** is the public name; in identifiers it is written `doppelstep`
-(west path, Docker image and volume, CMake project). The internal name was
+(west path, Docker image and volume, CMake project, Zephyr module). The internal name was
 `sfs-stepper-driver`. The `SFS_` prefix of the application Kconfig symbols and
 the `sfs,` devicetree vendor prefix stand for SystemFromScratch and stay
 unchanged. The story behind the name: [docs/NAMING.md](docs/NAMING.md).
@@ -635,7 +647,7 @@ unchanged. The story behind the name: [docs/NAMING.md](docs/NAMING.md).
 
 ## Licenses
 
-Application, board, module glue and configuration: Apache License 2.0
+Application, drivers, board, module glue and configuration: Apache License 2.0
 ([LICENSE](LICENSE)). Zephyr RTOS, the Zephyr SDK, Stepper-C, the DYNAMIXEL X430
 emulator, DXL2-C, STM32Cube HAL/LL and SEGGER RTT come under their own licenses.
 The SEGGER J-Link Software is not part of the repository or the image unless

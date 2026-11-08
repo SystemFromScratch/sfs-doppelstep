@@ -357,9 +357,17 @@ static struct sstep_motor_data *ctrl_data(const struct device *dev)
 	return data;
 }
 
-static int apply_limits(struct sstep_motor_data *data)
+/* A rejected ramp changes nothing: what is stored is always what Stepper-C accepted */
+static int set_limits(struct sstep_motor_data *data, uint32_t speed, uint32_t accel, uint32_t decel)
 {
-	return sstep_set_motion_limits(&data->drv, data->speed, data->accel, data->decel);
+	const int rc = sstep_set_motion_limits(&data->drv, speed, accel, decel);
+
+	if (rc == SSTEP_OK) {
+		data->speed = speed;
+		data->accel = accel;
+		data->decel = decel;
+	}
+	return to_errno(rc);
 }
 
 static int ctrl_set_reference_position(const struct device *dev, const int32_t value)
@@ -416,8 +424,7 @@ static int ctrl_set_microstep_interval(const struct device *dev,
 	if ((speed == 0U) || (speed > UINT32_MAX)) {
 		return -EINVAL;
 	}
-	data->speed = (uint32_t)speed;
-	return 0;
+	return set_limits(data, (uint32_t)speed, data->accel, data->decel);
 }
 
 static int ctrl_configure_ramp(const struct device *dev, const struct stepper_ctrl_ramp *ramp)
@@ -427,56 +434,38 @@ static int ctrl_configure_ramp(const struct device *dev, const struct stepper_ct
 	if ((ramp->speed_max == 0U) || (ramp->acceleration_max == 0U)) {
 		return -EINVAL;
 	}
-	data->speed = ramp->speed_max;
-	data->accel = ramp->acceleration_max;
-	data->decel = ramp->deceleration_max; /* 0: same as the acceleration */
-	return 0;
+	/* deceleration 0: same as the acceleration */
+	return set_limits(data, ramp->speed_max, ramp->acceleration_max, ramp->deceleration_max);
 }
 
 static int ctrl_move_by(const struct device *dev, const int32_t micro_steps)
 {
 	struct sstep_motor_data *data = ctrl_data(dev);
-	int rc = apply_limits(data);
 
-	if (rc == SSTEP_OK) {
-		rc = sstep_move_by(&data->drv, micro_steps);
-	}
-	return to_errno(rc);
+	return to_errno(sstep_move_by(&data->drv, micro_steps));
 }
 
 static int ctrl_move_to(const struct device *dev, const int32_t micro_steps)
 {
 	struct sstep_motor_data *data = ctrl_data(dev);
-	int rc = apply_limits(data);
 
-	if (rc == SSTEP_OK) {
-		rc = sstep_move_to(&data->drv, micro_steps);
-	}
-	return to_errno(rc);
+	return to_errno(sstep_move_to(&data->drv, micro_steps));
 }
 
 static int ctrl_run(const struct device *dev, const enum stepper_ctrl_direction direction)
 {
 	struct sstep_motor_data *data = ctrl_data(dev);
 	const int32_t speed = (int32_t)MIN(data->speed, (uint32_t)INT32_MAX);
-	int rc = apply_limits(data);
 
-	if (rc == SSTEP_OK) {
-		rc = sstep_run(&data->drv,
-			       (direction == STEPPER_CTRL_DIRECTION_NEGATIVE) ? -speed : speed);
-	}
-	return to_errno(rc);
+	return to_errno(sstep_run(&data->drv,
+				  (direction == STEPPER_CTRL_DIRECTION_NEGATIVE) ? -speed : speed));
 }
 
 static int ctrl_stop(const struct device *dev)
 {
 	struct sstep_motor_data *data = ctrl_data(dev);
-	int rc = apply_limits(data);
 
-	if (rc == SSTEP_OK) {
-		rc = sstep_stop(&data->drv);
-	}
-	return to_errno(rc);
+	return to_errno(sstep_stop(&data->drv));
 }
 
 static int ctrl_is_moving(const struct device *dev, bool *is_moving)
@@ -594,7 +583,16 @@ static int sstep_motor_init(const struct device *dev)
 	data->i_run_ma = cfg->i_run_ma;
 	data->i_hold_ma = cfg->i_hold_ma;
 
-	(void)power_stage_set_aux_trip(cfg->stage, cfg->aux_trip ? cfg->i_trip_ma : 0U);
+	if (cfg->aux_trip) {
+		/* The node asks for this protection: without it, do not run */
+		ret = power_stage_set_aux_trip(cfg->stage, cfg->i_trip_ma);
+		if (ret != 0) {
+			LOG_ERR("aux-trip: %s cannot check it (%d)", cfg->stage->name, ret);
+			return ret;
+		}
+	} else {
+		(void)power_stage_set_aux_trip(cfg->stage, 0U);
+	}
 	ret = power_stage_set_fast_callback(cfg->stage, fast_loop, &data->drv);
 	if (ret != 0) {
 		return ret;

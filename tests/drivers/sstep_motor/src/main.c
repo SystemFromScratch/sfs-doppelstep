@@ -20,6 +20,7 @@ static const struct device *const stage = DEVICE_DT_GET(DT_NODELABEL(stage));
 static const struct device *const motor = DEVICE_DT_GET(DT_NODELABEL(motor));
 static const struct device *const drv = DEVICE_DT_GET(DT_NODELABEL(motor_drv));
 static const struct device *const ctrl = DEVICE_DT_GET(DT_NODELABEL(motor_ctrl));
+static const struct device *const motor_no_aux = DEVICE_DT_GET(DT_NODELABEL(motor_no_aux));
 
 /* 0 A on both phases at 24 V; 200 counts are above the trip level of 119 counts */
 #define ADC_ZERO     2048U
@@ -98,6 +99,12 @@ ZTEST(motor, test_devices_are_ready)
 	zassert_true(device_is_ready(motor));
 	zassert_true(device_is_ready(drv));
 	zassert_true(device_is_ready(ctrl));
+}
+
+ZTEST(motor, test_aux_trip_on_a_stage_without_it_fails_at_init)
+{
+	/* The node asks for this overcurrent protection: losing it silently is not an option */
+	zassert_false(device_is_ready(motor_no_aux));
 }
 
 ZTEST(motor, test_aux_trip_level_is_set_from_the_node)
@@ -212,6 +219,39 @@ ZTEST(motor, test_zero_ramp_values_are_rejected)
 
 	zassert_equal(stepper_ctrl_configure_ramp(ctrl, &no_speed), -EINVAL);
 	zassert_equal(stepper_ctrl_configure_ramp(ctrl, &no_accel), -EINVAL);
+}
+
+ZTEST(motor, test_rejected_ramp_keeps_the_previous_one_and_stop_works)
+{
+	/* An acceleration below 8 microsteps/s^2 is below the resolution at 1 kHz */
+	const struct stepper_ctrl_ramp too_low = {.speed_max = 1U, .acceleration_max = 1U};
+	int32_t pos;
+
+	zassert_ok(stepper_enable(drv));
+	zassert_ok(stepper_ctrl_move_to(ctrl, 3200));
+	run_ms(10);
+	zassert_equal(stepper_ctrl_configure_ramp(ctrl, &too_low), -EINVAL);
+
+	zassert_ok(stepper_ctrl_stop(ctrl));
+	run_ms(500);
+	zassert_equal(status().velocity, 0);
+	zassert_ok(stepper_ctrl_get_actual_position(ctrl, &pos));
+	zassert_true(pos < 3200, "the move must have been stopped, position %d", pos);
+}
+
+ZTEST(motor, test_stop_works_after_a_rejected_interval)
+{
+	int32_t pos;
+
+	zassert_ok(stepper_enable(drv));
+	zassert_ok(stepper_ctrl_move_to(ctrl, 3200));
+	run_ms(10);
+	zassert_equal(stepper_ctrl_set_microstep_interval(ctrl, UINT64_MAX), -EINVAL);
+
+	zassert_ok(stepper_ctrl_stop(ctrl));
+	run_ms(500);
+	zassert_ok(stepper_ctrl_get_actual_position(ctrl, &pos));
+	zassert_true(pos < 3200, "the move must have been stopped, position %d", pos);
 }
 
 ZTEST(motor, test_microstep_resolution_is_fixed)

@@ -11,6 +11,7 @@
 # Environment:
 #   TESTS_BUILD_DIR       build directory (default build-tests)
 #   TESTS_PRISTINE=1      pristine build
+#   TESTS_EXTRA_CMAKE_ARGS  more CMake arguments of the build, separated by spaces
 #   STEPPER_LAB_SOURCE_DIR  local checkout of Stepper-Lab instead of the west project
 #
 # Results: <build dir>/junit.xml, firmware logs of every test in
@@ -25,6 +26,8 @@ west_args=(-b native_sim/native/64 -s app -d "${build_dir}")
 [ "${TESTS_PRISTINE:-0}" = 1 ] && west_args+=(-p always)
 cmake_args=(-DEXTRA_CONF_FILE=sim-test.conf)
 [ -n "${STEPPER_LAB_SOURCE_DIR:-}" ] && cmake_args+=("-DSTEPPER_LAB_SOURCE_DIR=${STEPPER_LAB_SOURCE_DIR}")
+# shellcheck disable=SC2206
+[ -n "${TESTS_EXTRA_CMAKE_ARGS:-}" ] && cmake_args+=(${TESTS_EXTRA_CMAKE_ARGS})
 
 echo "Building the test firmware (native_sim) into ${build_dir}."
 west build "${west_args[@]}" -- "${cmake_args[@]}"

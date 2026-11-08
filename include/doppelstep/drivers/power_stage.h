@@ -67,6 +67,8 @@ struct power_stage_stats {
  *        It must not call kernel services.
  * @param sample    Measurement of this period.
  * @param aux_trip  true when a leg that the sample does not show exceeds the trip level.
+ *                  Always false until power_stage_calibrate() has succeeded: without the
+ *                  sensor offset the level means nothing, and a fault would latch.
  * @param ctx       Pointer given to power_stage_set_fast_callback().
  */
 typedef void (*power_stage_fast_cb_t)(const struct power_stage_sample *sample, bool aux_trip,

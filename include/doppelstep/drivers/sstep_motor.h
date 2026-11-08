@@ -49,7 +49,7 @@ struct sstep_motor_status {
 	int32_t position;        /**< Commanded position [microsteps]. */
 	int32_t target;          /**< Target of the current move [microsteps]. */
 	int32_t velocity;        /**< Commanded velocity [microsteps/s]. */
-	uint32_t i_amplitude_ma; /**< sqrt(iA^2 + iB^2) [mA]. */
+	uint32_t i_amplitude_ma; /**< Root of iA^2 + iB^2 [mA]. */
 	uint32_t i_run_ma;       /**< Active run current [mA]. */
 	uint32_t i_hold_ma;      /**< Active hold current [mA]. */
 	uint32_t vbus_mv;        /**< Measured bus voltage [mV]. */

@@ -104,19 +104,25 @@ ZTEST(power_stage, test_outputs_off_gives_zero_current_and_the_bus_voltage)
 	zassert_within(last_vbus, 2866, 2, "vbus %u", last_vbus);
 }
 
-ZTEST(power_stage, test_aux_trip_follows_the_shared_leg)
+/* Runs before the other calibrate test: the suite runs in alphabetical order */
+ZTEST(power_stage, test_aux_trip_waits_for_calibration_then_follows_the_shared_leg)
 {
 	/* U and V high against W: both phases push their current through W */
 	static const uint16_t drive[3] = {3000, 3000, 1250};
 
 	zassert_ok(power_stage_set_fast_callback(sim, count_cb, NULL));
 	zassert_ok(power_stage_set_aux_trip(sim, 100U));
-	k_msleep(5);
-	zassert_false(aux_seen, "no current yet");
-
 	zassert_ok(power_stage_write(sim, drive, ARRAY_SIZE(drive)));
 	zassert_ok(power_stage_output_enable(sim, true));
 	k_msleep(50);
+	zassert_false(aux_seen, "the sensor offsets are not known yet");
+
+	zassert_equal(power_stage_calibrate(sim, 0U), -EINVAL);
+	k_msleep(5);
+	zassert_false(aux_seen, "a refused calibration does not count");
+
+	zassert_ok(power_stage_calibrate(sim, 16U));
+	k_msleep(5);
 	zassert_true(aux_seen);
 }
 

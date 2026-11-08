@@ -24,52 +24,58 @@ configuration options and the bring-up checklist are in the repository
         │ Protocol 2.0, 1 Mbps (ST-LINK Virtual COM Port for now)
  ───────┼─────────────────────────────────────────────────────── B-G431B-ESC1
         ▼ USART2 (PB3/PB4)
- ┌──────────────────────────────┐   UART ISR → ring buffer → thread "dxl"
- │ dxl_bus.c                    │   x430_bus_receive / x430_bus_poll
- │  X430 emulator (XM430-W350)  │   hooks: Torque Enable, Goal Position, ...
- │  joint.c (unit conversions)  │   live registers from the motor snapshot
- └──────────────┬───────────────┘
-                │ motor_*() commands (synchronous)      ▲ snapshot
- ┌──────────────▼───────────────┐                       │
- │ motor.c   thread "motor"     │ sstep_slow_loop() at 1 kHz, every command
- │  Stepper-C (float backend)   │
- └──────────────┬───────────────┘
-                │ sstep_fast_loop() in the zero-latency ADC interrupt, 20 kHz
- ┌──────────────▼───────────────┐
- │ power_stage.c                │ TIM1 center-aligned complementary PWM (U,V,W)
- │  OPAMP1..3 (Zephyr driver)   │ ADC1 (iU, VBUS, iW) + ADC2 (iV), injected,
- │  TIM1 / ADC1 / ADC2 (LL)     │ triggered by TIM1 TRGO2 at the counter top
- └──────────────────────────────┘
-                │
-        L6387 gate drivers → 3 half-bridges → stepper motor
+ ┌──────────────┐  callbacks  ┌─────────────┐ ──cmd_q──▶ ┌──────────────┐
+ │ x430 driver  │ ──────────▶ │ comm_task + │ ◀──rsp_q── │ control_task │
+ │ X430 emulator│             │ joint_bridge│ ◀─status_q─│ slow loop    │
+ └──────────────┘             └─────────────┘            └──────┬───────┘
+                                                                │ stepper, stepper_ctrl
+                                                                ▼
+                                                         ┌──────────────┐
+                                                         │ motor driver │
+                                                         │ Stepper-C    │
+                                                         └──────┬───────┘
+                                       fast loop in the zero-latency ADC interrupt, 20 kHz
+                                                                ▼
+                                                         ┌──────────────┐
+                                                         │ power_stage  │ TIM1 + ADC1/ADC2 (LL)
+                                                         │ STM32 backend│ OPAMP1..3
+                                                         └──────┬───────┘
+        L6387 gate drivers → 3 half-bridges → stepper motor     ▼
         phase A between U and W, phase B between V and W (shared-leg topology)
 ```
 
 | Context | Rate | Work |
 |---|---|---|
 | ADC1_2 interrupt (zero latency, priority 0) | PWM rate, 20 kHz | read currents and VBUS, shared-leg (W) trip, `sstep_fast_loop()` |
-| thread `motor` (cooperative, −2) | 1 kHz, absolute schedule | `sstep_slow_loop()`, queued commands, status snapshot |
-| thread `dxl` (preemptive, 2) | on RX + every 10 ms | X430 parser and answers, Bus Watchdog, live registers |
+| `control_task` (cooperative, −2) | 1 kHz, absolute schedule | `sstep_motor_process()`, commands on receipt, publication of the status |
+| `comm_task` (preemptive, 2) | on RX + every 10 ms | `x430_servo_process()`, `joint_bridge`, live registers |
 | `main` | — | startup, STATUS LED |
+
+Layers, rules and the path of a command: [Architecture](architecture.md). For another
+MCU family: [Porting to a new MCU family](porting.md).
 
 ## Repository layout
 
-Everything that belongs to Zephyr lives in `apps/`; host tools live in
-`tools/`, the documentation in `docs/`.
+The repository is a Zephyr module with one application. Host tools live in `tools/`, the
+documentation in `docs/`.
 
 ```text
 doppelstep/
 ├── west.yml                     west manifest (Zephyr v4.5.0, libraries)
-├── apps/                        Zephyr: BOARD_ROOT and DTS_ROOT of the applications
-│   ├── doppelstep/              firmware application (west build -s apps/doppelstep)
-│   ├── boards/st/b_g431b_esc1/  out-of-tree board
-│   ├── dts/bindings/sfs/        devicetree bindings
-│   └── modules/                 Zephyr module glue of Stepper-C and the X430 emulator
+├── zephyr/module.yml            the repository is a Zephyr module
+├── app/                         firmware application (west build -s app)
+├── drivers/                     power_stage, motor, x430
+├── include/doppelstep/drivers/  public driver APIs
+├── boards/st/b_g431b_esc1/      out-of-tree board
+├── dts/bindings/                devicetree bindings
+├── modules/                     build glue of the libraries
+├── tests/                       ztest suites, SIL and integration tests
 ├── tools/
 │   ├── gui/                     host GUI (planned)
+│   ├── sim/                     native_sim launcher, Protocol 2.0 smoke test
 │   └── docs/                    PDF manual builder, MkDocs hooks, cover page
 ├── docs/                        this documentation (MkDocs)
-├── scripts/                     west-init.sh (container), host/ GDB servers (Windows)
+├── scripts/                     CI, tests, layer check, west-init.sh, host/ GDB servers
 ├── .vscode/                     tasks for Windows and Linux, Cortex-Debug launch configurations
 ├── .devcontainer/               Dev Container configurations
 ├── Dockerfile, compose.yaml     Zephyr toolchain image

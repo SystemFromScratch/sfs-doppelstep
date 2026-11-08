@@ -11,8 +11,8 @@ from dxl2 import DxlError
 from support import (CURRENT_UNIT_MA, DXL_ID, START_POSITION, VELOCITY_UNIT_RPM,
                      assert_stopped, pulses_to_usteps, wait_until)
 
-RUN_MA = 1500                     # CONFIG_SFS_CTRL_I_RUN_MA
-HOLD_MA = 500                     # CONFIG_SFS_CTRL_I_HOLD_MA
+RUN_MA = 1500                     # run-current-milliamp of the motor node
+HOLD_MA = 500                     # hold-current-milliamp of the motor node
 
 
 def move_and_wait(bus, goal, timeout=5.0):
@@ -44,7 +44,7 @@ def test_run_then_hold_current(fw, bus):
     assert run == pytest.approx(RUN_MA, abs=40)
     assert fw.next_sample().i_amp == pytest.approx(RUN_MA, abs=40)
 
-    time.sleep(0.8)                                  # CONFIG_SFS_CTRL_HOLD_DELAY_MS = 500
+    time.sleep(0.8)                                  # hold-delay-ms of the motor node = 500
     hold = bus.read(DXL_ID, dxl2.PRESENT_CURRENT) * CURRENT_UNIT_MA
     assert hold == pytest.approx(HOLD_MA, abs=40)
     assert fw.next_sample().i_amp == pytest.approx(HOLD_MA, abs=40)

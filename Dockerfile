@@ -28,6 +28,12 @@ ARG PYTEST_VERSION=9.0.2
 ARG PYTEST_TIMEOUT_VERSION=2.4.0
 ARG PYSERIAL_VERSION=3.5
 ARG DYNAMIXEL_SDK_VERSION=4.1.0
+# Twister (ztest suites in tests/app and tests/drivers)
+ARG ANYTREE_VERSION=2.13.0
+ARG JUNITPARSER_VERSION=5.0.3
+ARG NATSORT_VERSION=8.4.0
+ARG PLY_VERSION=3.11
+ARG TABULATE_VERSION=0.10.0
 
 # sha256.sum of the SDK release
 ARG ZEPHYR_SDK_MINIMAL_SHA256=ca9bc0ff66fafca1dac9d592a36d953cf16d096a9d09b1c0357f021cf9f6a7eb
@@ -71,7 +77,9 @@ RUN apt-get update \
 # validation with jsonschema, ELF post-processing with pyelftools), PyYAML for
 # the X430 Control Table generator and pylink-square for the J-Link runner.
 # CMake comes from pip because Zephyr follows recent CMake releases. pytest,
-# pyserial and the DYNAMIXEL SDK run the SIL and integration tests (tests/).
+# pyserial and the DYNAMIXEL SDK run the SIL and integration tests (tests/);
+# anytree, junitparser, natsort, ply and tabulate are what Twister needs for the
+# ztest suites on native_sim.
 # ---------------------------------------------------------------------------
 
 RUN python3 -m venv "${VIRTUAL_ENV}" \
@@ -86,7 +94,12 @@ RUN python3 -m venv "${VIRTUAL_ENV}" \
         "pytest==${PYTEST_VERSION}" \
         "pytest-timeout==${PYTEST_TIMEOUT_VERSION}" \
         "pyserial==${PYSERIAL_VERSION}" \
-        "dynamixel-sdk==${DYNAMIXEL_SDK_VERSION}"
+        "dynamixel-sdk==${DYNAMIXEL_SDK_VERSION}" \
+        "anytree==${ANYTREE_VERSION}" \
+        "junitparser==${JUNITPARSER_VERSION}" \
+        "natsort==${NATSORT_VERSION}" \
+        "ply==${PLY_VERSION}" \
+        "tabulate==${TABULATE_VERSION}"
 
 # ---------------------------------------------------------------------------
 # Zephyr SDK - minimal bundle plus ONLY the ARM Cortex-M toolchain

@@ -4,9 +4,9 @@
 import time
 
 DXL_ID = 1
-START_POSITION = 2048            # Present Position at power-on (CONFIG_SFS_DXL_START_POSITION)
+START_POSITION = 2048            # Present Position at power-on (start-position of the servo node)
 PULSES_PER_REV = 4096
-USTEPS_PER_REV = 200 * 16        # 17HS19-2004S1, CONFIG_SFS_CTRL_MICROSTEPS
+USTEPS_PER_REV = 200 * 16        # 17HS19-2004S1, microsteps of the motor node
 CURRENT_UNIT_MA = 2.69           # Present Current [2.69 mA]
 VELOCITY_UNIT_RPM = 0.229        # Present Velocity [0.229 rev/min]
 

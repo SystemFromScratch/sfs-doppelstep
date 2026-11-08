@@ -6,10 +6,14 @@
 #
 #   docker compose run --rm zephyr bash scripts/ci.sh
 #
-#   1. west workspace: init / update (scripts/west-init.sh)
-#   2. pristine builds without warnings: b_g431b_esc1, b_g431b_esc1 + sim.overlay,
+#   1. dependencies between the layers (scripts/check-layers.sh)
+#   2. west workspace: init / update (scripts/west-init.sh)
+#   3. pristine builds without warnings: b_g431b_esc1, b_g431b_esc1 + sim.overlay,
 #      native_sim (the test firmware)
-#   3. SIL and integration tests (scripts/run-tests.sh) -> build-tests/junit.xml
+#   4. ztest suites with Twister (tests/app, tests/drivers) -> build-ci/twister
+#   5. SIL and integration tests (scripts/run-tests.sh) -> build-tests/junit.xml
+#   6. SIL motion tests on the Stepper-C fixed-point backend: a floating-point
+#      dependency in the drivers or the application fails here, or in step 1
 #
 # Build logs: build-ci/*.log. Known warning outside this repository (reported
 # upstream): -Wmaybe-uninitialized in x430_bus.c of the X430 emulator, host gcc.
@@ -22,6 +26,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 git config --global --add safe.directory '*'
 
 KNOWN_WARNINGS='dynamixel-x430/src/x430_bus.c:[0-9]+:[0-9]+: warning: .*maybe-uninitialized'
+
+bash scripts/check-layers.sh
 
 bash scripts/west-init.sh
 
@@ -64,6 +70,17 @@ if [ "${failed}" -ne 0 ]; then
     exit 1
 fi
 
+echo "::group::ztest suites"
+west twister -T tests/app -T tests/drivers -p native_sim/native/64 --integration \
+    --outdir build-ci/twister --inline-logs
+echo "::endgroup::"
+
 echo "::group::SIL and integration tests"
+# run-tests.sh ends with exec, so it runs in a child shell
 bash scripts/run-tests.sh
+echo "::endgroup::"
+
+echo "::group::SIL motion tests, fixed-point backend"
+TESTS_BUILD_DIR=build-tests-fixed TESTS_EXTRA_CMAKE_ARGS=-DCONFIG_SSTEP_MATH_FIXED=y \
+    bash scripts/run-tests.sh tests/sil/test_motion.py
 echo "::endgroup::"

@@ -9,7 +9,7 @@
 x-zephyr: &zephyr
   # <Zephyr SDK>-<image revision>: raise the revision when the Dockerfile
   # changes, so that `docker compose run` builds the new image.
-  image: doppelstep:1.0.1-2
+  image: doppelstep:1.0.1-3
   build:
     context: .
   working_dir: /workdir/doppelstep
