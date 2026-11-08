@@ -102,6 +102,10 @@ theme:
 
 extra:
   generator: false
+  # Header download button (overrides/partials/header.html). The PDF is written
+  # next to the site by tools/docs/build_manual.py (site/Doppelstep.pdf, CI:
+  # .github/workflows/docs.yml), so it is missing under `mkdocs serve`.
+  manual_pdf: Doppelstep.pdf
   # ---------------------------------------------------------------- PDF manual
   # Read by tools/docs/build_manual.py (WeasyPrint): cover, imprint, contents,
   # numbered chapters in nav order, the About pages unnumbered, the license as an

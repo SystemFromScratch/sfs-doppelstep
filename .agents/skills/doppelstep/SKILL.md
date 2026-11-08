@@ -23,11 +23,11 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
   motor always on, section 7). Planned next family: TI MSPM0 (`docs/porting.md`).
 - Libraries (west projects, no `zephyr/module.yml` of their own):
   Stepper-C (`modules/lib/stepper-c`, pinned **v1.2.0**),
-  DYNAMIXEL-X430 emulator (`modules/lib/dynamixel-x430`, **main** until its
-  first release), DXL2-C (`modules/lib/dxl2-c`, the tag `x430.cmake` expects),
-  Stepper-Lab (`modules/lib/stepper-lab`, **main**: plant model
+  DYNAMIXEL-X430 emulator (`modules/lib/dynamixel-x430`, pinned **commit** of
+  main until its first release), DXL2-C (`modules/lib/dxl2-c`, the tag `x430.cmake` expects),
+  Stepper-Lab (`modules/lib/stepper-lab`, pinned **commit**: plant model
   `sil/c/sstep_plant.c` and `params/*.json` of the simulated motor) and
-  sfs-stepper-power-spice (`modules/lib/sfs-stepper-power-spice`, **main**,
+  sfs-stepper-power-spice (`modules/lib/sfs-stepper-power-spice`, pinned **commit**,
   not built: ngspice source of the stage parameters). Keep the two simulation
   repositories siblings under `modules/lib`.
 - Host side: ROS 2 `dynamixel_hardware_interface` (OpenMANIPULATOR-X), DynamixelSDK,
@@ -252,3 +252,15 @@ west build -b native_sim/native/64 -s app -d build-native                       
 - No secrets, license files or SEGGER binaries committed.
 - Both debug modes and both runners still documented and configured.
 - Open hardware items (dead time, NTC, fast-loop timing, rotor vibration) are not silently "solved".
+- A user-visible change has a line under `## [Unreleased]` in `CHANGELOG.md`.
+
+## 11. Release
+
+- Version: the `vX.Y.Z` tag and `app/VERSION` (Zephyr `APP_VERSION_STRING`, MCUboot
+  image version) must agree; `scripts/package_release.py --check-only` checks both, the
+  CHANGELOG section `## [X.Y.Z] - YYYY-MM-DD` and that every `west.yml` project is pinned
+  to a tag or a full commit hash (never a branch).
+- `.github/workflows/release.yml` on the tag: check → `ci.yml` (called, the same gates)
+  → PDF manual → `package_release.py` → GitHub Release (0.x as pre-release). Run by hand
+  it is a dry run that only uploads the package.
+- Procedure: `docs/development.md`, section "Releasing". Never tag or push unasked.

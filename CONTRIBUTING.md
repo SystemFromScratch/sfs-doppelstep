@@ -29,7 +29,8 @@ and fixes are all welcome.
 4. Add a test for new behaviour: a ztest case for driver behaviour, a test in `tests/sil` for
    the bus, motion or protection path ([Tests and CI](docs/testing.md)).
 5. Update the documentation in `docs/` when the behaviour, the configuration or a measured
-   figure changes; `mkdocs build` is strict and must pass.
+   figure changes; `mkdocs build` is strict and must pass. Add a line for a user-visible
+   change under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md).
 6. Open a pull request and describe what changed, why, and how it was tested.
 
 ## Style

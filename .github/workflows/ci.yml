@@ -14,6 +14,9 @@
 #   - it does not exist, pull request or branch: it is built in the job for
 #     this run only, without publishing
 # docs/development.md, section "CI and the environment image".
+#
+# The release workflow (release.yml) calls this workflow on a vX.Y.Z tag, so a
+# release passes exactly these gates and packages the firmware artifact below.
 
 name: CI
 
@@ -22,6 +25,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -187,4 +191,5 @@ jobs:
             build-ci/esc1/app/zephyr/zephyr.signed.bin
             build-ci/esc1-sim/app/zephyr/zephyr.elf
             build-ci/esc1-sim/app/zephyr/zephyr.signed.hex
+            build-ci/esc1-sim/app/zephyr/zephyr.signed.bin
           if-no-files-found: error

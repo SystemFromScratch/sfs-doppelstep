@@ -11,6 +11,7 @@
  * STATUS LED.
  */
 
+#include <zephyr/app_version.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
@@ -102,7 +103,7 @@ int main(void)
 {
 	int ret;
 
-	LOG_INF("Doppelstep on %s", CONFIG_BOARD_TARGET);
+	LOG_INF("Doppelstep %s on %s", APP_VERSION_STRING, CONFIG_BOARD_TARGET);
 
 	if (gpio_is_ready_dt(&led)) {
 		(void)gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);

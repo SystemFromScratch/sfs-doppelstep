@@ -17,8 +17,13 @@ reporter, unless you prefer to stay anonymous.
 
 ## Supported versions
 
-Doppelstep has no release yet: security fixes go to `main`. Once releases exist, the latest
-release and `main` are supported.
+| Version | Supported |
+|---|---|
+| `main` | yes |
+| latest release (0.1.x) | yes |
+| older releases | no: update to the latest release |
+
+Security fixes go to `main` first and into the next release, which `CHANGELOG.md` lists.
 
 ## What is in scope
 

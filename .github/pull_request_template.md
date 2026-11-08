@@ -12,3 +12,4 @@ docs/hardware-checklist.md that was run on a board, with its result. -->
 - [ ] `docker compose run --rm zephyr bash scripts/ci.sh` passes
 - [ ] New behaviour has a test (ztest case or `tests/sil`)
 - [ ] `docs/` updated, `mkdocs build` passes; measured figures re-measured if they changed
+- [ ] `CHANGELOG.md`: a line under `[Unreleased]` for a user-visible change

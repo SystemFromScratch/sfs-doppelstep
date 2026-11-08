@@ -9,7 +9,7 @@
 #
 # WEST_UPDATE=0 keeps an existing workspace as it is: GitHub Actions runs on
 # the workspace baked into the ci image, fetched with the same west.yml (the
-# image tag hashes it), so the projects that follow main stay as in the image.
+# image tag hashes it).
 
 set -euo pipefail
 

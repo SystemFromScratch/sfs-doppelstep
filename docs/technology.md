@@ -84,7 +84,7 @@ Build options used here (`modules/stepper-c/Kconfig`):
 
 | Item | Detail |
 |---|---|
-| Version | `main` until its first release (`west.yml`) |
+| Version | a pinned commit of `main` until its first release (`west.yml`) |
 | Source | [github.com/AntonVynohradov/DYNAMIXEL-X430-Control-Table-Emulator](https://github.com/AntonVynohradov/DYNAMIXEL-X430-Control-Table-Emulator), SystemFromScratch® |
 | Role | The complete Control Table of an XM430-W350 (model 1020): access rules, ranges and limits, the EEPROM lock, Indirect Addresses, Sync/Bulk and Fast Sync/Bulk Read, Bus Watchdog, Reboot and Factory Reset |
 | Why | The servo's behaviour is far more than reading and writing registers. A dedicated, separately tested emulator keeps that behaviour exact, and keeps DYNAMIXEL details out of the motor code |
@@ -102,8 +102,8 @@ Build options used here (`modules/stepper-c/Kconfig`):
 
 | Component | Version | Role | Why |
 |---|---|---|---|
-| **Stepper-Lab** | `main` until its first release | The motor and power stage model in C (`sil/c/sstep_plant.c`) and its parameters (`params/*.json`) | It is the same C code as the Xcos block of the Scilab prototype, so the firmware is tested against the model the controller was designed with |
-| **sfs-stepper-power-spice** | `main` until its first release | ngspice model of one leg of the B-G431B-ESC1; writes the stage parameters of Stepper-Lab | The leg voltage error (dead time, body diodes, resistance) comes from a circuit simulation, not from a guess |
+| **Stepper-Lab** | pinned commit until its first release | The motor and power stage model in C (`sil/c/sstep_plant.c`) and its parameters (`params/*.json`) | It is the same C code as the Xcos block of the Scilab prototype, so the firmware is tested against the model the controller was designed with |
+| **sfs-stepper-power-spice** | pinned commit until its first release | ngspice model of one leg of the B-G431B-ESC1; writes the stage parameters of Stepper-Lab | The leg voltage error (dead time, body diodes, resistance) comes from a circuit simulation, not from a guess |
 | **Zephyr native_sim** | part of Zephyr v4.5.0 | Builds the whole firmware as a Linux program | The complete chain, protocol to motor model, runs on any PC and in CI |
 
 How the three repositories work together: [Simulated motor](simulation.md).

@@ -28,8 +28,14 @@ static void comm_task(void *p1, void *p2, void *p3)
 	for (;;) {
 		(void)x430_servo_process(servo, K_MSEC(CONFIG_SFS_DXL_POLL_MS));
 
-		if (k_uptime_get() >= next_refresh) {
+		const int64_t now = k_uptime_get();
+
+		if (now >= next_refresh) {
+			/* After a long packet or an EEPROM write: one refresh, not a burst */
 			next_refresh += CONFIG_SFS_DXL_POLL_MS;
+			if (next_refresh <= now) {
+				next_refresh = now + CONFIG_SFS_DXL_POLL_MS;
+			}
 			joint_bridge_refresh();
 		}
 	}

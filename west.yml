@@ -12,14 +12,14 @@
 #       ├── debug/segger           RTT (log backend over the debug probe)
 #       └── lib/
 #           ├── stepper-c          Stepper-C            (pinned release)
-#           ├── dynamixel-x430     X430 emulator        (main until the first release)
+#           ├── dynamixel-x430     X430 emulator        (pinned commit)
 #           ├── dxl2-c             DXL2-C, used by the X430 emulator (offline build)
 #           ├── stepper-lab        motor model (sil/c/sstep_plant.c) and its parameters
-#           │                      (params/*.json) for the simulated motor (main until
-#           │                      the first release)
+#           │                      (params/*.json) for the simulated motor (pinned
+#           │                      commit)
 #           └── sfs-stepper-power-spice  ngspice model of the ESC1 leg: source of the
 #                                  stage parameters of Stepper-Lab; not built
-#                                  (main until the first release)
+#                                  (pinned commit)
 #
 # Stepper-C, DYNAMIXEL-X430, DXL2-C and Stepper-Lab carry no
 # zephyr/module.yml; their glue lives in modules/ of this repository, built by its
@@ -59,12 +59,14 @@ manifest:
       revision: v1.2.0
       path: modules/lib/stepper-c
 
-    # Follows main until the emulator has its first release; pin it to the
-    # release tag then (and keep dxl2-c at the tag that release expects).
+    # No release yet: pinned to the commit of main this firmware is tested
+    # with, so every build of a Doppelstep release uses the same code. Move it
+    # to the release tag once there is one (and keep dxl2-c at the tag that
+    # release expects).
     - name: dynamixel-x430
       remote: antonvynohradov
       repo-path: DYNAMIXEL-X430-Control-Table-Emulator
-      revision: main
+      revision: cd12fbb1870f844b213ea0df72a902c4f3022122
       path: modules/lib/dynamixel-x430
 
     # Must match X430_DXL2_GIT_TAG of x430.cmake (v1.0.0 on the emulator's
@@ -75,18 +77,19 @@ manifest:
       revision: v1.0.0
       path: modules/lib/dxl2-c
 
-    # Simulated motor (docs/simulation.md). Both follow main until their first
-    # release; pin them to the release tags then. The two stay siblings under
-    # modules/lib: the parameter export of power-spice writes into Stepper-Lab.
+    # Simulated motor (docs/simulation.md). No releases yet: both pinned to the
+    # tested commit of main; move them to the release tags once they exist. The
+    # two stay siblings under modules/lib: the parameter export of power-spice
+    # writes into Stepper-Lab.
     - name: stepper-lab
       remote: antonvynohradov
       repo-path: Stepper-Lab
-      revision: main
+      revision: 316831fa256e145b51b3ed89cb15c96e1870cdb2
       path: modules/lib/stepper-lab
 
     - name: sfs-stepper-power-spice
       remote: antonvynohradov
-      revision: main
+      revision: bf10d7c6e3a762117efb1d9973fde2eac05bad35
       path: modules/lib/sfs-stepper-power-spice
 
   self:

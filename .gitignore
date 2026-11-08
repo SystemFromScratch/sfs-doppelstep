@@ -9,6 +9,9 @@ flash.bin
 # Documentation build output (mkdocs build, tools/docs/build_manual.py)
 /site/
 
+# Release package (scripts/package_release.py)
+/dist/
+
 # Build caches
 /.ccache/
 **/.cache/
@@ -45,5 +48,3 @@ core.*
 .DS_Store
 Thumbs.db
 Desktop.ini
-
-docs/design/

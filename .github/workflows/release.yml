@@ -1,0 +1,162 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Release on a vX.Y.Z tag (docs/development.md, section "Releasing"):
+#
+#   1. check      the tag equals app/VERSION, CHANGELOG.md has its section,
+#                 every west.yml project is pinned (scripts/package_release.py)
+#   2. ci         the whole CI workflow (ci.yml) on the tagged commit: layers,
+#                 builds without warnings, ztest, SIL, integration and
+#                 fixed-point tests; its firmware artifact is the release
+#   3. manual     the PDF manual with the version of the tag on its cover
+#   4. publish    release names, merged HEX, SHA256SUMS and the release notes
+#                 (the CHANGELOG section), then the GitHub Release. A 0.x
+#                 version is published as a pre-release.
+#
+# Run by hand (Actions -> Release -> Run workflow) it does steps 1 to 4 without
+# publishing and keeps the package as the artifact "release": a dry run before
+# the tag is pushed.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to check and package, X.Y.Z (dry run, nothing is published)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Version, changelog and pinned dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = push ]; then
+              version="${GITHUB_REF_NAME#v}"
+          else
+              version="${INPUT_VERSION#v}"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Release ${version} (${GITHUB_EVENT_NAME})" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check
+        run: python3 scripts/package_release.py --version "${{ steps.version.outputs.version }}" --check-only
+
+  ci:
+    name: CI
+    needs: check
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      packages: write
+
+  manual:
+    name: PDF manual
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0            # git describe: the version on the cover
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Pango and Python packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0
+          python -m pip install -r requirements.txt
+
+      - name: PDF manual
+        run: python tools/docs/build_manual.py --output manual/Doppelstep.pdf
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manual
+          path: manual/Doppelstep.pdf
+          if-no-files-found: error
+
+  publish:
+    name: Package and publish
+    needs: [check, ci, manual]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: build-ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: manual
+          path: manual
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Package
+        run: |
+          python -m pip install intelhex
+          python scripts/package_release.py --version "${VERSION}" \
+              --build-dir build-ci --manual manual/Doppelstep.pdf --out dist
+          {
+              echo "### Release files"
+              echo '```'
+              cat dist/SHA256SUMS
+              echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: dist/
+          if-no-files-found: error
+
+      - name: Publish the GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=()
+          case "${VERSION}" in 0.*) prerelease=(--prerelease) ;; esac
+          files=()
+          for f in dist/*; do
+              [ "$(basename "$f")" = release-notes.md ] || files+=("$f")
+          done
+          gh release create "${GITHUB_REF_NAME}" "${prerelease[@]}" \
+              --verify-tag \
+              --title "Doppelstep ${VERSION}" \
+              --notes-file dist/release-notes.md \
+              "${files[@]}"

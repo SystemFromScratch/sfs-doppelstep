@@ -72,7 +72,7 @@ Measured on this version with the CI build (`scripts/ci.sh`), unless noted.
 |---|---|
 | Microcontroller | STM32G431CB: Arm Cortex-M4F, 170 MHz, 128 KiB flash, 32 KiB RAM |
 | RTOS | Zephyr RTOS v4.5.0, with sysbuild and MCUboot |
-| Application size | 77 324 B flash of the 87 712 B slot, 19 032 B RAM |
+| Application size | 77 356 B flash of the 87 712 B slot, 19 032 B RAM |
 | Bootloader size | MCUboot, 37 148 B flash of its 38 KiB partition |
 | Control rates | Current loop 20 kHz (PWM rate), motion loop 1 kHz, bus status every 10 ms |
 | Motor resolution | 3200 microsteps per revolution (200 steps × 16) |

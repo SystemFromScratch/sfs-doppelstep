@@ -9,7 +9,7 @@ its Xcos block. Its parameters come from the same files the Scilab model uses, a
 power stage values come from the ngspice model of
 [sfs-stepper-power-spice](https://github.com/AntonVynohradov/sfs-stepper-power-spice).
 
-![One model, three repositories](assets/simulation-flow.png)
+![One model, three repositories](assets/images/simulation-flow.png)
 
 ## How the pieces fit
 
@@ -19,8 +19,8 @@ power stage values come from the ngspice model of
 | **Stepper-Lab** | Scilab prototype, Xcos SIL, the plant model in C (`sil/c/sstep_plant.c`), parameters (`params/*.json`). | `sstep_plant.c` compiled as a Zephyr library (`float`, averaged stage). The JSON files are read at configure time. |
 | **Doppelstep** | This firmware. The backend `sfs,sim-power-stage` (`drivers/power_stage/`) adapts the model to Zephyr: ADC scaling, publication. `app/src/sim_log.c` writes the log line. | Driver and application |
 
-Both simulation repositories are west projects that follow `main` until their first
-release (`west.yml`). The build glue is `modules/stepper-lab/`.
+Both simulation repositories are west projects, pinned to the tested commit of their `main`
+until their first release (`west.yml`). The build glue is `modules/stepper-lab/`.
 
 What is shared and what stays offline:
 
@@ -86,7 +86,7 @@ log names the model file and its main values.
 
 ## Two ways to run it
 
-![Two ways to run the simulated motor](assets/simulation-variants.png)
+![Two ways to run the simulated motor](assets/images/simulation-variants.png)
 
 | Aspect | A: on the board | B: on the PC (`native_sim`) |
 |---|---|---|
@@ -176,5 +176,5 @@ are described in [SIL and integration tests](testing.md).
   500 ns, assumed board values). Re-run ngspice when these change.
 - On `native_sim`, code takes no simulated time. Interrupt load and priorities are
   validated only on the board (variant A).
-- `west.yml` follows `main` of both simulation repositories. Pin them to tags at their
-  first release, so that every firmware build names the model it was tested with.
+- `west.yml` pins both simulation repositories to a commit of `main`. Move them to tags at
+  their first release, so that the model version has a name and not only a hash.

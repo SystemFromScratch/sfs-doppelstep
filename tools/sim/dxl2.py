@@ -14,37 +14,44 @@ import struct
 import sys
 import time
 
-# Packets, CRC and errors: shared with the GUI (tools/gui/doppelstep_gui/protocol.py)
+# Packets, CRC, errors and the Control Table: shared with the GUI
+# (tools/gui/doppelstep_gui/protocol.py and registers.py, standard library only)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "gui"))
 
-# Control Table of the XM430-W350 (e-Manual): (address, size)
-MODEL_NUMBER = (0, 2)
-FIRMWARE_VERSION = (6, 1)
-ID = (7, 1)
-BAUD_RATE = (8, 1)
-RETURN_DELAY_TIME = (9, 1)
-DRIVE_MODE = (10, 1)
-OPERATING_MODE = (11, 1)
-HOMING_OFFSET = (20, 4)
-CURRENT_LIMIT = (38, 2)
-VELOCITY_LIMIT = (44, 4)
-TORQUE_ENABLE = (64, 1)
-HARDWARE_ERROR_STATUS = (70, 1)
-BUS_WATCHDOG = (98, 1)
-GOAL_VELOCITY = (104, 4)
-PROFILE_ACCELERATION = (108, 4)
-PROFILE_VELOCITY = (112, 4)
-GOAL_POSITION = (116, 4)
-REALTIME_TICK = (120, 2)
-MOVING = (122, 1)
-MOVING_STATUS = (123, 1)
-PRESENT_CURRENT = (126, 2)
-PRESENT_VELOCITY = (128, 4)
-PRESENT_POSITION = (132, 4)
-PRESENT_INPUT_VOLTAGE = (144, 2)
+from doppelstep_gui.registers import BY_NAME, TABLE  # noqa: E402
 
-SIGNED = {HOMING_OFFSET, GOAL_VELOCITY, GOAL_POSITION, PRESENT_CURRENT, PRESENT_VELOCITY,
-          PRESENT_POSITION, BUS_WATCHDOG}
+
+def _reg(name):
+    """(address, size) of a register of the XM430-W350 Control Table."""
+    return BY_NAME[name].address, BY_NAME[name].size
+
+
+MODEL_NUMBER = _reg("Model Number")
+FIRMWARE_VERSION = _reg("Firmware Version")
+ID = _reg("ID")
+BAUD_RATE = _reg("Baud Rate")
+RETURN_DELAY_TIME = _reg("Return Delay Time")
+DRIVE_MODE = _reg("Drive Mode")
+OPERATING_MODE = _reg("Operating Mode")
+HOMING_OFFSET = _reg("Homing Offset")
+CURRENT_LIMIT = _reg("Current Limit")
+VELOCITY_LIMIT = _reg("Velocity Limit")
+TORQUE_ENABLE = _reg("Torque Enable")
+HARDWARE_ERROR_STATUS = _reg("Hardware Error Status")
+BUS_WATCHDOG = _reg("Bus Watchdog")
+GOAL_VELOCITY = _reg("Goal Velocity")
+PROFILE_ACCELERATION = _reg("Profile Acceleration")
+PROFILE_VELOCITY = _reg("Profile Velocity")
+GOAL_POSITION = _reg("Goal Position")
+REALTIME_TICK = _reg("Realtime Tick")
+MOVING = _reg("Moving")
+MOVING_STATUS = _reg("Moving Status")
+PRESENT_CURRENT = _reg("Present Current")
+PRESENT_VELOCITY = _reg("Present Velocity")
+PRESENT_POSITION = _reg("Present Position")
+PRESENT_INPUT_VOLTAGE = _reg("Present Input Voltage")
+
+SIGNED = {(r.address, r.size) for r in TABLE if r.signed}
 
 from doppelstep_gui.protocol import (  # noqa: E402,F401  (re-exported for the tests)
     ALERT, BROADCAST_ID, ERR_ACCESS, ERR_CRC, ERR_DATA_LENGTH, ERR_DATA_LIMIT, ERR_DATA_RANGE,

@@ -13,6 +13,7 @@
 <p align="center">
   <a href="https://github.com/SystemFromScratch/sfs-doppelstep/actions/workflows/ci.yml"><img src="https://github.com/SystemFromScratch/sfs-doppelstep/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/SystemFromScratch/sfs-doppelstep/actions/workflows/docs.yml"><img src="https://github.com/SystemFromScratch/sfs-doppelstep/actions/workflows/docs.yml/badge.svg?branch=main" alt="Documentation"></a>
+  <a href="https://github.com/SystemFromScratch/sfs-doppelstep/releases/latest"><img src="https://img.shields.io/github/v/release/SystemFromScratch/sfs-doppelstep?include_prereleases&sort=semver" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
 </p>
 
@@ -50,7 +51,7 @@ Measured with the CI build of this version:
 | | |
 | --- | --- |
 | Board | B-G431B-ESC1: STM32G431CB, Cortex-M4F, 170 MHz, 128 KiB flash, 32 KiB RAM |
-| Application | 77 324 B flash of the 87 712 B slot, 19 032 B RAM |
+| Application | 77 356 B flash of the 87 712 B slot, 19 032 B RAM |
 | Bootloader | MCUboot, 37 148 B flash |
 | Tests per CI run | 91: 55 ztest cases, 28 SIL and integration tests, 8 fixed-point motion tests |
 
@@ -67,7 +68,9 @@ Measured with the CI build of this version:
 
 ## Project status
 
-Doppelstep is under active development. The open items are listed in
+Doppelstep **0.1.0** is the first release: verified on the PC against the simulated motor, not
+yet on a real motor (see the first open item). Changes per release are in
+[CHANGELOG.md](CHANGELOG.md); the open items are listed in
 [Status and known limits](https://systemfromscratch.github.io/sfs-doppelstep/overview/#status-and-known-limits).
 
 - [x] XM430-W350 emulation over Protocol 2.0, mapped onto the motor
@@ -109,6 +112,16 @@ docker compose run --rm -p 5555:5555 zephyr python3 tools/sim/run_native.py run 
 python tools/sim/dxl_smoke_test.py --tcp localhost:5555      # second terminal
 ```
 
+## Prebuilt firmware
+
+Every [release](https://github.com/SystemFromScratch/sfs-doppelstep/releases) carries the
+board images, built and tested by the release pipeline: `…-merged.hex` (MCUboot and the
+application) for the first flashing through the ST-LINK, the signed `…-app.signed.bin` for an
+update over the bus with the GUI, the same pair with the simulated motor (`…-sim-motor.*`), the
+PDF manual and `SHA256SUMS`. The images are signed with the public development key of
+MCUboot: for a product, build from source with your own key
+([Firmware update](https://systemfromscratch.github.io/sfs-doppelstep/firmware-update/)).
+
 ## Building
 
 | Target | Command |
@@ -134,8 +147,10 @@ boards/                 out-of-tree board B-G431B-ESC1
 modules/                build glue of Stepper-C, the X430 emulator and Stepper-Lab
 tests/                  ztest suites, pytest SIL and integration tests
 tools/                  bench GUI, native_sim launcher, documentation tools
+scripts/                CI, tests, layer check, release packaging, host GDB servers
 docs/                   documentation website and PDF manual sources
 west.yml                pinned Zephyr and libraries
+CHANGELOG.md            changes of every release
 ```
 
 ## Documentation

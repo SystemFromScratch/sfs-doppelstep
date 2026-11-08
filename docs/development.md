@@ -17,8 +17,8 @@ and the documentation tooling.
 
 ```text
 doppelstep/                             west manifest repository and Zephyr module
-├── west.yml                            Zephyr v4.5.0, Stepper-C v1.2.0, X430 emulator (main), DXL2-C v1.0.0,
-│                                       Stepper-Lab and sfs-stepper-power-spice (main)
+├── west.yml                            Zephyr v4.5.0, Stepper-C v1.2.0, X430 emulator (commit), DXL2-C v1.0.0,
+│                                       Stepper-Lab and sfs-stepper-power-spice (commits)
 ├── zephyr/module.yml                   the repository is a Zephyr module: board, bindings, drivers
 ├── CMakeLists.txt, Kconfig             build modules/ and drivers/
 ├── app/                                Zephyr application (west build -s app)
@@ -30,6 +30,7 @@ doppelstep/                             west manifest repository and Zephyr modu
 │   ├── boards/b_g431b_esc1.conf        FPU, zero-latency IRQ, OPAMP, RTT
 │   ├── boards/native_sim_native_64.*   simulated stage, servo on uart1 (PTY), 1 ms tick, stdout logs
 │   ├── sysbuild.conf, sysbuild/        MCUboot: one slot, signature, serial recovery
+│   ├── VERSION                         firmware version (log, MCUboot image header)
 │   └── src/
 │       ├── main.c                      startup, STATUS LED
 │       ├── control_task.c              slow loop, commands, publication of the status
@@ -65,8 +66,11 @@ doppelstep/                             west manifest repository and Zephyr modu
 │   ├── run-tests.sh / ci.sh            tests on native_sim / the whole of CI
 │   ├── check-layers.sh                 dependency rules between the layers
 │   ├── junit_summary.py                test table for the GitHub job summary
-│   └── host/                           GDB servers on the Windows host (OpenOCD, J-Link)
-├── .github/workflows/ci.yml            environment image, builds and tests (scripts/ci.sh)
+│   ├── package_release.py              release checks and release files
+│   └── host/                           GDB servers on the host (OpenOCD, J-Link; Windows and Linux)
+├── .github/workflows/                  ci.yml (image, builds, tests), docs.yml (website, PDF),
+│                                       release.yml (GitHub Release on a vX.Y.Z tag)
+├── CHANGELOG.md                        changes of every release
 ├── .devcontainer/                      Dev Container configurations (host debug server, USB probe, Codespaces)
 ├── .vscode/                            tasks for Windows and Linux, Cortex-Debug launch configurations
 ├── .agents/skills/doppelstep/          engineering rules for agents
@@ -163,6 +167,10 @@ built (`docker/jlink/README.md`).
 .\scripts\host\jlink-gdb-server.ps1        # J-Link OB / J-Link           -> :2331
 ```
 
+On a Linux or macOS host the same servers start with `bash scripts/host/openocd-server.sh` and
+`bash scripts/host/jlink-gdb-server.sh` (OpenOCD 0.12+ or the J-Link Software installed on the
+host; the port is set by `GDB_PORT` for OpenOCD and by `PORT` for J-Link).
+
 Both listen on all interfaces: the container reaches the host as `host.docker.internal`
 (Windows Firewall may ask once).
 
@@ -233,9 +241,9 @@ the image is made from: `Dockerfile`, `.dockerignore`, `west.yml`, `scripts/west
 | Pull request, other branch | pulled | built in the job for that run, not published |
 
 The firmware job then runs `scripts/ci.sh` in the image, with the repository mounted at
-`/workdir/doppelstep` and `WEST_UPDATE=0`: the workspace is the one the image was built with, so
-the projects that follow `main` (X430 emulator, Stepper-Lab, power-spice) change only with a new
-image, that is with a change of one of the files above. The workflow writes the package with
+`/workdir/doppelstep` and `WEST_UPDATE=0`: the workspace is the one the image was built with. Every project in
+`west.yml` is pinned to a tag or a commit, so the workspace changes only with `west.yml`, and with
+it the image tag. The workflow writes the package with
 `GITHUB_TOKEN`. The package must be **public** (package settings on GitHub, **Change
 visibility**), so that anyone's codespace, and `docker pull` without a login, can use it. The
 image never contains the J-Link Software (not redistributable): `docker/jlink/` holds no
@@ -246,6 +254,45 @@ request and publishes both on GitHub Pages from `main`
 ([systemfromscratch.github.io/sfs-doppelstep](https://systemfromscratch.github.io/sfs-doppelstep/),
 PDF at `Doppelstep.pdf` there). It needs one repository setting: **Settings → Pages → Source:
 GitHub Actions**.
+
+## Releasing
+
+A release is a `vX.Y.Z` tag on `main`. The version follows
+[Semantic Versioning](https://semver.org/) and lives in two places that must agree: the tag
+and `app/VERSION`, which Zephyr turns into `APP_VERSION_STRING` (logged at boot) and into the
+version of the signed image that MCUboot checks. The release workflow refuses a tag that does
+not match.
+
+1. Set `app/VERSION` to the new version and move the entries of `## [Unreleased]` in
+   `CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD`; update the compare links at its end.
+2. Pin every project of `west.yml` to a tag or a full commit hash: a release must build the
+   same code every time.
+3. Re-measure the figures in the README and the documentation that changed (flash, RAM, test
+   counts: the build log of CI) and update the project status.
+4. Check locally, then in the container run what CI runs:
+
+   ```bash
+   python3 scripts/package_release.py --version X.Y.Z --check-only
+   docker compose run --rm zephyr bash scripts/ci.sh
+   docker compose run --rm zephyr python3 scripts/package_release.py --version X.Y.Z
+   ```
+
+   The last command writes the release files to `dist/`. **Actions → Release → Run
+   workflow** does the same in GitHub Actions without publishing anything (artifact
+   `release`).
+5. Merge to `main`, then tag the merge commit and push the tag:
+
+   ```bash
+   git tag -a vX.Y.Z -m "Doppelstep X.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+`.github/workflows/release.yml` then checks the tag, runs the whole CI workflow on the tagged
+commit, builds the PDF manual with the version on its cover and publishes the GitHub Release.
+Its notes are the CHANGELOG section of the version, and its files are the board images under
+release names, MCUboot and the application merged into one HEX for the first flashing, the
+manual and `SHA256SUMS`. A `0.x` version is published as a pre-release. The release images are
+signed with the public development key of MCUboot ([Firmware update](firmware-update.md)).
 
 ## Codespaces
 
