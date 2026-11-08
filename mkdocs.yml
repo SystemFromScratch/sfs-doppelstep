@@ -3,60 +3,252 @@
 #   HTML preview:  mkdocs serve
 #   HTML site:     mkdocs build                     (output: site/)
 #   PDF manual:    python tools/docs/build_pdf.py   (output: site/Doppelstep.pdf)
+#   Hero image:    python tools/docs/diagrams.py    (docs/assets/images/hero-3d.svg)
 #
 # Dependencies: requirements.txt. VS Code: tasks "Docs: Serve" and
 # "Docs: Build PDF" (docs/development.md).
+#
+# The landing page (docs/index.md, template overrides/home.html) is driven by
+# extra.landing below. Every number on it is measured on this version of the
+# code: re-measure after a change (docs/testing.md, the build log of CI).
 
 site_name: Doppelstep
 site_description: >-
-  Zephyr RTOS firmware for the STMicroelectronics B-G431B-ESC1 that drives a
-  two-phase stepper motor with Stepper-C and answers on the bus as a DYNAMIXEL
-  XM430-W350 (Protocol 2.0).
+  Open-source Zephyr RTOS firmware that drives a two-phase stepper motor in
+  closed-loop microstepping current control on the STMicroelectronics
+  B-G431B-ESC1 and answers on the bus as a DYNAMIXEL XM430-W350 smart servo
+  (Protocol 2.0), tested on the PC with a simulated motor.
 site_author: Anton Vynohradov
 repo_url: https://github.com/SystemFromScratch/sfs-doppelstep
+repo_name: SystemFromScratch/sfs-doppelstep
 edit_uri: ""
+copyright: >-
+  Copyright &copy; 2026 Anton Vynohradov ·
+  <a href="https://systemfromscratch.github.io/">SystemFromScratch®</a> ·
+  Licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a>
 
 docs_dir: docs
 site_dir: site
 strict: true
+validation:
+  anchors: warn          # a link to a missing #section fails the strict build
 
 exclude_docs: |
   design/
   superpowers/
 
 nav:
-  - Overview: index.md
-  - Architecture: architecture.md
-  - Porting to a new MCU family: porting.md
-  - Development environment: development.md
-  - Firmware update: firmware-update.md
-  - Simulated motor: simulation.md
-  - Tests: testing.md
-  - Hardware checklist: hardware-checklist.md
-  - GUI: gui/index.md
-  - Naming: NAMING.md
+  - Home: index.md
+  - Guide:
+      - Introduction: overview.md
+      - Technology stack: technology.md
+      - Getting started: getting-started.md
+      - Hardware and bring-up: hardware.md
+      - DYNAMIXEL emulation: dynamixel.md
+      - Configuration: configuration.md
+  - How It Works:
+      - Architecture: architecture.md
+      - Simulated motor: simulation.md
+      - Firmware update: firmware-update.md
+      - Porting to a new MCU family: porting.md
+  - Development:
+      - Development environment: development.md
+      - Tests and CI: testing.md
+      - Hardware checklist: hardware-checklist.md
+      - GUI: gui/index.md
+  - About:
+      - Author & Company: about.md
+      - Naming: NAMING.md
+      - License: license.md
 
 theme:
   name: material
+  custom_dir: overrides
   language: en
-  font: false            # system fonts: no download needed for offline/PDF builds
+  logo: assets/images/brand/systemfromscratch-logo-on-dark.png
+  favicon: assets/images/brand/systemfromscratch-logo.png
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
   palette:
-    scheme: default
-    primary: indigo
-    accent: indigo
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.top
-    - content.code.copy
+    - navigation.footer
+    - navigation.tracking
+    - search.suggest
     - search.highlight
+    - content.code.copy
+    - toc.follow
 
-# Shown on the PDF cover page. tools/docs/build_pdf.py sets both variables
-# (git describe and today's date); plain `mkdocs build` uses the defaults.
 extra:
+  generator: false
+  # Shown on the PDF cover page. tools/docs/build_pdf.py sets both variables
+  # (git describe and today's date); plain `mkdocs build` uses the defaults.
   doc_version: !ENV [DPS_DOCS_VERSION, "development snapshot"]
   doc_date: !ENV [DPS_DOCS_DATE, ""]
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/AntonVynohradov
+      name: Anton Vynohradov on GitHub
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/in/vynohradov
+      name: Anton Vynohradov on LinkedIn
+    - icon: fontawesome/brands/orcid
+      link: https://orcid.org/0009-0005-6965-0911
+      name: Anton Vynohradov on ORCID
+    - icon: material/web
+      link: https://systemfromscratch.github.io/
+      name: SystemFromScratch®
+
+  # ---------------------------------------------------------------- landing page
+  # Rendered by overrides/home.html: hero -> the problem (3 problem->solution
+  # cards) -> what you get (6 linked cards) -> measured stats -> quick start
+  # (docs/index.md) -> SystemFromScratch® portfolio banner.
+  landing:
+    eyebrow: Open-source Zephyr RTOS firmware
+    title: Your stepper
+    accent: seen as a smart servo
+    lead: >-
+      Doppelstep turns a two-phase stepper motor and a small STM32 motor-control board
+      into a DYNAMIXEL XM430-W350 on the bus: ROS 2, DynamixelSDK and DYNAMIXEL Wizard
+      talk to it unchanged. Closed-loop microstepping current control at 20 kHz, a signed
+      bootloader, and the whole firmware tested on a PC before it reaches the hardware.
+    hero_image: assets/images/hero-3d.svg
+    hero_alt: >-
+      Isometric scene: DYNAMIXEL Protocol 2.0 packets from a ROS 2 host reach a controller
+      board running Doppelstep on Zephyr RTOS; three half-bridges drive a stepper motor
+      with a servo horn through two phase currents 90 degrees apart.
+    buttons:
+      - {text: Try it without hardware, link: getting-started/, style: primary}
+      - {text: View on GitHub, link: "https://github.com/SystemFromScratch/sfs-doppelstep", style: outline}
+    features:
+      - {icon: layers, line1: Zephyr RTOS 4.5, line2: drivers & devicetree}
+      - {icon: bus, line1: DYNAMIXEL, line2: Protocol 2.0}
+      - {icon: monitor, line1: Runs on a PC, line2: simulated motor}
+      - {icon: code, line1: Apache-2.0, line2: open source}
+    problem:
+      eyebrow: The problem
+      title: A smart-servo joint from a stepper motor
+      intro: >-
+        Robot arms such as OpenMANIPULATOR-X are built from smart servos that a ROS 2 host
+        drives over DYNAMIXEL Protocol 2.0. A two-phase stepper motor is a common, low-cost
+        alternative with a high holding torque, but on its own it speaks no protocol and
+        needs a current controller that runs tens of thousands of times per second. The
+        firmware has to close that gap on one small microcontroller (Cortex-M4, 128 KiB of
+        flash, 32 KiB of RAM), stay safe when something goes wrong, update in the field, and
+        be testable without risking the hardware.
+      cards:
+        - icon: bus
+          title: The host expects a servo
+          text: >-
+            Doppelstep emulates the complete Control Table of an XM430-W350 (model 1020) and
+            maps it onto the motor. An integration test runs the ros2_control loop with the
+            official DynamixelSDK at 100 Hz against the firmware.
+          tags: [Protocol 2.0, Control Table, ros2_control]
+        - icon: wave
+          title: A stepper needs a fast, safe current loop
+          text: >-
+            Stepper-C closes the phase current loop in a 20 kHz zero-latency interrupt.
+            Overcurrent, bus voltage and shared-leg faults switch the outputs off inside that
+            interrupt, independent of any task.
+          tags: [Microstepping, 20 kHz, Protection in the ISR]
+        - icon: flask
+          title: Hardware is slow and costly to test on
+          text: >-
+            The same firmware runs on a PC with a physical model of the motor and the power
+            stage. 91 automated tests run on every CI build in a pinned Docker image.
+          tags: [native_sim, Software-in-the-loop, GitHub Actions]
+    offer:
+      eyebrow: What you get
+      title: One repository, from the timer register to ROS 2
+      intro: >-
+        Three Zephyr drivers, an application that owns the threads, an out-of-tree board,
+        a bootloader, a simulated motor, a bench GUI and a reproducible environment: a
+        complete firmware product that you can build on.
+      cards:
+        - icon: layers
+          title: Real Zephyr drivers
+          text: >-
+            A power-stage driver class, the motor behind Zephyr's stepper and stepper_ctrl
+            APIs, and the servo as a child node of its UART. The devicetree selects the
+            hardware.
+          tags: [Devicetree, Kconfig, Layer rules in CI]
+          link: architecture/
+        - icon: monitor
+          title: Simulated motor
+          text: >-
+            The plant model of Stepper-Lab with power stage values from ngspice, on the board
+            or on the PC, so motion, protocol and ROS 2 work before a motor is connected.
+          tags: [Plant model, ngspice, native_sim]
+          link: simulation/
+        - icon: lock
+          title: Secure firmware update
+          text: >-
+            MCUboot checks an RSA-2048 signature at every start and accepts new firmware over
+            the DYNAMIXEL bus itself. The GUI verifies the result by its SHA-256 hash.
+          tags: [MCUboot, Serial recovery, Signed images]
+          link: firmware-update/
+        - icon: gauge
+          title: Bench GUI
+          text: >-
+            Motion with live plots and CSV recording, the whole Control Table, the SIL test
+            scenarios on the real board with an HTML report, and the firmware update.
+          tags: [Python, Live plots, Test reports]
+          link: gui/
+        - icon: chip
+          title: Portable by design
+          text: >-
+            Only one backend file per MCU family touches registers. A fixed-point backend
+            covers cores without an FPU; the next family is already analysed.
+          tags: [One backend per MCU, Fixed point, Cortex-M0+]
+          link: porting/
+        - icon: check
+          title: Reproducible environment
+          text: >-
+            Pinned versions, a Docker image published for CI and GitHub Codespaces, a Dev
+            Container, and the same VS Code tasks on Windows and Linux.
+          tags: [Docker, Dev Container, Codespaces]
+          link: development/
+    stats:                                   # measured values only (CI build of this version)
+      - {value: "91", label: automated tests per CI run}
+      - {value: "20 kHz", label: current control loop}
+      - {value: "75.5 KiB", label: application flash}
+      - {value: "18.6 KiB", label: application RAM}
+    portfolio:
+      title: Part of an open-source embedded portfolio
+      text: >-
+        Doppelstep is developed by Anton Vynohradov under SystemFromScratch®: firmware and
+        embedded Linux for connected products, secure, MISRA-compliant and ready for the EU
+        Cyber Resilience Act. It shows on one real product how the company works: drivers,
+        bootloader, control, protocol, tests and documentation.
+      buttons:
+        - {text: SystemFromScratch®, link: "https://systemfromscratch.github.io/", style: primary}
+        - {text: About the author, link: about/, style: outline}
+    trademark: >-
+      SystemFromScratch® is a registered trademark. DYNAMIXEL and ROBOTIS are trademarks of
+      ROBOTIS Co., Ltd.; STM32 is a registered trademark of STMicroelectronics International
+      N.V. Doppelstep is not affiliated with or endorsed by them.
 
 extra_css:
+  - assets/stylesheets/extra.css
   - assets/stylesheets/print.css
 
 hooks:
@@ -86,7 +278,8 @@ markdown_extensions:
 plugins:
   - search
   # Must be the last plugin: it combines all pages into site/print_page/,
-  # which tools/docs/build_pdf.py prints to PDF.
+  # which tools/docs/build_pdf.py prints to PDF. From the landing page only the
+  # Markdown of docs/index.md (quick start) is printed, as chapter 1.
   - print-site:
       add_to_navigation: false
       print_page_title: Doppelstep

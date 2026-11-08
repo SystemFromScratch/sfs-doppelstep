@@ -53,7 +53,7 @@ west flash -d build -r openocd
 
 ## C: with a motor, after the dead time is set
 
-Follow the bring-up checklist in the README first; its step 6 forces the trips, which confirms the
+Follow the [bring-up checklist](hardware.md#bring-up-checklist) first; its step 6 forces the trips, which confirms the
 fault path through the interrupt. Checks 15 and 16 concern a finding from the simulation.
 
 | # | Check | Expected |

@@ -236,12 +236,12 @@ west build -b native_sim/native/64 -s app -d build-native                       
    integration tests, motion tests on the fixed-point backend. New behaviour of the bus, motion or
    protection path gets a test in `tests/sil` (or `tests/integration` for host-library behaviour),
    and new driver behaviour a ztest case.
-5. Hardware-dependent changes: say which bring-up step (README) or check of
+5. Hardware-dependent changes: say which bring-up step (docs/hardware.md) or check of
    `docs/hardware-checklist.md` re-validates them.
    Changes of the simulated motor model: in Stepper-Lab (`sstep_plant.c`
    and the Scilab prototype together, `tests/run_all.sce` S01–S05), then
    `west update` here; try them first with `-DSTEPPER_LAB_SOURCE_DIR=<checkout>`.
-6. Update `README.md` (human usage), `docs/` (MkDocs site and PDF manual) and
+6. Update `README.md` (project overview and quick start), `docs/` (MkDocs site and PDF manual) and
    this skill (rules) when the workflow or architecture changes; `mkdocs build`
    is strict and must pass.
 

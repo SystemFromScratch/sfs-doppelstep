@@ -1,5 +1,88 @@
 # Development environment
 
+Doppelstep keeps the whole toolchain in a Docker image, so a build gives the same result on
+Windows, on Linux, in CI and in GitHub Codespaces. This page describes the environment:
+the repository, the VS Code tasks, the Dev Container and the debug probes, CI and its image,
+and the documentation tooling.
+
+## Requirements
+
+| Platform | Install |
+|---|---|
+| Windows | Docker Desktop (WSL 2 backend), Git, VS Code with the Dev Containers extension. For debugging on the host: OpenOCD 0.12+ (for example xPack) with the ST-LINK driver, and/or the SEGGER J-Link Software |
+| Linux | Docker and Git, or a native Zephyr installation with `west`; VS Code optional |
+| Browser only | A GitHub account: [Codespaces](#codespaces) |
+
+## Repository layout
+
+```text
+doppelstep/                             west manifest repository and Zephyr module
+├── west.yml                            Zephyr v4.5.0, Stepper-C v1.2.0, X430 emulator (main), DXL2-C v1.0.0,
+│                                       Stepper-Lab and sfs-stepper-power-spice (main)
+├── zephyr/module.yml                   the repository is a Zephyr module: board, bindings, drivers
+├── CMakeLists.txt, Kconfig             build modules/ and drivers/
+├── app/                                Zephyr application (west build -s app)
+│   ├── Kconfig, Kconfig.app_msg        threads, queues, startup
+│   ├── prj.conf                        options common to every board
+│   ├── sim.overlay                     simulated motor on the board (EXTRA_DTC_OVERLAY_FILE)
+│   ├── sim-test.conf                   log period of the model for the tests
+│   ├── boards/b_g431b_esc1.overlay     power stage, motor, servo: the hardware of this board
+│   ├── boards/b_g431b_esc1.conf        FPU, zero-latency IRQ, OPAMP, RTT
+│   ├── boards/native_sim_native_64.*   simulated stage, servo on uart1 (PTY), 1 ms tick, stdout logs
+│   ├── sysbuild.conf, sysbuild/        MCUboot: one slot, signature, serial recovery
+│   └── src/
+│       ├── main.c                      startup, STATUS LED
+│       ├── control_task.c              slow loop, commands, publication of the status
+│       ├── comm_task.c                 DYNAMIXEL bus
+│       ├── joint_bridge.[ch]           X430 registers <-> motor commands
+│       ├── joint.[ch]                  microsteps <-> DYNAMIXEL units, profiles
+│       ├── app_msg.[ch], app_tasks.h   queues and task ids
+│       └── sim_log.c                   periodic log line of the simulated motor
+├── drivers/
+│   ├── power_stage/                    STM32 and simulation backends, model adapter
+│   ├── motor/                          Stepper-C behind the classes stepper and stepper_ctrl
+│   └── x430/                           X430 emulator on a UART, NVS
+├── include/doppelstep/drivers/         public driver APIs
+├── dts/bindings/                       sfs,* bindings, vendor prefix sfs
+├── boards/st/b_g431b_esc1/             out-of-tree board (not in Zephyr 4.5)
+│   ├── b_g431b_esc1.dts                pinout from UM2516 Table 4, 170 MHz from 8 MHz HSE, partitions
+│   ├── board.cmake                     runners: openocd (default), jlink, stm32cubeprogrammer, pyocd
+│   └── support/openocd.cfg             ST-LINK/V2-1, STM32G4
+├── modules/                            build glue of the libraries
+│   ├── stepper-c/                      Kconfig (CONFIG_SSTEP_*), CMakeLists.txt
+│   ├── dynamixel-x430/                 Kconfig (sources Kconfig.x430), CMakeLists.txt
+│   └── stepper-lab/                    plant model sstep_plant.c, params/*.json -> sstep_plant_params.h
+├── tests/
+│   ├── app/, drivers/                  ztest suites, run by Twister
+│   └── sil/, integration/              pytest against the native_sim firmware
+├── tools/
+│   ├── gui/                            host GUI: test bench and firmware update
+│   ├── sim/                            native_sim launcher (PTY link, TCP bridge), Protocol 2.0 smoke test
+│   └── docs/                           PDF manual builder, MkDocs hooks, cover page, hero illustration
+├── docs/, overrides/, mkdocs.yml       this documentation (MkDocs Material)
+├── scripts/
+│   ├── west-init.sh                    west init -l + west update (in the container)
+│   ├── run-tests.sh / ci.sh            tests on native_sim / the whole of CI
+│   ├── check-layers.sh                 dependency rules between the layers
+│   ├── junit_summary.py                test table for the GitHub job summary
+│   └── host/                           GDB servers on the Windows host (OpenOCD, J-Link)
+├── .github/workflows/ci.yml            environment image, builds and tests (scripts/ci.sh)
+├── .devcontainer/                      Dev Container configurations (host debug server, USB probe, Codespaces)
+├── .vscode/                            tasks for Windows and Linux, Cortex-Debug launch configurations
+├── .agents/skills/doppelstep/          engineering rules for agents
+├── docker/jlink/                       optional J-Link Software archive for the image
+├── Dockerfile, compose.yaml            Zephyr toolchain image
+├── requirements.txt                    host Python tools: GUI, firmware update, documentation
+└── LICENSE (Apache-2.0)
+```
+
+The west workspace lives in the container under `/workdir` (the named Docker volume
+`doppelstep-west`): `doppelstep/` is a bind mount of this repository, next to it are
+`zephyr/` and `modules/` (the HAL, CMSIS, SEGGER, MCUboot and its crypto modules, and the
+libraries of `west.yml` under `modules/lib/`). Zephyr and the modules stay in the Linux
+volume (fast file access, kept across container rebuilds); only this repository and the
+build directories live in the host folder.
+
 ## Two platforms, one set of tasks
 
 The VS Code tasks in `.vscode/tasks.json` work on Windows and on Linux. Each
@@ -59,6 +142,82 @@ The first start runs `scripts/west-init.sh` (`west init -l`,
 
 Both build the stage `tools` of the `Dockerfile`: the tools only, the workspace stays in the
 volume. A J-Link archive in `docker/jlink/` goes into this local image only.
+
+### Mode A: USB probe in the container (usbipd-win)
+
+```powershell
+winget install usbipd                 # once
+usbipd list                           # find the ST-LINK / J-Link BUSID
+usbipd bind --busid <BUSID>           # once per device (administrator)
+usbipd attach --wsl --busid <BUSID>   # after every replug, before the container starts
+```
+
+The container runs privileged with `/dev/bus/usb` mounted; `lsusb` must show the probe. For
+the J-Link runner put `JLink_Linux_V*_x86_64.tgz` into `docker/jlink/` before the image is
+built (`docker/jlink/README.md`).
+
+### Mode B: GDB server on the host
+
+```powershell
+.\scripts\host\openocd-server.ps1          # ST-LINK, original firmware   -> :3333
+.\scripts\host\jlink-gdb-server.ps1        # J-Link OB / J-Link           -> :2331
+```
+
+Both listen on all interfaces: the container reaches the host as `host.docker.internal`
+(Windows Firewall may ask once).
+
+### Without VS Code
+
+```bash
+docker compose build
+docker compose run --rm zephyr bash scripts/west-init.sh
+docker compose run --rm zephyr                       # west build for the board
+docker compose --profile usb run --rm zephyr-usb     # shell with the USB probe
+```
+
+## Flashing and debugging
+
+### `west` (mode A, or the J-Link Remote Server)
+
+```bash
+west flash        -d build -r openocd     # ST-LINK/V2-1 (default runner)
+west debug        -d build -r openocd
+west debugserver  -d build -r openocd     # GDB server on :3333
+west flash        -d build -r jlink       # J-Link OB / J-Link
+west debug        -d build -r jlink
+west debugserver  -d build -r jlink       # GDB server on :2331
+west attach       -d build -r openocd|jlink
+```
+
+The openocd runner uses `boards/st/b_g431b_esc1/support/openocd.cfg` and the OpenOCD of the
+Zephyr SDK (Zephyr thread awareness). In mode B the J-Link runner in the container can still
+reach the probe through `scripts/host/jlink-remote-server.ps1` (`--dev-id <host IP>
+--dev-id-type ip`); this path is not yet verified with the J-Link OB firmware.
+
+### VS Code (Cortex-Debug, `.vscode/launch.json`)
+
+| Configuration | Server |
+|---|---|
+| Debug: OpenOCD in container (ST-LINK, USB pass-through) | OpenOCD of the SDK in the container, `rtos Zephyr` |
+| Debug: J-Link in container (J-Link OB, USB pass-through) | `JLinkGDBServerCLExe` in the container |
+| Debug: OpenOCD on host (host.docker.internal:3333) | `scripts/host/openocd-server.ps1` |
+| Debug: J-Link GDB Server on host (host.docker.internal:2331) | `scripts/host/jlink-gdb-server.ps1` |
+| Attach: … on host (no download) | Attach to the running firmware |
+
+Every *Debug* configuration builds first, loads MCUboot and the signed application
+(`zephyr.elf` alone would not boot: MCUboot checks the signature), resets and stops at `main`
+of the application.
+
+### Logs (RTT)
+
+USART2 carries the DYNAMIXEL bus, so the console and the log use SEGGER RTT:
+
+```bash
+west rtt -d build -r openocd      # or -r jlink
+```
+
+With a host GDB server: `openocd-server.ps1 -Rtt` (TCP 9090), or the RTT telnet port 19021 of
+the J-Link GDB Server.
 
 ## CI and the environment image
 
@@ -130,6 +289,18 @@ numbers of the table of contents and adds a cover page
 Playwright's Chromium, Microsoft Edge or Google Chrome, whichever is found
 first; on Linux the task installs Playwright's Chromium once. Print styles:
 `docs/assets/stylesheets/print.css`.
+
+The website uses the SystemFromScratch® style: `overrides/home.html` renders the landing
+page from `extra.landing` in `mkdocs.yml` (hero, problem, what you get, measured figures,
+portfolio banner), with the quick start of `docs/index.md` below it; `extra.css` holds the
+company palette. The PDF prints only the Markdown of `docs/index.md` (the quick start) as
+its first chapter; the parts from `extra.landing` are web only. The hero illustration `docs/assets/images/hero-3d.svg` is generated by
+`python tools/docs/diagrams.py`; change the script, never the SVG.
+
+Every number on the landing page and in the [Introduction](overview.md#key-properties) is
+measured: the test counts from `build-ci/twister/twister.json` and the `junit.xml` files of
+`scripts/ci.sh`, the sizes from the memory report of the board build. Update them when they
+change.
 
 New pages go into `docs/` and into `nav` of `mkdocs.yml`; the build is strict,
 so broken links fail it.

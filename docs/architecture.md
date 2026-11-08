@@ -25,7 +25,9 @@ it. For a new MCU, continue with [Porting to a new MCU family](porting.md).
                                                          ┌──────────────┐
                                                          │ power_stage  │ STM32 or simulation
                                                          │ backend      │ backend
-                                                         └──────────────┘
+                                                         └──────┬───────┘
+        on the B-G431B-ESC1: TIM1 + ADC1/ADC2 (LL), OPAMP1..3   ▼
+        L6387 gate drivers → 3 half-bridges → stepper motor (shared leg W)
 ```
 
 ## Layout
@@ -84,12 +86,12 @@ faults) is the extension on the parent node.
 
 ## Contexts
 
-| Context | Priority | Work | Never |
-|---|---|---|---|
-| Interrupt of the backend | Highest | Fast loop, immediate shutdown on a fault | Kernel calls |
-| `control_task` | −2, cooperative | Slow loop at 1 kHz, commands, publication of the status | Waiting on an outgoing queue |
-| `comm_task` | 2 | `x430_servo_process()`, live registers every 10 ms | Calling the motor driver |
-| `main` | 0 | Startup, then the STATUS LED | Sending commands |
+| Context | Priority | Rate | Work | Never |
+|---|---|---|---|---|
+| Interrupt of the backend | Highest (on the STM32: zero-latency ADC1_2 interrupt) | PWM rate, 20 kHz | Currents and VBUS, shared-leg trip, fast loop `sstep_fast_loop()`, immediate shutdown on a fault | Kernel calls |
+| `control_task` | −2, cooperative | 1 kHz, absolute schedule | Slow loop `sstep_motor_process()`, commands, publication of the status | Waiting on an outgoing queue |
+| `comm_task` | 2 | On receive, and every 10 ms | `x430_servo_process()`, `joint_bridge`, live registers | Calling the motor driver |
+| `main` | 0 | — | Startup, then the STATUS LED | Sending commands |
 
 Every call into the motor driver comes from `control_task`, so the driver needs no lock for its
 status. With `CONFIG_ASSERT` the driver checks this.

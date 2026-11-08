@@ -88,7 +88,7 @@ log names the model file and its main values.
 
 ![Two ways to run the simulated motor](assets/simulation-variants.png)
 
-| | A: on the board | B: on the PC (`native_sim`) |
+| Aspect | A: on the board | B: on the PC (`native_sim`) |
 |---|---|---|
 | Hardware | B-G431B-ESC1, no motor needed | none |
 | Timing | real: 20 kHz interrupt, UART 1 Mbps | simulated, kept to real time |

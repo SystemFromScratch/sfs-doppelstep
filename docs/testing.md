@@ -67,7 +67,7 @@ The full suite takes about 30 s.
 |---|---|---|---|
 | **SIL** | `tests/sil/` | the firmware with the plant model; client `tools/sim/dxl2.py` (raw Protocol 2.0, error byte, malformed packets) | Control Table behaviour, and the effect on the rotor of the model |
 | **Integration** | `tests/integration/` | the official **DynamixelSDK** (`dynamixel-sdk`), the library under the ROS 2 `dynamixel_hardware_interface` | the ros2_control loop: Sync Read of current, velocity and position, Sync Write of the goal at 100 Hz |
-| Hardware (manual) | README, Bring-up checklist | the board with a motor | dead time, polarity, current loop |
+| Hardware (manual) | [Bring-up checklist](hardware.md#bring-up-checklist) | the board with a motor | dead time, polarity, current loop |
 
 The firmware and model checks of other repositories are separate. Stepper-Lab runs
 the Xcos SIL against the Scilab prototype (S01–S05), and sfs-stepper-power-spice runs

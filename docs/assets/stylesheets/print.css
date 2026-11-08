@@ -30,13 +30,28 @@
 
 /* ---------- Cover page (HTML preview of the print page) ---------- */
 
+/* SystemFromScratch® logo (registered trademark, used unmodified) on a navy badge */
+.md-typeset .dps-cover-brand {
+  display: inline-block;
+  margin: 0 0 2.5em;
+  padding: 0.9em 1.4em;
+  border-radius: 10px;
+  background: #050b16;
+}
+
+.md-typeset .dps-cover-brand img {
+  display: block;
+  height: 5em;
+  width: auto;
+}
+
 .dps-cover {
   text-align: left;
 }
 
 .md-typeset .dps-cover-kicker {
   margin: 0;
-  color: #3f51b5;
+  color: #1a6fe0;
   font-size: 1.1em;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -45,7 +60,7 @@
 
 .md-typeset h1.dps-cover-title {
   margin: 0.2em 0 0.3em;
-  color: #1a237e;
+  color: #0b2545;
   font-size: 2.6em;
   font-weight: 700;
   line-height: 1.15;
@@ -81,7 +96,7 @@
 
 .md-typeset table.dps-cover-meta th {
   white-space: nowrap;
-  color: #3f51b5;
+  color: #1a6fe0;
 }
 
 /* ---------- Table of contents with page numbers ---------- */
@@ -193,7 +208,7 @@
 
   #print-site-cover-page .dps-cover {
     padding-top: 12mm;
-    border-top: 6px solid #3f51b5;
+    border-top: 6px solid #1a6fe0;
   }
 
   /* No chapter number on the cover title. */
@@ -273,7 +288,7 @@
   .md-typeset h2,
   .md-typeset h3,
   .md-typeset h4 {
-    color: #1a237e;
+    color: #0b2545;
     break-after: avoid;
     page-break-after: avoid;
     break-inside: avoid;
@@ -282,7 +297,7 @@
   .md-typeset h1 {
     margin: 0 0 0.8em;
     padding-bottom: 0.25em;
-    border-bottom: 2px solid #3f51b5;
+    border-bottom: 2px solid #1a6fe0;
     font-size: 20pt;
     font-weight: 700;
   }
@@ -317,7 +332,7 @@
   /* ----- Links ----- */
 
   .md-typeset a {
-    color: #1a237e;
+    color: #0b2545;
     text-decoration: none;
   }
 
@@ -340,7 +355,7 @@
     display: block;
     padding: 0.7em 0.9em;
     border: 1px solid #d5d9e0;
-    border-left: 3px solid #3f51b5;
+    border-left: 3px solid #1a6fe0;
     border-radius: 2px;
     background: #f7f8fa !important;
     white-space: pre-wrap !important;
@@ -449,5 +464,21 @@
 
   .md-typeset hr {
     border-bottom: 1px solid #ccc;
+  }
+}
+
+/* ---------- Landing page (docs/index.md) ---------- */
+
+/* The chapter title of the quick start is needed by the PDF only: on the landing
+   page the eyebrow above the section says the same. */
+.sfs-home .md-typeset h1.sfs-print-only,
+.sfs-markdown h1.sfs-print-only {
+  display: none;
+}
+
+/* The eyebrow labels belong to the landing page; the printed chapter has its own title. */
+@media print {
+  .md-typeset .sfs-eyebrow {
+    display: none;
   }
 }
