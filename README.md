@@ -177,7 +177,7 @@ Resilience Act.
 [GitHub](https://github.com/AntonVynohradov) ·
 [LinkedIn](https://www.linkedin.com/in/vynohradov) ·
 [ORCID](https://orcid.org/0009-0005-6965-0911) ·
-avynohradov@systemfromscratch.com
+contact@systemfromscratch.com
 
 Need firmware like this for your product, Zephyr drivers, a bootloader or CRA readiness? Get
 in touch.

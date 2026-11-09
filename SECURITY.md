@@ -8,7 +8,7 @@ its bus, so security reports are welcome and handled with priority.
 Please do not open a public issue for a vulnerability. Report it privately, either:
 
 - through GitHub: **Security → Report a vulnerability** on this repository, or
-- by e-mail to [avynohradov@systemfromscratch.com](mailto:avynohradov@systemfromscratch.com).
+- by e-mail to [contact@systemfromscratch.com](mailto:contact@systemfromscratch.com).
 
 Include the commit, the build (board, simulated motor or `native_sim`), the steps or the packets
 that show the problem, and its effect. You will get an answer within five working days with an

@@ -6,7 +6,7 @@
 #              settings from mkdocs.yml -> extra.manual).
 #
 # Author:      Anton Vynohradov
-# Email:       avynohradov@systemfromscratch.com
+# Email:       contact@systemfromscratch.com
 #
 # License:     Apache License 2.0
 # Copyright (c) 2026 Anton Vynohradov
@@ -52,7 +52,7 @@ sys.path.insert(0, HERE)
 
 AUTHOR = "Anton Vynohradov"
 COMPANY = "SystemFromScratch&reg;"
-EMAIL = "avynohradov@systemfromscratch.com"
+EMAIL = "contact@systemfromscratch.com"
 ORCID = "0009-0005-6965-0911"
 BRAND_LOGO = "assets/images/brand/systemfromscratch-logo-on-dark.png"
 

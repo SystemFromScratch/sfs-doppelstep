@@ -10,7 +10,7 @@ type: software
 authors:
   - family-names: Vynohradov
     given-names: Anton
-    email: avynohradov@systemfromscratch.com
+    email: contact@systemfromscratch.com
     orcid: "https://orcid.org/0009-0005-6965-0911"
     affiliation: SystemFromScratch®
 repository-code: "https://github.com/SystemFromScratch/sfs-doppelstep"
