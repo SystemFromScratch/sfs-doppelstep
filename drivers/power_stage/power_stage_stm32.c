@@ -99,6 +99,10 @@ static volatile uint16_t w_trip_counts; /* 0 = disabled */
 static volatile uint32_t isr_count;
 static volatile uint32_t fast_cycles_max;
 
+/* Overrun of the fast loop: counted, reported to the callback once */
+static volatile uint32_t overruns;
+static volatile bool overrun_pending;
+
 /* Offset calibration, accumulated by the ISR */
 static volatile uint32_t cal_remaining;
 static volatile uint32_t cal_sum_u;
@@ -143,15 +147,32 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 				.vbus = raw_vbus,
 			};
 			const uint16_t trip = w_trip_counts;
-			const bool w_trip =
-				(trip != 0U) && offsets_valid &&
-				((uint16_t)abs((int32_t)raw_w - (int32_t)offset_w) > trip);
+			uint32_t trips = 0U;
 
-			fn(&sample, w_trip, fast_ctx);
+			if ((trip != 0U) && offsets_valid &&
+			    ((uint16_t)abs((int32_t)raw_w - (int32_t)offset_w) > trip)) {
+				trips |= POWER_STAGE_TRIP_AUX;
+			}
+			if (overrun_pending) {
+				overrun_pending = false;
+				trips |= POWER_STAGE_TRIP_OVERRUN;
+			}
+
+			fn(&sample, trips, fast_ctx);
 			const uint32_t cycles = DWT->CYCCNT - start;
 
 			if (cycles > fast_cycles_max) {
 				fast_cycles_max = cycles;
+			}
+
+			/* The next injected sequence ended while the callback ran: the
+			 * period overran. Outputs off now, in this interrupt, whatever the
+			 * callback does; the callback learns it with the next sample.
+			 */
+			if (LL_ADC_IsActiveFlag_JEOS(ADC_M) != 0U) {
+				LL_TIM_DisableAllOutputs(TIMx);
+				overruns++;
+				overrun_pending = true;
 			}
 		}
 	}
@@ -533,6 +554,7 @@ static int stm32_get_stats(const struct device *dev, struct power_stage_stats *s
 	ARG_UNUSED(dev);
 	stats->isr_count = isr_count;
 	stats->fast_cycles_max = fast_cycles_max;
+	stats->overruns = overruns;
 	fast_cycles_max = 0U;
 	return 0;
 }

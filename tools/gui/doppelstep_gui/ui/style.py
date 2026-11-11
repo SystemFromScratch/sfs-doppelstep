@@ -42,4 +42,10 @@ def apply(root):
         style.configure(f"Card{name}.TLabel", background=CARD, foreground=colour, font=bold)
     style.configure("Accent.TButton", font=bold)
     style.configure("Stop.TButton", font=big, foreground=BAD)
+    # Torque state in the Motion tab: unmistakable at a glance
+    style.configure("TorqueOn.TLabel", background=GOOD, foreground="white", font=big,
+                    padding=(10, 6), anchor="center")
+    style.configure("TorqueOff.TLabel", background=CARD, foreground=MUTED, font=big,
+                    padding=(10, 6), anchor="center")
+    style.configure("TorqueActive.TButton", font=bold, foreground=GOOD)
     style.configure("Treeview", rowheight=22)

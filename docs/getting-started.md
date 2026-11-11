@@ -98,9 +98,10 @@ west flash -d build -r openocd
 ```
 
 !!! warning "Follow the bring-up checklist first"
-    The firmware refuses to switch the power stage on until the dead time of the gate drivers
-    is configured (`dead-time-ns`, 0 by default). Wire the motor as described in
-    [Hardware and bring-up](hardware.md), then follow its checklist step by step: polarity,
+    The dead time (`dead-time-ns`, 1200 ns) comes from a simulation of the power stage and is
+    not yet measured on the board. Check it with an oscilloscope and a current-limited supply
+    before connecting the motor (step 1 of the checklist). Then wire the motor as described in
+    [Hardware and bring-up](hardware.md) and follow the checklist step by step: polarity,
     current loop, motion, protection.
 
 ## What a build produces

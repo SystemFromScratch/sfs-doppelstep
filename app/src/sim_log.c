@@ -57,10 +57,11 @@ static void log_fn(struct k_work *work)
 	/* native_sim: code takes no simulated time, the figure stays 0 */
 	if ((power_stage_get_stats(stage, &stats) == 0) && (stats.fast_cycles_max != 0U) &&
 	    (power_stage_get_info(stage, &info) == 0)) {
-		LOG_INF("fast loop max %u cycles (%u us of %u)", stats.fast_cycles_max,
+		LOG_INF("fast loop max %u cycles (%u us of %u), overruns %u",
+			stats.fast_cycles_max,
 			(uint32_t)((uint64_t)stats.fast_cycles_max * 1000000U /
 				   sys_clock_hw_cycles_per_sec()),
-			1000000U / info.pwm_freq_hz);
+			1000000U / info.pwm_freq_hz, stats.overruns);
 	}
 
 	(void)k_work_reschedule(&log_work, K_MSEC(CONFIG_SFS_SIM_LOG_PERIOD_MS));

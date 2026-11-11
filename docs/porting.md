@@ -29,7 +29,12 @@ Copy `drivers/power_stage/power_stage_stm32.c` as the starting point, and use th
 - [ ] **`outputs_allowed`** is false until the dead time is configured, and `output_enable` then
   returns `-EPERM`.
 - [ ] **Outputs start off.** Drive the idle levels before the pins connect to the timer.
-- [ ] **`aux_trip`** covers a leg the sample does not show and stays false until calibration has
+- [ ] **`POWER_STAGE_TRIP_OVERRUN`.** After every callback, check whether the next measurement
+  has already finished (on STM32: the end-of-sequence flag of the ADC is set again). If it has,
+  switch the outputs off in the interrupt, count it in `overruns` and pass the trip with the next
+  sample ([Architecture](architecture.md)). Without the check, an overrunning fast loop stops every
+  thread for good.
+- [ ] **`POWER_STAGE_TRIP_AUX`** covers a leg the sample does not show and stays clear until calibration has
   succeeded: with an unknown offset a false trip would latch a fault at every start. Without such a
   measurement, leave `set_aux_trip` out and remove `aux-trip` from the motor node, because the motor
   driver refuses to start when the node asks for a check the stage cannot do.

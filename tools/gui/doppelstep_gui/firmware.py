@@ -69,6 +69,15 @@ class SmpSession:
         self.port = port
         self.client = None
 
+    def prepare(self):
+        """Import smpclient now, before the Reboot: the import takes about 0.8 s on
+        Windows, longer than the 500 ms in which MCUboot waits for SMP."""
+        import smpclient  # noqa: F401
+        import smpclient.generics  # noqa: F401
+        import smpclient.requests.image_management  # noqa: F401
+        import smpclient.requests.os_management  # noqa: F401
+        import smpclient.transport.serial  # noqa: F401
+
     async def open(self):
         from smpclient import SMPClient
         from smpclient.transport.serial import BufferParams, SMPSerialTransport
@@ -88,14 +97,15 @@ class SmpSession:
             self.client = None
 
     async def echo(self, timeout):
-        from smpclient.generics import success
+        """True when MCUboot answers at all. Without CONFIG_BOOT_MGMT_ECHO it answers
+        rc 8 (not supported), and it is in serial recovery all the same."""
         from smpclient.requests.os_management import EchoWrite
 
         try:
-            return success(await self.client.request(EchoWrite(d="doppelstep"),
-                                                     timeout_s=timeout))
+            await self.client.request(EchoWrite(d="doppelstep"), timeout_s=timeout)
         except TimeoutError:
             return False
+        return True
 
     async def images(self):
         """[(slot, version, hash bytes or None)] listed by MCUboot."""
@@ -154,8 +164,13 @@ class FirmwareUpdater:
                        f"{self.image.size} bytes, version {self.image.version}, "
                        f"SHA-256 {self.image.sha256.hex()[:16]}…"
                        + ("" if self.image.fits_slot0 else " — larger than slot 0 (86 KiB)"), t0)
+            # Ready before the Reboot: MCUboot listens for 500 ms only
+            session = self.smp_session()
+            prepare = getattr(session, "prepare", None)
+            if prepare is not None:
+                prepare()
             self._reboot(bus)
-            asyncio.run(self._smp())
+            asyncio.run(self._smp(session))
             self._application()
         except UpdateFailed:
             pass
@@ -180,8 +195,7 @@ class FirmwareUpdater:
             bus.close()
         self._step("DYNAMIXEL Reboot", True, detail, t0)
 
-    async def _smp(self):
-        session = self.smp_session()
+    async def _smp(self, session):
         t0 = time.monotonic()
         try:
             await session.open()

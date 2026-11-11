@@ -102,7 +102,7 @@ Build options used here (`modules/stepper-c/Kconfig`):
 
 | Component | Version | Role | Why |
 |---|---|---|---|
-| **Stepper-Lab** | pinned commit until its first release | The motor and power stage model in C (`sil/c/sstep_plant.c`) and its parameters (`params/*.json`) | It is the same C code as the Xcos block of the Scilab prototype, so the firmware is tested against the model the controller was designed with |
+| **Stepper-Lab** | `main` during development, pinned before a release | The motor and power stage model in C (`sil/c/sstep_plant.c`) and its parameters (`params/*.json`) | It is the same C code as the Xcos block of the Scilab prototype, so the firmware is tested against the model the controller was designed with |
 | **sfs-stepper-power-spice** | pinned commit until its first release | ngspice model of one leg of the B-G431B-ESC1; writes the stage parameters of Stepper-Lab | The leg voltage error (dead time, body diodes, resistance) comes from a circuit simulation, not from a guess |
 | **Zephyr native_sim** | part of Zephyr v4.5.0 | Builds the whole firmware as a Linux program | The complete chain, protocol to motor model, runs on any PC and in CI |
 
@@ -112,7 +112,7 @@ How the three repositories work together: [Simulated motor](simulation.md).
 
 | Component | Version | Role |
 |---|---|---|
-| **ztest** and **Twister** | Zephyr v4.5.0 | 55 test cases in 4 suites: unit conversions, queues, the power stage API, the motor driver on a fake power stage |
+| **ztest** and **Twister** | Zephyr v4.5.0 | 62 test cases in 5 suites: unit conversions, queues, the watchdog supervisor, the power stage API, the motor driver on a fake power stage |
 | **pytest** (+ pytest-timeout) | 9.0.2 (2.4.0) | 28 SIL and integration tests against the `native_sim` firmware over Protocol 2.0, plus 8 motion tests on the fixed-point backend |
 | **DynamixelSDK** | 4.1.0 | The official ROBOTIS library under ROS 2 `dynamixel_hardware_interface`: the integration tests run the ros2_control loop with it |
 | **Layer check** | `scripts/check-layers.sh` | Enforces the architecture rules: no register access outside the backends, no floating point above them, no DYNAMIXEL code in the motor driver |

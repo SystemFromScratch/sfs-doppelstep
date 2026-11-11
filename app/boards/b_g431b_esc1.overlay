@@ -31,11 +31,18 @@
 		pwm-frequency = <20000>;
 
 		/*
-		 * TODO(bring-up): dead time of the ESC1 bridge, from the ST Motor
-		 * Control Workbench (MCSDK) project of the B-G431B-ESC1. Until it
-		 * is set, the firmware runs but never enables the gate drivers.
+		 * Dead time of the ESC1 bridge (0 = not set: outputs refused).
+		 * Source: ngspice sweep of one leg (sfs-stepper-power-spice) with
+		 * the gate circuit of schematic MB1419 rev C: L6387ED at 10 V,
+		 * 33 Ohm gate resistors without turn-off diode, 10k G-S, snubber
+		 * 1 Ohm + 10 nF; 24 V, 20 kHz, 25 and 100 degC, -3..+3 A.
+		 * Shoot-through up to 600 ns; from 900 ns the Miller bump on the
+		 * off gate stays under VGS(th) 3 V. 1200 ns = 900 ns x 1.3 margin
+		 * for VGS(th) spread, driver delay mismatch and the fitted MOSFET
+		 * model. Reduce only after measuring VGS on the board
+		 * (docs/hardware.md, bring-up step 1).
 		 */
-		dead-time-ns = <0>;
+		dead-time-ns = <1200>;
 
 		/* OP1_OUT PA2 = ADC1_IN3, OP2_OUT PA6 = ADC2_IN3,
 		 * OP3_OUT PB1 = ADC1_IN12, VBUS PA0 = ADC1_IN1
@@ -98,5 +105,12 @@
 	servo: dxl-servo {
 		compatible = "sfs,x430-servo";
 		storage = <&storage_partition>;
+
+		/* 17HS19-2004S1 in direct drive: one joint revolution = one motor
+		 * revolution = 4096 pulses of the XM430 = 200 x 16 = 3200 microsteps.
+		 * With a gearbox: motor revolutions per joint revolution.
+		 */
+		gear-motor-revs = <1>;
+		gear-joint-revs = <1>;
 	};
 };

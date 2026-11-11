@@ -21,13 +21,13 @@ static volatile bool aux_seen;
 static volatile uint16_t last_i_a;
 static volatile uint16_t last_vbus;
 
-static void count_cb(const struct power_stage_sample *s, bool aux_trip, void *ctx)
+static void count_cb(const struct power_stage_sample *s, uint32_t trips, void *ctx)
 {
 	ARG_UNUSED(ctx);
 	calls++;
 	last_i_a = s->i_a;
 	last_vbus = s->vbus;
-	if (aux_trip) {
+	if ((trips & POWER_STAGE_TRIP_AUX) != 0U) {
 		aux_seen = true;
 	}
 }

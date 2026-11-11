@@ -32,3 +32,8 @@ def test_factory_eeprom(bus):
     assert bus.read(DXL_ID, dxl2.ID) == 1
     assert bus.read(DXL_ID, dxl2.BAUD_RATE) == 3                   # 1 Mbps
     assert bus.read(DXL_ID, dxl2.OPERATING_MODE) == 3              # position control
+    # Factory limits of the real motor, not those of an XM430 (joint_bridge.c):
+    # 1500 mA run current / 2.69 mA = 557 (rounded down), 300 rev/min of the motor
+    # above the largest X430 Velocity Limit 1023 (234 rev/min)
+    assert bus.read(DXL_ID, dxl2.CURRENT_LIMIT) == 557
+    assert bus.read(DXL_ID, dxl2.VELOCITY_LIMIT) == 1023

@@ -26,6 +26,10 @@
 #define V_MAX     DT_PROP(MOTOR_NODE, max_velocity)
 #define ACCEL_MAX DT_PROP(MOTOR_NODE, max_acceleration)
 #define I_HOLD_MA DT_PROP(MOTOR_NODE, hold_current_milliamp)
+#define I_RUN_MA  DT_PROP(MOTOR_NODE, run_current_milliamp)
+
+/* Largest Velocity Limit of the X430 model (models/x430_family.yaml of the emulator) */
+#define DXL_VELOCITY_LIMIT_MAX 1023
 
 static const struct device *servo;
 
@@ -323,9 +327,31 @@ static const struct x430_servo_callbacks callbacks = {
 
 /* ------------------------------------------------------------------------ */
 
+/* Factory values of the real motor in place of those of an XM430 (docs/dynamixel.md):
+ * Current Limit = run current, Velocity Limit = largest motor velocity at the joint,
+ * both rounded down so that the register never shows more than the motor gets.
+ */
+static void set_factory_values(void)
+{
+	static const struct joint_regs normal = {0};
+	int32_t current = joint_current_to_dxl(I_RUN_MA);
+	int32_t velocity = joint_velocity_to_dxl(&jcfg, &normal, V_MAX);
+
+	if (joint_current_from_dxl((uint32_t)current) > I_RUN_MA) {
+		current--;
+	}
+	if (joint_speed_from_dxl(&jcfg, (uint32_t)velocity) > V_MAX) {
+		velocity--;
+	}
+	velocity = MIN(velocity, DXL_VELOCITY_LIMIT_MAX);
+	(void)x430_servo_set_factory_value(servo, X430_ADDR_CURRENT_LIMIT, 2U, current);
+	(void)x430_servo_set_factory_value(servo, X430_ADDR_VELOCITY_LIMIT, 4U, velocity);
+}
+
 int joint_bridge_init(const struct device *dev)
 {
 	servo = dev;
+	set_factory_values();
 
 	x430_servo_lock(servo);
 	reload_cache();

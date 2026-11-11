@@ -12,6 +12,9 @@ flash.bin
 # Release package (scripts/package_release.py)
 /dist/
 
+# Versioned images of the last builds (scripts/export_output.py)
+/output/
+
 # Build caches
 /.ccache/
 **/.cache/

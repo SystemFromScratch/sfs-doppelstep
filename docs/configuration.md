@@ -14,7 +14,7 @@ change at run time, such as the ID or the baud rate, are servo registers
 | Motor (R, L, rated current, back-EMF, steps), stage limits, control (microsteps, bandwidth, currents, velocity, acceleration) | Motor node, `app/boards/<board>.overlay` |
 | PWM frequency, dead time, ADC channels, shunt, amplifier gain, VBUS divider | Power stage node, `app/boards/b_g431b_esc1.overlay` |
 | DYNAMIXEL ID, factory baud, start position, gear, NVS partition | Servo node, a child of the UART |
-| Threads, queues, offset samples, command timeout | `CONFIG_SFS_*`, `app/Kconfig` |
+| Threads, queues, offset samples, command timeout, watchdog (`CONFIG_SFS_WATCHDOG`, `_TIMEOUT_MS` 500, `_CHECK_MS` 100) | `CONFIG_SFS_*`, `app/Kconfig` |
 | Stepper-C build options (backend, topology, sine table, `-O2`) | `CONFIG_SSTEP_*`, `modules/stepper-c/Kconfig` |
 | X430 model, devices per bus, protocol features | `CONFIG_X430_*` (Kconfig of the emulator) |
 | Bus buffer, poll period, persistent storage, Reboot behaviour | `CONFIG_SFS_DXL_*`, `drivers/x430/Kconfig` |
@@ -51,7 +51,7 @@ The values for the 17HS19-2004S1 motor and the B-G431B-ESC1, from
 | Property | Value | Meaning |
 |---|---|---|
 | `pwm-frequency` | 20000 | PWM and fast-loop rate, Hz |
-| `dead-time-ns` | 0 | Dead time of the half-bridges. **Must be set before the outputs can be enabled** ([bring-up](hardware.md#bring-up-checklist)) |
+| `dead-time-ns` | 1200 | Dead time of the half-bridges, from the ngspice sweep with the MB1419 gate circuit. 0 means "not set" and the outputs are refused. Check it on the board before the first motor run ([bring-up](hardware.md#bring-up-checklist)) |
 | `vbus-divider` | 18000, 169000 | VBUS divider resistors, Ω |
 | `current-sense-invert` | not set | Inverts the current measurement, if bring-up step 3 requires it |
 

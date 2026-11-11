@@ -22,6 +22,7 @@
 
 #include "app_msg.h"
 #include "app_tasks.h"
+#include "supervisor.h"
 
 #define MOTOR_NODE DT_CHOSEN(sfs_motor)
 #define SLOW_HZ    DT_PROP(MOTOR_NODE, slow_loop_hz)
@@ -118,6 +119,7 @@ static void control_task(void *p1, void *p2, void *p3)
 		}
 
 		(void)sstep_motor_process(motor);
+		supervisor_checkin(SUPERVISOR_CONTROL);
 
 		periods++;
 		if (periods >= STATUS_PERIODS) {

@@ -32,8 +32,9 @@ RESTART_TIMEOUT = 5.0             # tool timeout: device answers again after a R
 PASS, FAIL, ERROR, STOPPED = "PASS", "FAIL", "ERROR", "STOPPED"
 
 # docs/hardware-checklist.md, check 5
-DEAD_TIME_HINT = ("Torque Enable refused (Result Fail). The firmware refuses the outputs "
-                  "while dead-time-ns is 0 in app/boards/b_g431b_esc1.overlay "
+DEAD_TIME_HINT = ("Torque Enable refused (Result Fail). Either a fault is latched (Hardware "
+                  "Error Status not 0: Reboot clears it), or the firmware refuses the outputs "
+                  "because dead-time-ns is 0 in app/boards/b_g431b_esc1.overlay "
                   "(docs/hardware-checklist.md, check 5)")
 
 

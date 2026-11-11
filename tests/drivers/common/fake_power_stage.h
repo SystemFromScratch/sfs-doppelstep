@@ -16,7 +16,7 @@
 #include <doppelstep/drivers/power_stage.h>
 
 void fake_power_stage_fire(const struct device *dev, const struct power_stage_sample *sample,
-			   bool aux_trip);
+			   uint32_t trips);
 const uint16_t *fake_power_stage_compare(const struct device *dev);
 bool fake_power_stage_output_on(const struct device *dev);
 void fake_power_stage_set_outputs_allowed(const struct device *dev, bool allowed);

@@ -120,7 +120,31 @@ application starts:
 
 The fast-loop interrupt already runs after step 1, while the motor driver is ready and the sensor
 offsets are not yet known. That is safe because the outputs are off, the current trips of Stepper-C
-only act when the outputs are on, and `aux_trip` stays false until calibration has succeeded.
+only act when the outputs are on, and `POWER_STAGE_TRIP_AUX` stays clear until calibration has
+succeeded.
+
+**Fast-loop overrun.** The fast loop runs in a zero-latency interrupt above every thread. If it
+does not finish within its PWM period, the next measurement is ready before it returns and the
+interrupt starts again at once: no thread runs any more, also not the bus task that would switch
+the motor off. The backend therefore checks, after every callback, whether the next measurement
+has already finished. If it has, it switches the outputs off in the interrupt itself and passes
+`POWER_STAGE_TRIP_OVERRUN` with the next sample. With the outputs on, the motor driver reports
+it as `SSTEP_FAULT_HAL`, the fault keeps the outputs off, the cheap fault state frees the CPU,
+and the bus answers again with Electrical Shock Error in Hardware Error Status. With the outputs
+off a late period is harmless and no fault latches: a flash write of the EEPROM area, allowed
+only with the torque off, stalls the CPU for many periods on the STM32G431.
+`power_stage_get_stats()` counts every overrun, also those.
+
+**Watchdog.** A fast loop can also take almost the whole period without overrunning it: then the
+threads get too little time, and the overrun check sees nothing. The independent watchdog (IWDG)
+covers that and any hung task (`app/src/supervisor.h`). The control task and the communication
+task check in from their loops; `main()` checks every 100 ms and feeds the watchdog only if both
+have checked in since the last check. A task that stops for 500 ms resets the MCU, and a reset
+switches the outputs off. The watchdog starts after the offset calibration and before the tasks,
+so without a working watchdog the tasks never start. A debugger that halts the CPU halts the
+watchdog too. After a watchdog reset the log says so. Measured on the board: with the feeding
+stopped, the reset follows 0.45 to 0.8 s later, with IWDGRSTF set in `RCC_CSR`, and the torque is
+off afterwards.
 
 Until step 3 finishes, nothing can send an enable command, so the motor cannot start with
 uncalibrated sensors. On an error in steps 1 or 2 the tasks do not start. In every error case the

@@ -72,12 +72,12 @@ Measured on this version with the CI build (`scripts/ci.sh`), unless noted.
 |---|---|
 | Microcontroller | STM32G431CB: Arm Cortex-M4F, 170 MHz, 128 KiB flash, 32 KiB RAM |
 | RTOS | Zephyr RTOS v4.5.0, with sysbuild and MCUboot |
-| Application size | 77 356 B flash of the 87 712 B slot, 19 032 B RAM |
+| Application size | 74 088 B flash of the 87 712 B slot, 19 032 B RAM; with the simulated motor 84 760 B |
 | Bootloader size | MCUboot, 37 148 B flash of its 38 KiB partition |
 | Control rates | Current loop 20 kHz (PWM rate), motion loop 1 kHz, bus status every 10 ms |
 | Motor resolution | 3200 microsteps per revolution (200 steps × 16) |
 | Bus | DYNAMIXEL Protocol 2.0, 1 Mbps (factory value), XM430-W350, model number 1020 |
-| Automated tests | 55 ztest cases in 4 suites, 28 SIL and integration tests, 8 motion tests on the fixed-point backend: 91 per CI run |
+| Automated tests | 62 ztest cases in 5 suites, 28 SIL and integration tests, 8 motion tests on the fixed-point backend: 98 per CI run, plus 44 host tests of the GUI |
 | Toolchain | Zephyr SDK 1.0.1 in a pinned Docker image |
 | License | Apache License 2.0 |
 
@@ -86,18 +86,27 @@ Measured on this version with the CI build (`scripts/ci.sh`), unless noted.
 Doppelstep is under active development. These items are open, and the documentation says so
 wherever they matter:
 
-- **Dead time.** `dead-time-ns` in `app/boards/b_g431b_esc1.overlay` is 0 until the value of
-  the board's motor-control reference project is entered. With 0 the firmware runs but never
-  switches the power stage on ([bring-up step 1](hardware.md#bring-up-checklist)).
+- **Dead time not yet measured.** `dead-time-ns` is 1200 ns, from an ngspice sweep with the
+  gate circuit of schematic MB1419. It is not yet confirmed with an oscilloscope on the board
+  ([bring-up step 1](hardware.md#bring-up-checklist)).
 - **Lost steps are not reported.** A load above the holding torque makes the motor lose
   synchronism silently. A test documents this as an expected failure
   ([Tests](testing.md#expected-failure-lost-synchronism)).
-- **The driver refactor is not yet checked on the board.** The checks to run are listed in
-  the [hardware checklist](hardware-checklist.md).
+- **Not yet checked with a real motor.** On the board with the simulated motor all 20 GUI
+  test scenarios pass, the fast-loop overrun check and the watchdog work, and the firmware
+  update over the bus loads and verifies an image. The checks with a motor are part C of the
+  [hardware checklist](hardware-checklist.md).
 - **Rotor vibration at rest in the model:** one ADC step in the current loop excites the
   mechanical resonance (up to about 3 rpm, 0.2 microstep). Not yet measured on a real motor.
-- **Fast-loop execution time** on the target is not measured yet; the log of the simulated
-  motor on the board shows the longest fast-loop callback.
+- **Fast-loop execution time** is measured with the simulated motor on the board, where the
+  motor model runs in the same interrupt: 37 µs of the 50 µs period during a move
+  ([Simulated motor](simulation.md#limits)). The real-motor build has no model and is not
+  measured yet.
+- **Rare lost answers with the simulated motor:** under the heaviest bus load (200 Goal
+  Position writes during a move) a few answers are lost now and then; the cause is not found
+  yet.
+- **Stepper-Lab follows `main`** in `west.yml` during development. Pin it to a commit or tag
+  before a release (`scripts/package_release.py` refuses a branch).
 - **Temperature:** the NTC sensor is not converted yet. Present Temperature keeps its table
   value and there is no overheating trip.
 - **Bus:** a single-wire TTL bus instead of the debugger's serial port, and a shared bus with

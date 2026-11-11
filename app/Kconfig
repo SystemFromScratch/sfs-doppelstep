@@ -35,6 +35,35 @@ config SFS_COMM_THREAD_STACK_SIZE
 
 endmenu
 
+menu "Supervisor"
+
+config SFS_WATCHDOG
+	bool "Hardware watchdog, fed only while every task runs"
+	default y
+	depends on WATCHDOG && $(dt_alias_enabled,watchdog0)
+	select HWINFO
+	help
+	  main() feeds the watchdog only when the control and the communication
+	  task have both run since the last check (src/supervisor.h). A fast
+	  loop that leaves the threads no time, or a task that hangs, resets the
+	  MCU, which switches the outputs off. The log tells a watchdog reset.
+
+config SFS_WATCHDOG_TIMEOUT_MS
+	int "Watchdog timeout [ms]"
+	default 500
+	range 200 5000
+	depends on SFS_WATCHDOG
+	help
+	  Longer than the longest normal pause of a task: a flash page erase of
+	  the EEPROM area stalls the CPU for about 20 ms.
+
+config SFS_WATCHDOG_CHECK_MS
+	int "Period of the check in main() [ms]"
+	default 100
+	range 10 1000
+
+endmenu
+
 module = SFS
 module-str = doppelstep
 source "subsys/logging/Kconfig.template.log_config"

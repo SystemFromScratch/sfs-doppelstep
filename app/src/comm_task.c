@@ -14,6 +14,7 @@
 
 #include "app_tasks.h"
 #include "joint_bridge.h"
+#include "supervisor.h"
 
 static const struct device *const servo = DEVICE_DT_GET(DT_CHOSEN(sfs_servo));
 
@@ -27,6 +28,7 @@ static void comm_task(void *p1, void *p2, void *p3)
 
 	for (;;) {
 		(void)x430_servo_process(servo, K_MSEC(CONFIG_SFS_DXL_POLL_MS));
+		supervisor_checkin(SUPERVISOR_COMM);
 
 		const int64_t now = k_uptime_get();
 

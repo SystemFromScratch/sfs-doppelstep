@@ -61,6 +61,8 @@ struct sstep_motor_data {
 	/* Set by on_fault, possibly from an interrupt above the kernel's lock */
 	atomic_t fault_flags;
 	uint16_t faults_reported;
+	/* Outputs switched on by Stepper-C (hal_output_enable), read by the fast loop */
+	atomic_t outputs_on;
 
 	uint32_t speed;
 	uint32_t accel;
@@ -143,8 +145,12 @@ static int hal_output_enable(void *context, bool enable)
 {
 	const struct device *dev = context;
 	const struct sstep_motor_config *cfg = dev->config;
+	struct sstep_motor_data *data = dev->data;
+	const int ret = power_stage_output_enable(cfg->stage, enable);
 
-	return power_stage_output_enable(cfg->stage, enable);
+	/* May run in the fast-loop interrupt: atomics only. */
+	(void)atomic_set(&data->outputs_on, ((ret == 0) && enable) ? 1 : 0);
+	return ret;
 }
 
 static void on_fault(void *context, uint16_t faults)
@@ -168,13 +174,21 @@ static void on_event(void *context, enum sstep_event event)
 	}
 }
 
-static void fast_loop(const struct power_stage_sample *s, bool aux_trip, void *ctx)
+static void fast_loop(const struct power_stage_sample *s, uint32_t trips, void *ctx)
 {
 	struct sstep *const drv = ctx;
 	const struct sstep_sample sample = {.i_a = s->i_a, .i_b = s->i_b, .vbus = s->vbus};
 
-	if (aux_trip) {
+	if ((trips & POWER_STAGE_TRIP_AUX) != 0U) {
 		(void)sstep_report_fault(drv, SSTEP_FAULT_EXTERNAL);
+	}
+	/* The stage has switched the outputs off already; the fault keeps them off. With
+	 * the outputs off a late period is harmless, for example while a flash write of
+	 * the EEPROM area (allowed only with the torque off) stalls the CPU: no fault.
+	 */
+	if (((trips & POWER_STAGE_TRIP_OVERRUN) != 0U) &&
+	    (atomic_get(&CONTAINER_OF(drv, struct sstep_motor_data, drv)->outputs_on) != 0)) {
+		(void)sstep_report_fault(drv, SSTEP_FAULT_HAL);
 	}
 	(void)sstep_fast_loop(drv, &sample);
 }

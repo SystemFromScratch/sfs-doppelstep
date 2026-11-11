@@ -56,7 +56,8 @@ static volatile bool offsets_valid;   /* as on real hardware: no trip before cal
 static volatile uint32_t aux_trip_ma; /* 0 = disabled */
 static volatile uint32_t isr_count;
 
-static void model_period(void)
+/* One PWM period. `trips`: POWER_STAGE_TRIP_OVERRUN of the timebase, if any. */
+static void model_period(uint32_t trips)
 {
 	const power_stage_fast_cb_t cb = fast_cb;
 	struct power_stage_sample sample;
@@ -65,8 +66,11 @@ static void model_period(void)
 
 	isr_count++;
 	sim_plant_sample(&sample, &i_w_ma);
+	if ((trip != 0U) && offsets_valid && (i_w_ma > trip)) {
+		trips |= POWER_STAGE_TRIP_AUX;
+	}
 	if (cb != NULL) {
-		cb(&sample, (trip != 0U) && offsets_valid && (i_w_ma > trip), fast_ctx);
+		cb(&sample, trips, fast_ctx);
 	}
 	sim_plant_step();
 }
@@ -75,12 +79,14 @@ static void model_period(void)
 
 static const struct device *const timebase = DEVICE_DT_GET(DT_PHANDLE(SIM_NODE, timebase));
 
-static void timebase_cb(const struct power_stage_sample *sample, bool aux_trip, void *ctx)
+/* The overrun check of the real stage covers the model and the controller together:
+ * forwarded, so that the controller faults instead of the board hanging.
+ */
+static void timebase_cb(const struct power_stage_sample *sample, uint32_t trips, void *ctx)
 {
 	ARG_UNUSED(sample);
-	ARG_UNUSED(aux_trip);
 	ARG_UNUSED(ctx);
-	model_period();
+	model_period(trips & POWER_STAGE_TRIP_OVERRUN);
 }
 
 static int period_source_start(void)
@@ -116,7 +122,7 @@ static void fast_timer_fn(struct k_timer *timer)
 {
 	ARG_UNUSED(timer);
 	for (uint32_t k = 0U; k < PERIODS_PER_TICK; k++) {
-		model_period();
+		model_period(0U);
 	}
 }
 
@@ -295,6 +301,7 @@ static int sim_get_stats(const struct device *dev, struct power_stage_stats *sta
 #else
 	/* simulated time: code takes none */
 	stats->fast_cycles_max = 0U;
+	stats->overruns = 0U;
 #endif
 	stats->isr_count = isr_count;
 	return 0;

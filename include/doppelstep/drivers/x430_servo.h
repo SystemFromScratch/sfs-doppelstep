@@ -38,6 +38,17 @@ struct x430_servo_callbacks {
 	bool (*nvm_allowed)(const struct device *dev, void *user_data);
 };
 
+/**
+ * Replace the X430 factory value of an EEPROM register with this firmware's, for
+ * example a limit of the real motor. Call it before x430_servo_start(). The value is
+ * written through the normal write path (range check, write callback, persistent
+ * EEPROM area) at the first start, when no EEPROM area is stored yet, and after every
+ * Factory Reset. Up to CONFIG_SFS_DXL_FACTORY_VALUES_MAX registers.
+ * @retval -ENOMEM no free entry; -EINVAL size not 1, 2 or 4.
+ */
+int x430_servo_set_factory_value(const struct device *dev, uint16_t address, uint8_t size,
+				 int32_t value);
+
 /** Install the callbacks and start receiving. Nothing reaches a callback before this. */
 int x430_servo_start(const struct device *dev, const struct x430_servo_callbacks *callbacks,
 		     void *user_data);

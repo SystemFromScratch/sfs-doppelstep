@@ -15,6 +15,7 @@ target_sources(app PRIVATE
   src/comm_task.c
   src/joint.c
   src/joint_bridge.c
+  src/supervisor.c
 )
 
 target_sources_ifdef(CONFIG_POWER_STAGE_SIM app PRIVATE src/sim_log.c)

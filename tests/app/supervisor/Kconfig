@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# CONFIG_SFS_LOG_LEVEL of the application
+module = SFS
+module-str = doppelstep
+source "subsys/logging/Kconfig.template.log_config"
+
+config SFS_WATCHDOG_CHECK_MS
+	int
+	default 100
+
+source "Kconfig.zephyr"

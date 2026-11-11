@@ -19,6 +19,15 @@ config SFS_DXL_RX_BUFFER_SIZE
 	int "UART receive ring buffer [bytes]"
 	default 512
 
+config SFS_DXL_FACTORY_VALUES_MAX
+	int "Factory values the application can set (x430_servo_set_factory_value)"
+	default 4
+	range 0 16
+	help
+	  Registers whose X430 factory value this firmware replaces, for example
+	  the limits of the real motor. Applied at the first start and after
+	  every Factory Reset.
+
 config SFS_DXL_POLL_MS
 	int "Bus Watchdog poll period [ms]"
 	default 10

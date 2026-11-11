@@ -59,10 +59,14 @@ class MotionTab(ttk.Frame):
 
     def _build_torque(self, parent):
         f = self._frame(parent, "Torque")
+        self.torque = None              # last Torque Enable read; None = not known
+        self.torque_label = ttk.Label(f, text="Torque: not connected", style="TorqueOff.TLabel")
+        self.torque_label.pack(fill=tk.X, pady=(0, 6))
         row = ttk.Frame(f)
         row.pack(fill=tk.X)
-        self._button(row, "Torque ON", lambda: self._write(r.TORQUE_ENABLE, 1)).pack(
-            side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 4))
+        self.torque_on_button = self._button(row, "Torque ON",
+                                             lambda: self._write(r.TORQUE_ENABLE, 1))
+        self.torque_on_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 4))
         self.stop_button = ttk.Button(row, text="■ STOP (torque off)", style="Stop.TButton",
                                       command=self.stop)
         self.stop_button.pack(side=tk.LEFT, expand=True, fill=tk.X)
@@ -73,7 +77,8 @@ class MotionTab(ttk.Frame):
         ttk.Combobox(mode, textvariable=self.mode_var, state="readonly", width=22,
                      values=[f"{k} — {v}" for k, v in r.OPERATING_MODES.items()]).pack(
             side=tk.LEFT, padx=4)
-        self._button(mode, "Apply", self._apply_mode).pack(side=tk.LEFT)
+        self.mode_button = self._button(mode, "Apply", self._apply_mode)
+        self.mode_button.pack(side=tk.LEFT)
         ttk.Label(f, text="EEPROM: write it with the torque off.", style="Muted.TLabel").pack(
             anchor="w", pady=(4, 0))
 
@@ -233,6 +238,10 @@ class MotionTab(ttk.Frame):
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def _on_sample(self, sample):
+        torque = bool(sample.values["Torque Enable"])
+        if torque != self.torque:
+            self.torque = torque
+            self._update_controls()
         self.samples.append(sample.physical())
         self._dirty = True
         if self.recorder is not None:
@@ -294,6 +303,8 @@ class MotionTab(ttk.Frame):
     # --- state ---------------------------------------------------------------------------
 
     def on_connection(self, connected):
+        if not connected:
+            self.torque = None
         self._update_controls()
 
     def on_busy(self, name):
@@ -305,3 +316,21 @@ class MotionTab(ttk.Frame):
             widget.configure(state="normal" if enabled else "disabled")
         self.stop_button.configure(state="normal" if self.app.bus is not None and
                                    not self.app.busy else "disabled")
+        # The torque state from the live registers
+        if self.app.bus is None:
+            self.torque_label.configure(text="Torque: not connected", style="TorqueOff.TLabel")
+        elif self.torque is None:
+            self.torque_label.configure(text="Torque: reading …", style="TorqueOff.TLabel")
+        elif self.torque:
+            self.torque_label.configure(text="● TORQUE ON — the motor is powered",
+                                        style="TorqueOn.TLabel")
+        else:
+            self.torque_label.configure(text="○ Torque off — the motor is free",
+                                        style="TorqueOff.TLabel")
+        if enabled and self.torque:
+            # Already on; the EEPROM (Operating Mode) is locked while the torque is on
+            self.torque_on_button.configure(text="✔ Torque is ON", style="TorqueActive.TButton",
+                                            state="disabled")
+            self.mode_button.configure(state="disabled")
+        else:
+            self.torque_on_button.configure(text="Torque ON", style="TButton")

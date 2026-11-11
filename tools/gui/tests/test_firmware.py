@@ -105,3 +105,44 @@ def test_image_too_large_stops_before_the_reboot():
     servo = FakeServo()
     result = updater(image.parse(data), FakeSmp(), servo).run(Bus(servo, timeout=0.05))
     assert not result.ok and servo.reboots == 0
+
+
+# --- MCUboot serial recovery window (500 ms after the Reboot) -----------------------------
+
+def test_smp_client_is_prepared_before_the_reboot(img):
+    """Importing smpclient takes about 0.8 s on Windows, longer than the 500 ms window of
+    MCUboot: it must be done before the Reboot, not after."""
+    servo = FakeServo()
+
+    class Recording(FakeSmp):
+        reboots_at_prepare = None
+
+        def prepare(self):
+            self.reboots_at_prepare = servo.reboots
+
+    smp = Recording(listed_hash=img.sha256)
+    result = updater(img, smp, servo).run(Bus(servo, timeout=0.05))
+    assert result.ok, [(s.name, s.detail) for s in result.steps]
+    assert smp.reboots_at_prepare == 0
+
+
+def test_echo_answered_with_an_error_counts_as_mcuboot_listening():
+    """MCUboot without CONFIG_BOOT_MGMT_ECHO answers the echo with rc 8 (not supported):
+    it is in serial recovery all the same. Only no answer at all means it is not."""
+    import asyncio
+
+    pytest.importorskip("smpclient")      # the CI image runs the GUI tests without it
+
+    class Answering:
+        async def request(self, request, timeout_s):
+            return object()               # any SMP response, error responses included
+
+    class Silent:
+        async def request(self, request, timeout_s):
+            raise TimeoutError
+
+    session = firmware.SmpSession("COM0")
+    session.client = Answering()
+    assert asyncio.run(session.echo(0.05))
+    session.client = Silent()
+    assert not asyncio.run(session.echo(0.05))

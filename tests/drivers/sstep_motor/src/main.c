@@ -58,7 +58,7 @@ static void run_ms(uint32_t n)
 {
 	for (uint32_t k = 0U; k < n; k++) {
 		for (uint32_t j = 0U; j < 20U; j++) {
-			fake_power_stage_fire(stage, &zero, false);
+			fake_power_stage_fire(stage, &zero, 0U);
 		}
 		zassert_ok(sstep_motor_process(motor));
 	}
@@ -271,7 +271,7 @@ ZTEST(motor, test_overcurrent_stops_outputs_inside_the_fast_loop)
 
 	zassert_ok(stepper_enable(drv));
 	run_ms(1);
-	fake_power_stage_fire(stage, &over, false);
+	fake_power_stage_fire(stage, &over, 0U);
 	zassert_false(fake_power_stage_output_on(stage));
 	zassert_equal(fault_events, 0U, "events must not come from the interrupt context");
 
@@ -289,10 +289,38 @@ ZTEST(motor, test_aux_trip_reports_external_fault)
 {
 	zassert_ok(stepper_enable(drv));
 	run_ms(1);
-	fake_power_stage_fire(stage, &zero, true);
+	fake_power_stage_fire(stage, &zero, POWER_STAGE_TRIP_AUX);
 	zassert_false(fake_power_stage_output_on(stage));
 	zassert_ok(sstep_motor_process(motor));
 	zassert_true((status().faults & SSTEP_MOTOR_FAULT_EXTERNAL) != 0U);
+}
+
+ZTEST(motor, test_fast_loop_overrun_reports_a_hal_fault)
+{
+	zassert_ok(stepper_enable(drv));
+	run_ms(1);
+	zassert_true(fake_power_stage_output_on(stage));
+	fake_power_stage_fire(stage, &zero, POWER_STAGE_TRIP_OVERRUN);
+	zassert_false(fake_power_stage_output_on(stage), "the fault keeps the outputs off");
+	zassert_ok(sstep_motor_process(motor));
+	zassert_equal(status().state, SSTEP_MOTOR_FAULT);
+	zassert_true((status().faults & SSTEP_MOTOR_FAULT_HAL) != 0U);
+	zassert_true((status().faults & SSTEP_MOTOR_FAULT_EXTERNAL) == 0U,
+		     "an overrun is not an overcurrent");
+}
+
+/* A flash write of the EEPROM area (allowed only with the torque off) stalls the CPU
+ * for many PWM periods: harmless with the outputs off, so no fault may latch.
+ */
+ZTEST(motor, test_fast_loop_overrun_with_the_outputs_off_is_ignored)
+{
+	zassert_false(fake_power_stage_output_on(stage));
+	fake_power_stage_fire(stage, &zero, POWER_STAGE_TRIP_OVERRUN);
+	zassert_ok(sstep_motor_process(motor));
+	zassert_equal(status().faults, 0U);
+	zassert_ok(stepper_enable(drv), "Torque Enable still works");
+	run_ms(1);
+	zassert_true(fake_power_stage_output_on(stage));
 }
 
 ZTEST(motor, test_undervoltage_is_reported)
@@ -301,7 +329,7 @@ ZTEST(motor, test_undervoltage_is_reported)
 
 	zassert_ok(stepper_enable(drv));
 	run_ms(1);
-	fake_power_stage_fire(stage, &low, false);
+	fake_power_stage_fire(stage, &low, 0U);
 	zassert_ok(sstep_motor_process(motor));
 	zassert_true((status().faults & SSTEP_MOTOR_FAULT_UNDERVOLTAGE) != 0U);
 }
@@ -312,7 +340,7 @@ ZTEST(motor, test_enable_in_a_fault_is_rejected_until_cleared)
 
 	zassert_ok(stepper_enable(drv));
 	run_ms(1);
-	fake_power_stage_fire(stage, &over, false);
+	fake_power_stage_fire(stage, &over, 0U);
 	zassert_ok(sstep_motor_process(motor));
 	zassert_equal(stepper_enable(drv), -EBUSY);
 
@@ -322,7 +350,7 @@ ZTEST(motor, test_enable_in_a_fault_is_rejected_until_cleared)
 	zassert_ok(stepper_enable(drv));
 
 	/* a second fault after clearing is a new event */
-	fake_power_stage_fire(stage, &over, false);
+	fake_power_stage_fire(stage, &over, 0U);
 	zassert_ok(sstep_motor_process(motor));
 	zassert_equal(fault_events, 2U);
 }
@@ -368,13 +396,13 @@ ZTEST(motor, test_status_amplitude_is_the_root_of_both_phases)
 	/* 10 and 14 counts of 2048 at 60155 mA: 294 mA and 411 mA */
 	const struct power_stage_sample s = {ADC_ZERO - 10U, ADC_ZERO - 14U, ADC_VBUS_24V};
 
-	fake_power_stage_fire(stage, &s, false);
+	fake_power_stage_fire(stage, &s, 0U);
 	zassert_within(status().i_amplitude_ma, 505U, 10U, "%u mA", status().i_amplitude_ma);
 }
 
 ZTEST(motor, test_status_reports_the_bus_voltage)
 {
-	fake_power_stage_fire(stage, &zero, false);
+	fake_power_stage_fire(stage, &zero, 0U);
 	zassert_within(status().vbus_mv, 24000U, 20U);
 }
 

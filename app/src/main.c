@@ -25,6 +25,7 @@
 #include "app_msg.h"
 #include "app_tasks.h"
 #include "joint_bridge.h"
+#include "supervisor.h"
 
 LOG_MODULE_REGISTER(main, CONFIG_SFS_LOG_LEVEL);
 
@@ -38,15 +39,29 @@ static const struct device *const servo = DEVICE_DT_GET(DT_CHOSEN(sfs_servo));
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
 /* STATUS LED: slow blink = outputs off, on = outputs on, fast blink = fault
- * or startup error.
+ * or startup error. The same loop checks the tasks every CONFIG_SFS_WATCHDOG_CHECK_MS
+ * and feeds the watchdog (supervisor.h).
  */
 static void status_led_loop(bool startup_failed)
 {
 	bool on = false;
+	int32_t since_toggle_ms = 0;
 
 	for (;;) {
 		struct sstep_motor_status status;
 		int32_t period_ms;
+
+		k_msleep(CONFIG_SFS_WATCHDOG_CHECK_MS);
+		if (startup_failed) {
+			/* The comm task may never have started, so no command can come
+			 * and the outputs stay off: keep the fast blink instead of a
+			 * reset loop, even if the watchdog already runs.
+			 */
+			supervisor_checkin(SUPERVISOR_CONTROL);
+			supervisor_checkin(SUPERVISOR_COMM);
+		}
+		(void)supervisor_poll();
+		since_toggle_ms += CONFIG_SFS_WATCHDOG_CHECK_MS;
 
 		if (startup_failed) {
 			period_ms = 100;
@@ -67,9 +82,11 @@ static void status_led_loop(bool startup_failed)
 			}
 		}
 
-		on = (period_ms == 0) ? true : !on;
-		(void)gpio_pin_set_dt(&led, on ? 1 : 0);
-		k_msleep((period_ms == 0) ? 100 : period_ms);
+		if ((period_ms == 0) || (since_toggle_ms >= period_ms)) {
+			since_toggle_ms = 0;
+			on = (period_ms == 0) ? true : !on;
+			(void)gpio_pin_set_dt(&led, on ? 1 : 0);
+		}
 	}
 }
 
@@ -83,6 +100,14 @@ static int startup(void)
 	}
 
 	ret = power_stage_calibrate(stage, CONFIG_SFS_STAGE_OFFSET_SAMPLES);
+	if (ret != 0) {
+		return ret;
+	}
+
+	/* Without the watchdog the tasks do not start, so the outputs stay off. The
+	 * first check comes CONFIG_SFS_WATCHDOG_CHECK_MS later, with both tasks running.
+	 */
+	ret = supervisor_start();
 	if (ret != 0) {
 		return ret;
 	}

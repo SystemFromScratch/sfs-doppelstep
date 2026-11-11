@@ -60,6 +60,15 @@ struct x430_servo_data {
 	uint8_t baud;
 	bool eeprom_missing;       /* no EEPROM block at startup */
 	bool factory_baud_pending; /* apply the factory-baud-code property */
+
+	/* Factory values of this firmware (x430_servo_set_factory_value) */
+	struct {
+		uint16_t address;
+		uint8_t size;
+		int32_t value;
+	} factory[MAX(CONFIG_SFS_DXL_FACTORY_VALUES_MAX, 1)];
+	uint8_t factory_count;
+	bool factory_values_pending; /* first start or Factory Reset */
 	bool reset_pending;        /* Reboot: reset the MCU after the answer */
 	int64_t next_poll;
 };
@@ -214,6 +223,8 @@ static uint8_t hook_event(struct x430_device *device, enum x430_event event, voi
 		if ((data->baud != previous_baud) && (data->baud != cfg->factory_baud_code)) {
 			data->factory_baud_pending = true;
 		}
+		/* The EEPROM went back to the X430 factory values: this firmware's too */
+		data->factory_values_pending = data->factory_count > 0U;
 		break;
 
 	case X430_EVENT_REBOOT:
@@ -291,7 +302,52 @@ static void apply_factory_baud(const struct device *dev)
 	x430_device_flush_events(&data->device);
 }
 
+/* Write this firmware's factory values through the normal write path, like the
+ * factory Baud Rate. Bus lock held.
+ */
+static void apply_factory_values(const struct device *dev)
+{
+	struct x430_servo_data *data = dev->data;
+
+	for (uint8_t k = 0U; k < data->factory_count; k++) {
+		uint8_t bytes[4];
+		uint32_t v = (uint32_t)data->factory[k].value;
+
+		for (uint8_t i = 0U; i < data->factory[k].size; i++) {
+			bytes[i] = (uint8_t)(v & 0xFFU);
+			v >>= 8;
+		}
+		const uint8_t rc = x430_device_write(&data->device, data->factory[k].address,
+						     data->factory[k].size, bytes, 0U);
+
+		if (rc != DXL2_ERR_NONE) {
+			LOG_ERR("factory value %d at %u: error 0x%02x", data->factory[k].value,
+				data->factory[k].address, rc);
+		}
+	}
+	x430_device_flush_events(&data->device);
+	data->factory_values_pending = false;
+}
+
 /* ------------------------------------------------------------------------ */
+
+int x430_servo_set_factory_value(const struct device *dev, uint16_t address, uint8_t size,
+				 int32_t value)
+{
+	struct x430_servo_data *data = dev->data;
+
+	if ((size != 1U) && (size != 2U) && (size != 4U)) {
+		return -EINVAL;
+	}
+	if (data->factory_count >= CONFIG_SFS_DXL_FACTORY_VALUES_MAX) {
+		return -ENOMEM;
+	}
+	data->factory[data->factory_count].address = address;
+	data->factory[data->factory_count].size = size;
+	data->factory[data->factory_count].value = value;
+	data->factory_count++;
+	return 0;
+}
 
 int x430_servo_start(const struct device *dev, const struct x430_servo_callbacks *callbacks,
 		     void *user_data)
@@ -303,6 +359,13 @@ int x430_servo_start(const struct device *dev, const struct x430_servo_callbacks
 	data->cb = callbacks;
 	data->cb_data = user_data;
 	data->next_poll = k_uptime_get() + CONFIG_SFS_DXL_POLL_MS;
+
+	/* First start: no EEPROM area stored yet, so it holds the X430 factory values */
+	if (data->eeprom_missing && (data->factory_count > 0U)) {
+		x430_bus_lock(&data->bus);
+		apply_factory_values(dev);
+		x430_bus_unlock(&data->bus);
+	}
 
 	ret = uart_irq_callback_user_data_set(cfg->uart, uart_isr, data);
 	if (ret != 0) {
@@ -353,6 +416,11 @@ int x430_servo_process(const struct device *dev, k_timeout_t timeout)
 		x430_bus_lock(&data->bus);
 		data->factory_baud_pending = false;
 		apply_factory_baud(dev);
+		x430_bus_unlock(&data->bus);
+	}
+	if (data->factory_values_pending) {
+		x430_bus_lock(&data->bus);
+		apply_factory_values(dev);
 		x430_bus_unlock(&data->bus);
 	}
 

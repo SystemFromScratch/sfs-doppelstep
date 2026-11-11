@@ -78,11 +78,26 @@ probe.
 Follow these steps in order on a new board or after a change to the power stage. They follow
 the integration guide of Stepper-C.
 
-1. **Dead time (required).** Enter the value of the B-G431B-ESC1 MCSDK (Motor Control
-   Workbench) project in `dead-time-ns` of `app/boards/b_g431b_esc1.overlay`. While it is 0
-   the firmware runs, but never enables the gate drivers: Torque Enable answers Result Fail
-   and the log says "enable refused". Check the gate driver input polarity (TIM1 CHx/CHxN
-   active high) against the same project.
+1. **Dead time (required, measure before the motor).** `dead-time-ns` in
+   `app/boards/b_g431b_esc1.overlay` is 1200 ns. The value comes from an ngspice sweep of one
+   leg with the gate circuit of schematic MB1419 rev C (L6387ED at 10 V, 33 Ω gate resistors
+   without turn-off diode, 1 Ω + 10 nF snubber). [Dead time of the power stage](dead-time.md)
+   describes the method step by step, so that it can be repeated:
+
+    | Timer dead time | Result at 24 V, ±3 A, 25 and 100 °C |
+    |---|---|
+    | 300 to 600 ns | Shoot-through: bus current peaks of 21 to 111 A |
+    | 700 to 800 ns | Gates do not overlap, but the Miller bump lifts the off gate to 3.5 V, over VGS(th) |
+    | 900 ns | First clean value: bump 2.8 V, bus peak only the Coss and snubber charge |
+    | **1200 ns** | 900 ns × 1.3 for the spread of VGS(th), the driver delay mismatch and the fitted MOSFET model |
+
+    Before the first motor run, check it on the board: bench supply at 12 V with a 200 mA
+    current limit, no motor, Torque Enable, oscilloscope on the low-side VGS (and on the phase
+    node). The gate of the off switch must stay well under VGS(th) at every edge, and the supply
+    current must stay small. Lower the dead time (not below 900 ns) only after this measurement.
+    With 0 the firmware runs, but never enables the gate drivers: Torque Enable answers Result
+    Fail and the log says "enable refused". The gate driver inputs (L6387ED HIN/LIN) are
+    active high, as TIM1 CHx/CHxN are configured.
 2. **Outputs off.** The RTT log shows the current offsets (about 2048 counts) and the ADC
    readings. Compare Present Input Voltage with a multimeter.
 3. **Polarity.** Set `voltage-drive;` and a low `run-current-milliamp` in the motor node.

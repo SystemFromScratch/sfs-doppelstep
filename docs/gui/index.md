@@ -52,7 +52,7 @@ A changed ID or Baud Rate in the Control Table disconnects; connect again with t
 
 | Control | Register |
 |---|---|
-| Torque ON / **STOP (torque off)** | Torque Enable (64) |
+| Torque ON / **STOP (torque off)**, with the state above them: green **TORQUE ON** or grey *Torque off*, from the live registers. Torque ON and Apply are disabled while the torque is on | Torque Enable (64) |
 | Operating Mode: 3 position, 1 velocity (EEPROM: torque off first) | Operating Mode (11) |
 | Goal Position: slider, value, −90° / 0° / +90° (2048 = 0°) | Goal Position (116) |
 | Profile Velocity, Profile Acceleration | 112, 108 |
@@ -67,9 +67,10 @@ input_voltage_v, torque_enable, moving, hardware_error_status, realtime_tick_ms`
 ![The Motion tab: Goal Position 1024, then 2560, with Profile Velocity 60 and Profile Acceleration 20; 1500 mA run current while moving, 500 mA hold current at rest](../assets/images/gui/gui-motion.png)
 
 !!! note "Torque Enable refused"
-    While `dead-time-ns` is 0 in `app/boards/b_g431b_esc1.overlay` the firmware answers Torque
-    Enable with Result Fail and never enables the gate drivers
-    ([hardware checklist](../hardware-checklist.md), check 5). The GUI says so when it happens.
+    The firmware answers Torque Enable with Result Fail while a fault is latched (Hardware Error
+    Status not 0; a Reboot clears it), and in a build with `dead-time-ns` = 0, where it never
+    enables the gate drivers ([hardware checklist](../hardware-checklist.md), check 5). The GUI
+    names both causes when it happens.
 
 !!! warning "No encoder"
     Present Position is the commanded open-loop position. The GUI cannot see lost steps: watch the
@@ -132,8 +133,9 @@ scenario and check, and the last firmware update of the session.
 
 ## Firmware update
 
-1. Build the board (`west build --sysbuild …`). The tab preselects
-   `build/app/zephyr/zephyr.signed.bin` and shows its version, size (slot 0 holds 86 KiB) and the
+1. Build the board (`west build --sysbuild …`). The tab preselects the newest
+   `…signed.bin` in `output/` ([Firmware update](../firmware-update.md)), else
+   `build/app/zephyr/zephyr.signed.bin`, and shows its version, size (slot 0 holds 86 KiB) and the
    SHA-256 TLV. Unsigned files (`zephyr.bin`, `zephyr.elf`) are rejected.
 2. Connect as usual, or leave the GUI disconnected when MCUboot already waits in serial recovery
    (no valid image in slot 0, for example after an interrupted upload).

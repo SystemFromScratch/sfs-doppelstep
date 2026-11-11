@@ -15,7 +15,19 @@ from . import style
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))))
-DEFAULT_IMAGE = os.path.join(ROOT, "build", "app", "zephyr", "zephyr.signed.bin")
+OUTPUT = os.path.join(ROOT, "output")       # scripts/export_output.py, after every build
+BUILD_IMAGE = os.path.join(ROOT, "build", "app", "zephyr", "zephyr.signed.bin")
+
+
+def default_image():
+    """Newest signed image in output/, else the one of the build directory, else ""."""
+    try:
+        images = [os.path.join(OUTPUT, n) for n in os.listdir(OUTPUT) if n.endswith(".signed.bin")]
+    except OSError:
+        images = []
+    if images:
+        return max(images, key=os.path.getmtime)
+    return BUILD_IMAGE if os.path.exists(BUILD_IMAGE) else ""
 
 
 class FirmwareTab(ttk.Frame):
@@ -28,15 +40,16 @@ class FirmwareTab(ttk.Frame):
         f.pack(fill=tk.X)
         row = ttk.Frame(f)
         row.pack(fill=tk.X)
-        self.path_var = tk.StringVar(value=DEFAULT_IMAGE if os.path.exists(DEFAULT_IMAGE) else "")
+        self.path_var = tk.StringVar(value=default_image())
         ttk.Entry(row, textvariable=self.path_var).pack(side=tk.LEFT, fill=tk.X, expand=True)
         ttk.Button(row, text="Browse …", command=self._browse).pack(side=tk.LEFT, padx=4)
         ttk.Button(row, text="Reload", command=self._load).pack(side=tk.LEFT)
         self.info = ttk.Label(f, text="", justify="left")
         self.info.pack(anchor="w", pady=(8, 0))
-        ttk.Label(f, text="Use build/app/zephyr/zephyr.signed.bin of a board build "
-                          "(west build --sysbuild). zephyr.bin and zephyr.elf carry no "
-                          "signature: MCUboot would not start them.",
+        ttk.Label(f, text="Every board build puts doppelstep-<version>-…-app.signed.bin "
+                          "(or …-sim-motor.signed.bin) into output/; the newest is chosen. "
+                          "zephyr.bin and zephyr.elf carry no signature: MCUboot would not "
+                          "start them.",
                   style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
 
         g = ttk.LabelFrame(self, text="Update over USART2 (MCUboot serial recovery)", padding=8)
@@ -82,7 +95,7 @@ class FirmwareTab(ttk.Frame):
     # --- image ---------------------------------------------------------------------------
 
     def _browse(self):
-        start = os.path.dirname(self.path_var.get()) or ROOT
+        start = os.path.dirname(self.path_var.get()) or (OUTPUT if os.path.isdir(OUTPUT) else ROOT)
         path = filedialog.askopenfilename(title="Signed MCUboot image", initialdir=start,
                                           filetypes=[("Signed image", "*.signed.bin"),
                                                      ("Binary", "*.bin"), ("All", "*.*")])

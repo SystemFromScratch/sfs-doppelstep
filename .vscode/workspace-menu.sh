@@ -66,6 +66,9 @@ build_firmware() {
     ensure_workspace
     echo "Building MCUboot and ${APP} for ${BOARD_TARGET} into ${BUILD_DIR}."
     west build --sysbuild -b "${BOARD_TARGET}" -s "${APP}" -d "${BUILD_DIR}" "$@"
+    # Versioned copies for flashing and for the update over the bus (output/, git-ignored)
+    echo "Images in output/:"
+    python3 scripts/export_output.py --build-dir "${BUILD_DIR}"
 }
 
 build_native() {

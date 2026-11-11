@@ -37,7 +37,14 @@ The conversions are in `app/src/joint.c`:
 | Velocity | 0.229 rev/min | microsteps per second |
 | Acceleration | 214.577 rev/min² | microsteps per second² |
 | Current | 2.69 mA | mA |
-| Gear | `gear-motor-revs / gear-joint-revs` of the servo node (1/1 by default) | |
+| Gear | `gear-motor-revs / gear-joint-revs` of the servo node: 1/1, direct drive | |
+
+With the 17HS19-2004S1 in direct drive one joint revolution is one motor revolution:
+4096 pulses = 3200 microsteps, so one pulse is 0.78 microsteps and one full step (1.8°) is
+20.48 pulses. The largest velocity of the motor node, `max-velocity` 16000 microsteps/s, is
+5 rev/s = 300 rev/min = 1310 × 0.229 rev/min. For a gearbox, set the two properties to its
+ratio (motor revolutions per joint revolution): position, velocity and acceleration then
+count at the joint.
 
 ## Startup position
 
@@ -52,8 +59,19 @@ the reported position is then no longer the real one.
 |---|---|---|
 | ID | `factory-id` of the servo node, 1 | 1 |
 | Baud rate | `factory-baud-code` 3 = 1 Mbps, the OpenMANIPULATOR-X bus speed | 57600 bps |
+| Current Limit (38) | 557 = 1498 mA: `run-current-milliamp` 1500 mA of the motor node, rounded down | 1193 = 3209 mA |
+| Velocity Limit (44) | 1023 = 234 rev/min: the motor could do 300 rev/min (1310), 1023 is the largest value of the X430 register | 200 = 45.8 rev/min |
+| Max / Min Voltage Limit (32, 34) | 160 / 95 = 16 / 9.5 V, as an XM430 | 160 / 95 |
 
-The factory values apply while no EEPROM block is stored and after FACTORY_RESET. ID, Baud
+The factory values apply while no EEPROM block is stored and after FACTORY_RESET
+(`x430_servo_set_factory_value()`, set by `app/src/joint_bridge.c` from the motor node).
+A board with an EEPROM block from an older firmware keeps its stored values until a Factory
+Reset.
+
+The voltage limits stay those of the XM430, a 12 V servo: the register range ends at 16 V,
+below the 24 V of this board. The emulator does not compare Present Input Voltage with them,
+and the bus voltage protection uses `vbus-min-mv` / `vbus-max-mv` of the motor node
+(10 / 28 V) instead. ID, Baud
 Rate and the other EEPROM registers written over the bus are stored in flash (NVS, the
 `storage` partition of the servo node) and survive a power cycle and a firmware update.
 Flash writes are refused while the power stage is enabled: the MCU has a single flash bank,
@@ -91,6 +109,8 @@ Sync Read of current, velocity and position, Sync Write of the goal, at 100 Hz
 | Position and velocity readings | Commanded values: there is no encoder, and lost steps are not detected yet |
 | Operating Modes 0, 5, 16 | Refused with Data Range Error |
 | Factory baud rate | 1 Mbps instead of 57600 bps |
+| Factory Current Limit and Velocity Limit | Those of the real motor ([Factory values](#factory-values-and-the-eeprom)) |
+| Max / Min Voltage Limit | 16 / 9.5 V as an XM430, not checked; the board runs at 24 V |
 | Reboot on the board | Resets the MCU: 500 ms of silence plus startup, Present Position restarts at 2048 |
 | Present Temperature | Keeps its table value: the NTC sensor is not converted yet, no overheating trip |
 | Several IDs on one bus | One ID per board |

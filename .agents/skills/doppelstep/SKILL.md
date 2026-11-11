@@ -25,7 +25,8 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
   Stepper-C (`modules/lib/stepper-c`, pinned **v1.2.0**),
   DYNAMIXEL-X430 emulator (`modules/lib/dynamixel-x430`, pinned **commit** of
   main until its first release), DXL2-C (`modules/lib/dxl2-c`, the tag `x430.cmake` expects),
-  Stepper-Lab (`modules/lib/stepper-lab`, pinned **commit**: plant model
+  Stepper-Lab (`modules/lib/stepper-lab`, follows **main** during development, pin it to a
+  commit or tag before a release: plant model
   `sil/c/sstep_plant.c` and `params/*.json` of the simulated motor) and
   sfs-stepper-power-spice (`modules/lib/sfs-stepper-power-spice`, pinned **commit**,
   not built: ngspice source of the stage parameters). Keep the two simulation
@@ -128,8 +129,10 @@ west build -b native_sim/native/64 -s app -d build-native                       
   16 with VINM0 as bias ("inverting" in the Zephyr OPAMP binding), effective
   −64/7, 3 mΩ shunts. ADC1_IN3 = iU, ADC2_IN3 = iV, ADC1_IN12 = iW,
   ADC1_IN1 (PA0) = VBUS, divider 18k/(18k+169k).
-- **Dead time is not documented in UM2516**: `dead-time-ns` stays 0 (outputs
-  never enabled) until the user provides the MCSDK value. Never pick a value.
+- **Dead time is not documented in UM2516**: `dead-time-ns` = 1200 ns, agreed with
+  the user from an ngspice sweep with the MB1419 rev C gate circuit (L6387ED at 10 V,
+  33 Ω gate resistors, 1 Ω + 10 nF snubber; clean from 900 ns, ×1.3 margin). Not yet
+  measured on the board. Never lower it without a VGS measurement from the user.
 - USART2 PB3/PB4 = ST-LINK VCP = DYNAMIXEL bus (1 Mbps). Console and logs use RTT.
 - Flash: code partition 124 KiB, `storage_partition` 4 KiB (2 pages) for NVS.
 
@@ -251,7 +254,12 @@ west build -b native_sim/native/64 -s app -d build-native                       
 - The architecture rules of section 6 and simulated-motor rules of section 7 hold.
 - No secrets, license files or SEGGER binaries committed.
 - Both debug modes and both runners still documented and configured.
-- Open hardware items (dead time, NTC, fast-loop timing, rotor vibration) are not silently "solved".
+- Open hardware items (dead time measured with an oscilloscope, real-motor checks, NTC, rotor
+  vibration) are not silently "solved".
+- The fast loop stays within its budget: simulated motor on the board 37 µs of 50 µs during a
+  move (`fast loop max`, `overruns` 0). The overrun check (`POWER_STAGE_TRIP_OVERRUN`) and the
+  IWDG supervisor (`app/src/supervisor.c`, fed only while both tasks run) stay in place.
+- The simulated-motor image with MCUboot has about 3 KiB of flash left: watch the `FLASH:` line.
 - A user-visible change has a line under `## [Unreleased]` in `CHANGELOG.md`.
 
 ## 11. Release

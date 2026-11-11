@@ -34,6 +34,20 @@ west flash -d build -r openocd     # MCUboot and the signed application
 | `build/app/zephyr/zephyr.signed.hex` | Signed application for a debug probe |
 | `build/app/zephyr/zephyr.elf` | Symbols of the application for the debugger |
 
+Every build from the VS Code tasks or `.vscode/workspace-menu.sh` also copies the images into
+`output/` (git-ignored), named with the version from `git describe --tags --dirty`
+(`scripts/export_output.py`; `0.1.0` on the tag `v0.1.0`, `0.1.0-3-g1a2b3c4-dirty` after it):
+
+| File in `output/` | Use |
+|---|---|
+| `doppelstep-<version>-b_g431b_esc1-merged.hex` | MCUboot and the signed application: the first flashing through the ST-LINK |
+| `doppelstep-<version>-b_g431b_esc1-app.signed.bin` | The update file for MCUboot (GUI, smpmgr) |
+| `doppelstep-<version>-b_g431b_esc1-app.signed.hex`, `-app.elf` | Signed application for a debug probe, symbols |
+
+The simulated-motor build writes the same files with `sim-motor` in place of `app`
+(`…-sim-motor-merged.hex`, `…-sim-motor.signed.bin`). Run the script by hand after a plain
+`west build`: `python3 scripts/export_output.py --build-dir build`.
+
 A build directory made before MCUboot was added needs one pristine build. The VS Code tasks and
 debug configurations already load both images.
 
@@ -116,3 +130,5 @@ signed with the new key, so they need MCUboot flashed again through the debug pr
 | smpmgr gets no answer at all | The Baud Rate register is not 1 Mbps: the application answers at that rate, MCUboot listens at 1 Mbps | Use `--baudrate 1000000` for smpmgr whatever the register says |
 | The application does not start after loading `zephyr.elf` with a debugger | The ELF has no MCUboot header and signature: MCUboot stays in serial recovery | Load `zephyr.signed.hex` (the VS Code configurations do) or upload with smpmgr |
 | The application does not start after an interrupted upload | Slot 0 holds no valid image: MCUboot stays in serial recovery | Upload again |
+| The GUI: "no SMP answer after N echoes", first update after starting the GUI | Before the fix: smpclient was imported after the Reboot, which took about 0.8 s on Windows, longer than the 500 ms window | Fixed in the GUI: the SMP client is ready before the Reboot |
+| MCUboot answers the echo, the upload stops at a chunk (timeout) | MCUboot built before `fifo-enable` was set on its USART2 (`app/sysbuild/mcuboot.overlay`): at 1 Mbps a late receive interrupt drops a byte, and the chunk is lost | MCUboot cannot replace itself over the bus: flash the new `…-merged.hex` once through the ST-LINK |

@@ -2,13 +2,14 @@
 
 CI runs on `native_sim`, so it cannot see the real interrupt, timer, ADC or UART. Run these checks
 on a B-G431B-ESC1 after a change to the drivers or the tasks, and write down the results. They need
-no motor unless stated, and the gate drivers stay off.
+no motor unless stated, and the gate drivers stay off except in check 5, which measures the dead
+time on the bridge without a motor.
 
 To compare timing, first measure the fast loop on the firmware before the change.
 
 | Value | Before | After |
 |---|---|---|
-| `fast loop max` [cycles], simulated motor | | |
+| `fast loop max` [cycles], simulated motor, during a move | 8070 (47.5 µs, the model before Stepper-Lab 9fc2eef) | 6341 (37.3 µs) |
 
 ## A: firmware without a motor
 
@@ -23,17 +24,18 @@ Then read the log with `west rtt -d build -r openocd`.
 
 | # | Check | Expected |
 |---|---|---|
-| 1 | Startup log | No `<err>`. Offsets near 2048 counts, a warning that `dead-time-ns` is 0, the line `x430_servo: DYNAMIXEL` |
+| 1 | Startup log | No `<err>`. Offsets near 2048 counts, `TIM1: ... dead time 1200 ns (204 ticks)`, the line `x430_servo: DYNAMIXEL` |
 | 2 | STATUS LED | Slow blink: outputs off |
 | 2a | Hardware Error Status over 10 power cycles, the first with erased NVS | 0 every time, LED slow blink. No false fault from the shared-leg check at startup |
+| 2b | Realtime Tick over a minute, torque on at rest | Rises steadily: no watchdog reset. The startup log has `watchdog 500 ms` and no `reset by the watchdog` |
 | 3 | `tools/sim/dxl_smoke_test.py` on the ST-LINK COM port, 1 Mbps | Ping answers model 1020 |
 | 4 | DYNAMIXEL Wizard scan | Finds one XM430-W350 at ID 1, 1 Mbps |
-| 5 | Torque Enable | Result Fail: outputs are refused while `dead-time-ns` is 0. No fault, LED unchanged |
+| 5 | Torque Enable, no motor (a 10 Ω power resistor between U and W if a leg shows no edges), supply at 12 V with a 200 mA current limit | Accepted, no fault. Supply current stays small. Low-side VGS on the oscilloscope: the off gate stays well under VGS(th) at every edge ([Dead time, step 6](dead-time.md#step-6-check-on-the-board)). Torque Disable afterwards |
 | 6 | Present Input Voltage with a supply connected | Agrees with a multimeter |
 | 7 | Write Baud Rate 2 (115200 bps), then reconnect at that speed | Answers at the new speed. `native_sim` cannot test this |
 | 8 | Power cycle after step 7 | Keeps the baud rate, so NVS works. Set it back to 3 afterwards |
 
-These checks do not need the outputs. A real trip is checked in part C.
+Only check 5 switches the outputs on, without a motor. A real trip is checked in part C.
 
 ## B: simulated motor on the board
 
@@ -48,10 +50,10 @@ west flash -d build -r openocd
 | 10 | Torque Enable, Goal Position 3072 in the Wizard | Rotor of the model follows, lag well under 90 electrical degrees |
 | 11 | STATUS LED during step 10 | On |
 | 12 | PWM pins with an oscilloscope, or the MOE bit of `TIM1_BDTR` in the debugger | Gate outputs stay at their idle level, MOE = 0 |
-| 13 | `fast loop max` in the log | Enter it in the table above. It must stay well under one PWM period, 50 µs. A rise over the old value should be small: a few tens of cycles for the extra API call |
+| 13 | `fast loop max` in the log | Enter it in the table above. It must stay well under one PWM period, 50 µs. A rise over the old value should be small: a few tens of cycles for the extra API call. `overruns` stays 0; a fast loop that overruns switches the outputs off and reports Electrical Shock Error |
 | 14 | Spam Goal Position from the Wizard or a script for a minute | Every packet answered, no `<err>`, `fast loop max` stable |
 
-## C: with a motor, after the dead time is set
+## C: with a motor, after the dead time is measured
 
 Follow the [bring-up checklist](hardware.md#bring-up-checklist) first; its step 6 forces the trips, which confirms the
 fault path through the interrupt. Checks 15 and 16 concern a finding from the simulation.

@@ -20,4 +20,8 @@
 
 &usart2 {
 	current-speed = <1000000>;
+	/* At 1 Mbps a byte arrives every 10 us. Without the 8-byte FIFO a late receive
+	 * interrupt drops a byte, and with it the whole SMP frame of an upload chunk.
+	 */
+	fifo-enable;
 };

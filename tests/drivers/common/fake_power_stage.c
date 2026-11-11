@@ -117,12 +117,12 @@ static DEVICE_API(power_stage, fake_minimal_api) = {
 };
 
 void fake_power_stage_fire(const struct device *dev, const struct power_stage_sample *sample,
-			   bool aux_trip)
+			   uint32_t trips)
 {
 	struct fake_data *data = dev->data;
 
 	if (data->cb != NULL) {
-		data->cb(sample, aux_trip, data->ctx);
+		data->cb(sample, trips, data->ctx);
 	}
 }
 

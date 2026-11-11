@@ -19,8 +19,10 @@ power stage values come from the ngspice model of
 | **Stepper-Lab** | Scilab prototype, Xcos SIL, the plant model in C (`sil/c/sstep_plant.c`), parameters (`params/*.json`). | `sstep_plant.c` compiled as a Zephyr library (`float`, averaged stage). The JSON files are read at configure time. |
 | **Doppelstep** | This firmware. The backend `sfs,sim-power-stage` (`drivers/power_stage/`) adapts the model to Zephyr: ADC scaling, publication. `app/src/sim_log.c` writes the log line. | Driver and application |
 
-Both simulation repositories are west projects, pinned to the tested commit of their `main`
-until their first release (`west.yml`). The build glue is `modules/stepper-lab/`.
+Both simulation repositories are west projects (`west.yml`). During development Stepper-Lab
+follows its `main` (run `west update`, VS Code task **Initialize + update**, to get its latest
+commit); sfs-stepper-power-spice is pinned to its tested commit. Before a release both are
+pinned to a commit or a tag: `scripts/package_release.py` refuses a branch. The build glue is `modules/stepper-lab/`.
 
 What is shared and what stays offline:
 
@@ -108,6 +110,14 @@ switches the outputs of the real stage, so the main output enable (MOE) stays of
 The RTT log shows the commanded and rotor position, the lag in electrical degrees, the
 currents, and the longest fast-loop callback in cycles and µs.
 
+### Flash budget
+
+The simulated-motor image with MCUboot has about 2.9 KiB left in the 86 KiB application slot.
+It ran out once, when the fast-loop overrun check and the watchdog came in
+([Architecture](architecture.md)); printf without floating point (`CONFIG_CBPRINTF_FP_SUPPORT=n`
+in `app/prj.conf`, no log prints a float) gave back about 4.8 KiB. Check the `FLASH:` line of
+the build after a change of the model or the simulation code.
+
 ### B: on the PC
 
 ```bash
@@ -174,7 +184,24 @@ are described in [SIL and integration tests](testing.md).
   0 rpm. A real motor has friction and ADC noise: [measure it](hardware-checklist.md).
 - The leg error table is valid at its operating point (24 V, 20 kHz, timer dead time
   500 ns, assumed board values). Re-run ngspice when these change.
+- On the board, the motor model runs in the 20 kHz fast-loop interrupt next to Stepper-C, and
+  must finish within the 50 µs PWM period. Fast loop max, measured over SWD with `-Os`:
+
+    | State | Model before | Model with one `sin` / `cos` per step |
+    |---|---|---|
+    | Torque off, at rest | 19 µs | 20 µs |
+    | Torque on, at rest | 34 to 42 µs, depending on the rotor angle | 34 to 36 µs |
+    | Move | 47.5 µs, above 50 µs on longer moves: the board hung | 37 µs |
+
+    The model used to call `sinf` and `cosf` in each of the four RK4 stages, and the argument
+    reduction of picolibc made the cost depend on the angle. Now it computes them once per step
+    and moves them to the stages with the angle addition (Stepper-Lab `sil/c/sstep_plant.c`,
+    1 to 2 ulp from before). With it, all 20 GUI test scenarios pass on the board. Open item:
+    under the heaviest bus load (200 Goal Position writes during a move) a few answers are
+    still lost now and then. Check the fast loop max after every change of the model
+    ([hardware checklist](hardware-checklist.md), check 13).
 - On `native_sim`, code takes no simulated time. Interrupt load and priorities are
   validated only on the board (variant A).
-- `west.yml` pins both simulation repositories to a commit of `main`. Move them to tags at
-  their first release, so that the model version has a name and not only a hash.
+- Stepper-Lab follows `main`, so a build depends on when the workspace was last updated, and
+  the CI image (`WEST_UPDATE=0`) keeps the commit it was built with. Pin it again, and move both
+  simulation repositories to tags at their first release, so that the model version has a name.

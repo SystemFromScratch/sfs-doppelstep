@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <zephyr/device.h>
+#include <zephyr/sys/util_macro.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,19 +60,38 @@ struct power_stage_sample {
 struct power_stage_stats {
 	uint32_t isr_count;       /**< Fast-loop periods since start. */
 	uint32_t fast_cycles_max; /**< Longest callback since the last read [CPU cycles]; 0 = unknown. */
+	uint32_t overruns;        /**< Fast-loop periods that overran since start; 0 = none or unknown. */
 };
+
+/**
+ * @name Trips passed to the fast-loop callback
+ * @{
+ */
+/**
+ * A leg that the sample does not show exceeds the trip level. Never set until
+ * power_stage_calibrate() has succeeded: without the sensor offset the level means
+ * nothing, and a fault would latch.
+ */
+#define POWER_STAGE_TRIP_AUX BIT(0)
+/**
+ * The previous callback did not finish within its PWM period: the next measurement
+ * was ready before it returned. The backend has already switched the outputs off,
+ * from its interrupt. Without this check, a callback that always overruns keeps the
+ * interrupt busy forever and no thread runs again, also not the one that would
+ * switch the motor off over the bus.
+ */
+#define POWER_STAGE_TRIP_OVERRUN BIT(1)
+/** @} */
 
 /**
  * @brief Fast-loop callback, at the PWM rate in the context of the backend's
  *        interrupt, which may run above the kernel's interrupt lock.
  *        It must not call kernel services.
  * @param sample    Measurement of this period.
- * @param aux_trip  true when a leg that the sample does not show exceeds the trip level.
- *                  Always false until power_stage_calibrate() has succeeded: without the
- *                  sensor offset the level means nothing, and a fault would latch.
+ * @param trips     POWER_STAGE_TRIP_AUX, POWER_STAGE_TRIP_OVERRUN or 0.
  * @param ctx       Pointer given to power_stage_set_fast_callback().
  */
-typedef void (*power_stage_fast_cb_t)(const struct power_stage_sample *sample, bool aux_trip,
+typedef void (*power_stage_fast_cb_t)(const struct power_stage_sample *sample, uint32_t trips,
 				      void *ctx);
 
 __subsystem struct power_stage_driver_api {
