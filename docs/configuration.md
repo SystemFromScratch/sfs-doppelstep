@@ -14,7 +14,8 @@ change at run time, such as the ID or the baud rate, are servo registers
 | Motor (R, L, rated current, back-EMF, steps), stage limits, control (microsteps, bandwidth, currents, velocity, acceleration) | Motor node, `app/boards/<board>.overlay` |
 | PWM frequency, dead time, ADC channels, shunt, amplifier gain, VBUS divider | Power stage node, `app/boards/b_g431b_esc1.overlay` |
 | DYNAMIXEL ID, factory baud, start position, gear, NVS partition | Servo node, a child of the UART |
-| Threads, queues, offset samples, command timeout, watchdog (`CONFIG_SFS_WATCHDOG`, `_TIMEOUT_MS` 500, `_CHECK_MS` 100) | `CONFIG_SFS_*`, `app/Kconfig` |
+| Threads, queues, offset samples, command timeout (`CONFIG_SFS_CMD_TIMEOUT_MS` 150, longer than the self-test), watchdog (`CONFIG_SFS_WATCHDOG`, `_TIMEOUT_MS` 500, `_CHECK_MS` 100) | `CONFIG_SFS_*`, `app/Kconfig` |
+| Self-test of the bridge and the motor before the first Torque Enable (`CONFIG_SSTEP_MOTOR_SELFTEST`, `_EVERY_ENABLE`) | `drivers/motor/Kconfig` ([Protection](protection.md#self-test-of-the-bridge-and-the-motor)) |
 | Stepper-C build options (backend, topology, sine table, `-O2`) | `CONFIG_SSTEP_*`, `modules/stepper-c/Kconfig` |
 | X430 model, devices per bus, protocol features | `CONFIG_X430_*` (Kconfig of the emulator) |
 | Bus buffer, poll period, persistent storage, Reboot behaviour | `CONFIG_SFS_DXL_*`, `drivers/x430/Kconfig` |
@@ -36,9 +37,11 @@ The values for the 17HS19-2004S1 motor and the B-G431B-ESC1, from
 | `rated-current-milliamp` | 2000 | Rated phase current (datasheet) |
 | `back-emf-uv-s-per-rad` | 208600 | Back-EMF constant |
 | `full-steps-per-rev` | 200 | Full steps per revolution |
-| `vbus-nominal-mv`, `vbus-min-mv`, `vbus-max-mv` | 24000, 10000, 28000 | Supply voltage: nominal and trip limits |
+| `vbus-nominal-mv`, `vbus-min-mv`, `vbus-max-mv` | 24000, 10000, 28000 | Supply voltage: nominal and trip limits; Torque Enable outside them is refused |
 | `trip-current-milliamp` | 3500 | Overcurrent trip |
-| `aux-trip` | set | Also trip on the shared leg W |
+| `aux-trip` | set | The stage checks every leg at the trip current in its interrupt, also the shared leg W and in voltage drive |
+| `current-slew-ma-per-ms` | 30 | Largest change of the current amplitude: after Torque Enable the current rises from 0 (1.5 A in 50 ms), and between run and hold current; 0 = at once |
+| `selftest-current-milliamp` | 600 | Current of the self-test before the first Torque Enable; 0 = 30 % of the rated current |
 | `slow-loop-hz` | 1000 | Motion loop rate; the PWM rate must be an integer multiple |
 | `microsteps` | 16 | Microsteps per full step |
 | `current-bandwidth-hz` | 1000 | Bandwidth of the current controller |
@@ -51,9 +54,14 @@ The values for the 17HS19-2004S1 motor and the B-G431B-ESC1, from
 | Property | Value | Meaning |
 |---|---|---|
 | `pwm-frequency` | 20000 | PWM and fast-loop rate, Hz |
+| `sample-window-ns` | 2400 | Time around the top of the counter every leg spends on its low-side switch, for the shunt samples: 408 of 4250 ticks. Stepper-C keeps the compare values below the period minus this time and lowers its voltage limit by 9.6 % ([Hardware](hardware.md#sampling-window)) |
 | `dead-time-ns` | 1200 | Dead time of the half-bridges, from the ngspice sweep with the MB1419 gate circuit. 0 means "not set" and the outputs are refused. Check it on the board before the first motor run ([bring-up](hardware.md#bring-up-checklist)) |
 | `vbus-divider` | 18000, 169000 | VBUS divider resistors, Ω |
+| `temperature-channel`, `ntc-r25-ohm`, `ntc-beta`, `ntc-bottom-ohm` | 5, 10000, 3435, 4700 | Power stage NTC: ADC channel, R25 [Ω], B constant [K], resistor to ground [Ω] (TDK NTCG103JF103FT1, schematic MB1419) |
 | `current-sense-invert` | not set | Inverts the current measurement, if bring-up step 3 requires it |
+| `hw-trip-current-milliamp` | 10000 | Hardware short-circuit trip: comparators on the OPAMP inputs, TIM1 break ([Protection](protection.md#hardware-trips)); none = off |
+| `hw-trip-vbus-mv` | 30000 | Hardware overvoltage trip: comparator on the bus divider, TIM1 break 2; none = off |
+| `current-offset-min-counts`, `current-offset-max-counts` | 2300, 2800 | Window of the current sensor offsets at start; outside it the outputs are refused; none = no check |
 
 Shunt, amplifier gain and the ADC channels are in the same node; their values and the
 resulting full scale are in [Hardware and bring-up](hardware.md#current-and-voltage-scaling).

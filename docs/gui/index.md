@@ -44,7 +44,7 @@ Choose the port (the ST-LINK port is preselected when found), the baud rate and 
 **Connect**. The GUI pings the ID and shows the model and firmware version; model 1020 is the
 XM430-W350 that Doppelstep emulates. While connected, the bar under the connection shows the live
 registers ten times per second: Torque, Hardware error (decoded), Moving, Position, Velocity,
-Current and Input voltage.
+Current, Input voltage and Temperature (power stage NTC, red after an Overheating Error).
 
 A changed ID or Baud Rate in the Control Table disconnects; connect again with the new value.
 
@@ -52,25 +52,26 @@ A changed ID or Baud Rate in the Control Table disconnects; connect again with t
 
 | Control | Register |
 |---|---|
-| Torque ON / **STOP (torque off)**, with the state above them: green **TORQUE ON** or grey *Torque off*, from the live registers. Torque ON and Apply are disabled while the torque is on | Torque Enable (64) |
-| Operating Mode: 3 position, 1 velocity (EEPROM: torque off first) | Operating Mode (11) |
+| One torque button that shows the state from the live registers and toggles it: green **TORQUE ON** (a click switches the torque off), red **TORQUE OFF** (a click switches it on). Apply of the Operating Mode is disabled while the torque is on | Torque Enable (64) |
+| Operating Mode: 3 position, 1 velocity (EEPROM: torque off first). The GUI reads it at connect; Goal Position works in mode 3 only, Goal Velocity in mode 1 only, the other controls are disabled | Operating Mode (11) |
 | Goal Position: slider, value, −90° / 0° / +90° (2048 = 0°) | Goal Position (116) |
-| Profile Velocity, Profile Acceleration | 112, 108 |
+| Profile Velocity, Profile Acceleration: the largest speed (× 0.229 rev/min) and the acceleration (× 214.577 rev/min²) of a move in position control, shown in physical units next to the fields; 0 = maximum. With Drive Mode 4 (time-based) both are milliseconds | 112, 108 |
 | Goal Velocity, ×0.229 rev/min | Goal Velocity (104) |
 
 The plots show Goal and Present Position [°], Present Velocity [rpm], Present Current [mA] and
 Present Input Voltage [V] over the last 10, 30 or 60 s, redrawn twice per second. The toolbar under
 them zooms and saves a PNG. **Record CSV** writes every sample (10 per second) with the columns
 `time_s, goal_position_deg, present_position_deg, present_velocity_rpm, present_current_ma,
-input_voltage_v, torque_enable, moving, hardware_error_status, realtime_tick_ms`.
+input_voltage_v, torque_enable, moving, hardware_error_status, realtime_tick_ms, temperature_c`.
 
 ![The Motion tab: Goal Position 1024, then 2560, with Profile Velocity 60 and Profile Acceleration 20; 1500 mA run current while moving, 500 mA hold current at rest](../assets/images/gui/gui-motion.png)
 
 !!! note "Torque Enable refused"
     The firmware answers Torque Enable with Result Fail while a fault is latched (Hardware Error
-    Status not 0; a Reboot clears it), and in a build with `dead-time-ns` = 0, where it never
-    enables the gate drivers ([hardware checklist](../hardware-checklist.md), check 5). The GUI
-    names both causes when it happens.
+    Status not 0; a Reboot clears it), after a failed self-test of the bridge and the motor
+    (Electrical Shock, the cause in the RTT log), with the supply outside 10..28 V (Input
+    Voltage Error), and in a build with `dead-time-ns` = 0, where it never enables the gate
+    drivers ([Protection](../protection.md)). The GUI names these causes when it happens.
 
 !!! warning "No encoder"
     Present Position is the commanded open-loop position. The GUI cannot see lost steps: watch the

@@ -60,6 +60,12 @@ config SSTEP_ARG_CHECKS
 	help
 	  SSTEP_CFG_ARG_CHECKS. All other functions always check.
 
+config SSTEP_SELFTEST
+	bool "Self-test of the power stage and the wiring"
+	help
+	  SSTEP_CFG_SELFTEST: sstep_selftest(). About 1.1 KB of flash and 40 B
+	  per instance on Cortex-M4. Selected by SSTEP_MOTOR_SELFTEST.
+
 config SSTEP_OPTIMIZE_SPEED
 	bool "Build the library with -O2"
 	help

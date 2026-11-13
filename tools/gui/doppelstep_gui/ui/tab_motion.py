@@ -23,6 +23,10 @@ WINDOWS_S = (10, 30, 60)
 REDRAW_MS = 500
 
 
+# Profile Acceleration unit of the X430 [rev/min^2]
+ACCEL_RPM2_PER_UNIT = 214.577
+
+
 class MotionTab(ttk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, padding=8)
@@ -30,6 +34,9 @@ class MotionTab(ttk.Frame):
         self.recorder = None
         self.samples = collections.deque(maxlen=600 * 10)
         self._controls = []
+        self._pos_controls = []         # useful in position control (Operating Mode 3)
+        self._vel_controls = []         # useful in velocity control (Operating Mode 1)
+        self.op_mode = None             # Operating Mode of the device; None = not known
         self._dirty = False
 
         left = ttk.Frame(self)
@@ -60,16 +67,12 @@ class MotionTab(ttk.Frame):
     def _build_torque(self, parent):
         f = self._frame(parent, "Torque")
         self.torque = None              # last Torque Enable read; None = not known
-        self.torque_label = ttk.Label(f, text="Torque: not connected", style="TorqueOff.TLabel")
-        self.torque_label.pack(fill=tk.X, pady=(0, 6))
-        row = ttk.Frame(f)
-        row.pack(fill=tk.X)
-        self.torque_on_button = self._button(row, "Torque ON",
-                                             lambda: self._write(r.TORQUE_ENABLE, 1))
-        self.torque_on_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 4))
-        self.stop_button = ttk.Button(row, text="■ STOP (torque off)", style="Stop.TButton",
-                                      command=self.stop)
-        self.stop_button.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        # One button shows the torque state and toggles it: green = on, red = off.
+        # tk.Button, not ttk: the native Windows theme ignores a ttk background colour.
+        self.torque_button = tk.Button(f, text="Torque: not connected", command=self._toggle_torque,
+                                       font=style.big_font(self), relief=tk.RAISED, bd=2,
+                                       padx=8, pady=4, cursor="hand2")
+        self.torque_button.pack(fill=tk.X)
         mode = ttk.Frame(f)
         mode.pack(fill=tk.X, pady=(8, 0))
         ttk.Label(mode, text="Operating Mode").pack(side=tk.LEFT)
@@ -95,14 +98,17 @@ class MotionTab(ttk.Frame):
         row = ttk.Frame(f)
         row.pack(fill=tk.X)
         ttk.Spinbox(row, from_=0, to=4095, textvariable=self.goal_var, width=7).pack(side=tk.LEFT)
-        self._button(row, "Send", lambda: self._write(r.GOAL_POSITION, self.goal_var.get()),
-                     style="Accent.TButton").pack(side=tk.LEFT, padx=4)
+        send = self._button(row, "Send", lambda: self._write(r.GOAL_POSITION, self.goal_var.get()),
+                            style="Accent.TButton")
+        send.pack(side=tk.LEFT, padx=4)
+        self._pos_controls.append(send)
         quick = ttk.Frame(f)
         quick.pack(fill=tk.X, pady=(6, 0))
         for text, value in (("−90°", START_POSITION - 1024), ("0°", START_POSITION),
                             ("+90°", START_POSITION + 1024)):
-            self._button(quick, text, lambda v=value: self._goto(v, scale), width=6).pack(
-                side=tk.LEFT, padx=(0, 4))
+            button = self._button(quick, text, lambda v=value: self._goto(v, scale), width=6)
+            button.pack(side=tk.LEFT, padx=(0, 4))
+            self._pos_controls.append(button)
         self._show_goal()
 
     def _show_goal(self):
@@ -122,16 +128,30 @@ class MotionTab(ttk.Frame):
         f = self._frame(parent, "Profile")
         self.pv_var = tk.IntVar(value=0)
         self.pa_var = tk.IntVar(value=0)
-        for label, var in (("Profile Velocity", self.pv_var),
-                           ("Profile Acceleration", self.pa_var)):
+        # Velocity-based profile: the largest speed and the acceleration of a move.
+        # Time-based (Drive Mode bit 2): the move time and the ramp time in ms.
+        for label, var, unit, factor in (
+                ("Profile Velocity", self.pv_var, "rev/min", r.RPM_PER_UNIT),
+                ("Profile Acceleration", self.pa_var, "rev/min²", ACCEL_RPM2_PER_UNIT)):
             row = ttk.Frame(f)
             row.pack(fill=tk.X, pady=1)
-            ttk.Label(row, text=label, width=20).pack(side=tk.LEFT)
-            ttk.Spinbox(row, from_=0, to=32767, textvariable=var, width=8).pack(side=tk.LEFT)
+            ttk.Label(row, text=label, width=18).pack(side=tk.LEFT)
+            ttk.Spinbox(row, from_=0, to=32767, textvariable=var, width=7).pack(side=tk.LEFT)
+            shown = ttk.Label(row, text="", style="Muted.TLabel")
+            shown.pack(side=tk.LEFT, padx=4)
+
+            def show(*_args, var=var, shown=shown, unit=unit, factor=factor):
+                try:
+                    value = int(var.get())
+                except (tk.TclError, ValueError):
+                    return
+                shown.configure(text="= maximum" if value == 0 else
+                                f"= {value * factor:.4g} {unit}")
+            var.trace_add("write", show)
+            show()
         self._button(f, "Apply profile", self._apply_profile).pack(anchor="w", pady=(4, 0))
-        ttk.Label(f, text="Velocity-based profile: 0 = maximum.\n"
-                          "Time-based (Drive Mode 4): milliseconds.",
-                  style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
+        ttk.Label(f, text="Time-based profile (Drive Mode 4): both in milliseconds.",
+                  style="Muted.TLabel").pack(anchor="w", pady=(2, 0))
 
     def _build_velocity(self, parent):
         f = self._frame(parent, "Goal Velocity (velocity control)")
@@ -141,10 +161,11 @@ class MotionTab(ttk.Frame):
         ttk.Spinbox(row, from_=-1023, to=1023, textvariable=self.gv_var, width=8).pack(
             side=tk.LEFT)
         ttk.Label(row, text="× 0.229 rev/min").pack(side=tk.LEFT, padx=4)
-        self._button(row, "Send", lambda: self._write(r.GOAL_VELOCITY, self.gv_var.get())).pack(
-            side=tk.LEFT)
-        self._button(row, "0", lambda: self._write(r.GOAL_VELOCITY, 0), width=3).pack(
-            side=tk.LEFT, padx=4)
+        send = self._button(row, "Send", lambda: self._write(r.GOAL_VELOCITY, self.gv_var.get()))
+        send.pack(side=tk.LEFT)
+        zero = self._button(row, "0", lambda: self._write(r.GOAL_VELOCITY, 0), width=3)
+        zero.pack(side=tk.LEFT, padx=4)
+        self._vel_controls += [send, zero]
 
     # --- bus writes ----------------------------------------------------------------------
 
@@ -168,15 +189,48 @@ class MotionTab(ttk.Frame):
                 raise RuntimeError(f"{reg.name} = {value} refused: "
                                    f"{ERROR_NAMES.get(exc.error, exc.error)}{hint}") from exc
 
-        self.app.run_bus(work, lambda _s: self.app.log(f"{reg.name} = {value}"),
-                         f"Write {reg.name}")
+        def done(_status):
+            self.app.log(f"{reg.name} = {value}")
+            if reg is r.OPERATING_MODE:
+                self._set_mode(value)
+            elif reg is r.TORQUE_ENABLE:
+                self._set_torque(bool(value))
+
+        self.app.run_bus(work, done, f"Write {reg.name}")
+
+    def _read_mode(self):
+        dxl_id = self.app.dxl_id
+        self.app.run_bus(lambda bus: bus.read(dxl_id, r.OPERATING_MODE), self._set_mode,
+                         "Read Operating Mode")
+
+    def _set_mode(self, mode):
+        self.op_mode = int(mode)
+        text = r.OPERATING_MODES.get(self.op_mode)
+        if text is not None:
+            self.mode_var.set(f"{self.op_mode} — {text}")
+        self._update_controls()
+
+    def _toggle_torque(self):
+        if self.torque:
+            self.stop()
+        else:
+            self._write(r.TORQUE_ENABLE, 1)
 
     def stop(self):
         if self.app.bus is None:
             return
         dxl_id = self.app.dxl_id
-        self.app.run_bus(lambda bus: bus.write(dxl_id, r.TORQUE_ENABLE, 0),
-                         lambda _s: self.app.log("STOP: Torque Enable = 0"), "STOP")
+
+        def done(_status):
+            self.app.log("Torque Enable = 0")
+            self._set_torque(False)
+
+        self.app.run_bus(lambda bus: bus.write(dxl_id, r.TORQUE_ENABLE, 0), done, "Torque off")
+
+    def _set_torque(self, on):
+        """Show a written torque state at once; the live registers confirm it."""
+        self.torque = on
+        self._update_controls()
 
     def _apply_mode(self):
         self._write(r.OPERATING_MODE, int(self.mode_var.get().split(" ")[0]))
@@ -305,7 +359,10 @@ class MotionTab(ttk.Frame):
     def on_connection(self, connected):
         if not connected:
             self.torque = None
+            self.op_mode = None
         self._update_controls()
+        if connected:
+            self._read_mode()
 
     def on_busy(self, name):
         self._update_controls()
@@ -314,23 +371,25 @@ class MotionTab(ttk.Frame):
         enabled = self.app.bus is not None and not self.app.busy
         for widget in self._controls:
             widget.configure(state="normal" if enabled else "disabled")
-        self.stop_button.configure(state="normal" if self.app.bus is not None and
-                                   not self.app.busy else "disabled")
-        # The torque state from the live registers
-        if self.app.bus is None:
-            self.torque_label.configure(text="Torque: not connected", style="TorqueOff.TLabel")
-        elif self.torque is None:
-            self.torque_label.configure(text="Torque: reading …", style="TorqueOff.TLabel")
+        # The torque button: state from the live registers, click toggles it
+        if self.app.bus is None or self.torque is None:
+            text = "Torque: not connected" if self.app.bus is None else "Torque: reading …"
+            colours = (style.CARD, style.MUTED)
         elif self.torque:
-            self.torque_label.configure(text="● TORQUE ON — the motor is powered",
-                                        style="TorqueOn.TLabel")
+            text, colours = "● TORQUE ON — click to switch off", (style.GOOD, "white")
         else:
-            self.torque_label.configure(text="○ Torque off — the motor is free",
-                                        style="TorqueOff.TLabel")
+            text, colours = "○ TORQUE OFF — click to switch on", (style.BAD, "white")
+        self.torque_button.configure(
+            text=text, bg=colours[0], fg=colours[1], activebackground=colours[0],
+            activeforeground=colours[1], disabledforeground=colours[1],
+            state="normal" if enabled and self.torque is not None else "disabled")
         if enabled and self.torque:
-            # Already on; the EEPROM (Operating Mode) is locked while the torque is on
-            self.torque_on_button.configure(text="✔ Torque is ON", style="TorqueActive.TButton",
-                                            state="disabled")
+            # The EEPROM (Operating Mode) is locked while the torque is on
             self.mode_button.configure(state="disabled")
-        else:
-            self.torque_on_button.configure(text="Torque ON", style="TButton")
+        # Goal Position moves the joint in position control only, Goal Velocity in velocity
+        # control only: the device stores the other one and does nothing with it
+        if enabled and self.op_mode is not None:
+            for widget in self._pos_controls:
+                widget.configure(state="normal" if self.op_mode == 3 else "disabled")
+            for widget in self._vel_controls:
+                widget.configure(state="normal" if self.op_mode == 1 else "disabled")

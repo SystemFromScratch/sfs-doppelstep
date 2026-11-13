@@ -26,6 +26,7 @@ if(CONFIG_SSTEP)
     "SSTEP_CFG_MICROSTEPS_MAX=${CONFIG_SSTEP_MICROSTEPS_MAX}U"
     "SSTEP_CFG_SINE_TABLE_BITS=${CONFIG_SSTEP_SINE_TABLE_BITS}U"
     "SSTEP_CFG_ARG_CHECKS=$<IF:$<BOOL:${CONFIG_SSTEP_ARG_CHECKS}>,1,0>"
+    "SSTEP_CFG_SELFTEST=$<IF:$<BOOL:${CONFIG_SSTEP_SELFTEST}>,1,0>"
   )
 
   # Zephyr's CMAKE_MODULE_PATH has its own version.cmake: put the library's
@@ -33,6 +34,11 @@ if(CONFIG_SSTEP)
   list(PREPEND CMAKE_MODULE_PATH "${SSTEP_SOURCE_DIR}/cmake")
 
   include("${SSTEP_SOURCE_DIR}/sstep.cmake")
+
+  # The SSTEP_CFG_* options: sstep.cmake sets only the backend. PUBLIC, because
+  # SSTEP_STATE_BYTES of sstep.h depends on them: the driver that holds the
+  # instance must see the values the library was compiled with.
+  target_compile_definitions(sstep PUBLIC ${SSTEP_COMPILE_DEFINITIONS})
 
   # Same compiler flags as the kernel (CPU, FPU ABI, warnings, autoconf.h).
   target_link_libraries(sstep PUBLIC zephyr_interface)

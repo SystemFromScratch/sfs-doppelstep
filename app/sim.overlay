@@ -19,3 +19,13 @@
 &motor {
 	power-stage = <&sim_stage>;
 };
+
+/* The real stage is only the timebase here, its outputs stay off: no hardware
+ * trips and no offset check (they need flash the simulated motor has not got).
+ */
+&power_stage {
+	/delete-property/ hw-trip-current-milliamp;
+	/delete-property/ hw-trip-vbus-mv;
+	/delete-property/ current-offset-min-counts;
+	/delete-property/ current-offset-max-counts;
+};

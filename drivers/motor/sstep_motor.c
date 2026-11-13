@@ -22,6 +22,11 @@
 #include <doppelstep/drivers/power_stage.h>
 #include <doppelstep/drivers/sstep_motor.h>
 
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+/* Longest test: about 60 ms; the bus command waits CONFIG_SFS_CMD_TIMEOUT_MS */
+#define SELFTEST_TIMEOUT_MS 100U
+#endif
+
 LOG_MODULE_REGISTER(sstep_motor, CONFIG_SSTEP_MOTOR_LOG_LEVEL);
 
 BUILD_ASSERT((int)SSTEP_MOTOR_DISABLED == (int)SSTEP_STATE_DISABLED);
@@ -34,6 +39,7 @@ BUILD_ASSERT(SSTEP_MOTOR_FAULT_UNDERVOLTAGE == SSTEP_FAULT_UNDERVOLTAGE);
 BUILD_ASSERT(SSTEP_MOTOR_FAULT_HAL == SSTEP_FAULT_HAL);
 BUILD_ASSERT(SSTEP_MOTOR_FAULT_EXTERNAL == SSTEP_FAULT_EXTERNAL);
 BUILD_ASSERT(SSTEP_MOTOR_FAULT_STALL == SSTEP_FAULT_STALL);
+BUILD_ASSERT(SSTEP_MOTOR_FAULT_SELFTEST == SSTEP_FAULT_SELFTEST);
 
 struct sstep_motor_config {
 	const struct device *stage;
@@ -52,6 +58,8 @@ struct sstep_motor_config {
 	uint32_t hold_delay_ms;
 	uint32_t v_max;
 	uint32_t accel_max;
+	uint32_t i_selftest_ma;
+	uint32_t i_slew_ma_per_ms;
 };
 
 struct sstep_motor_data {
@@ -63,6 +71,20 @@ struct sstep_motor_data {
 	uint16_t faults_reported;
 	/* Outputs switched on by Stepper-C (hal_output_enable), read by the fast loop */
 	atomic_t outputs_on;
+	const struct device *stage;
+
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+	/* sstep_selftest() of Stepper-C runs; the fast loop checks the shunt of the
+	 * shared leg meanwhile (Kirchhoff: iU + iV + iW = 0), which Stepper-C does not see.
+	 */
+	atomic_t selftest_active;
+	int32_t kirchhoff_q3; /* iU + iV + iW filtered over 8 periods [counts * 8] */
+	int32_t kirchhoff_peak_q3;
+	bool selftest_passed;
+#endif
+
+	/* Filtered current amplitude [mA * 16], see sstep_motor_get_status() */
+	uint32_t i_amp_q4;
 
 	uint32_t speed;
 	uint32_t accel;
@@ -104,6 +126,8 @@ static int to_errno(int rc)
 		return -EBUSY;
 	case SSTEP_ERR_UNSUPPORTED:
 		return -ENOTSUP;
+	case SSTEP_ERR_VBUS:
+		return -ERANGE;
 	default:
 		return -EINVAL;
 	}
@@ -182,6 +206,13 @@ static void fast_loop(const struct power_stage_sample *s, uint32_t trips, void *
 	if ((trips & POWER_STAGE_TRIP_AUX) != 0U) {
 		(void)sstep_report_fault(drv, SSTEP_FAULT_EXTERNAL);
 	}
+	/* Hardware comparators: the break input has switched the outputs off already */
+	if ((trips & POWER_STAGE_TRIP_HW_OC) != 0U) {
+		(void)sstep_report_fault(drv, SSTEP_FAULT_OVERCURRENT);
+	}
+	if ((trips & POWER_STAGE_TRIP_HW_OV) != 0U) {
+		(void)sstep_report_fault(drv, SSTEP_FAULT_OVERVOLTAGE);
+	}
 	/* The stage has switched the outputs off already; the fault keeps them off. With
 	 * the outputs off a late period is harmless, for example while a flash write of
 	 * the EEPROM area (allowed only with the torque off) stalls the CPU: no fault.
@@ -190,6 +221,17 @@ static void fast_loop(const struct power_stage_sample *s, uint32_t trips, void *
 	    (atomic_get(&CONTAINER_OF(drv, struct sstep_motor_data, drv)->outputs_on) != 0)) {
 		(void)sstep_report_fault(drv, SSTEP_FAULT_HAL);
 	}
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+	struct sstep_motor_data *const data = CONTAINER_OF(drv, struct sstep_motor_data, drv);
+
+	if (atomic_get(&data->selftest_active) != 0) {
+		const int32_t sum = (int32_t)s->i_a + (int32_t)s->i_b + (int32_t)s->i_aux -
+				    (3 * (int32_t)data->stage_info.adc_i_zero);
+
+		data->kirchhoff_q3 += sum - (data->kirchhoff_q3 / 8);
+		data->kirchhoff_peak_q3 = MAX(data->kirchhoff_peak_q3, abs(data->kirchhoff_q3));
+	}
+#endif
 	(void)sstep_fast_loop(drv, &sample);
 }
 
@@ -243,6 +285,17 @@ int sstep_motor_get_status(const struct device *dev, struct sstep_motor_status *
 
 	const uint32_t ia = (uint32_t)MIN(abs(st.i_a_ma), 32767);
 	const uint32_t ib = (uint32_t)MIN(abs(st.i_b_ma), 32767);
+	const uint32_t amp = isqrt_u32((ia * ia) + (ib * ib));
+
+	/* One sample of the fast loop moves by an ADC step (29 mA on the ESC1): the
+	 * amplitude is averaged over 8 calls (8 ms at the 1 ms status period). With the
+	 * outputs off no current flows, whatever the offset drift of the sensors says.
+	 */
+	if ((st.state == SSTEP_STATE_DISABLED) || (st.state == SSTEP_STATE_FAULT)) {
+		data->i_amp_q4 = 0U;
+	} else {
+		data->i_amp_q4 = data->i_amp_q4 - (data->i_amp_q4 / 8U) + ((amp * 16U) / 8U);
+	}
 
 	*status = (struct sstep_motor_status){
 		.state = (enum sstep_motor_state)st.state,
@@ -250,7 +303,7 @@ int sstep_motor_get_status(const struct device *dev, struct sstep_motor_status *
 		.position = st.position,
 		.target = st.target,
 		.velocity = st.velocity,
-		.i_amplitude_ma = isqrt_u32((ia * ia) + (ib * ib)),
+		.i_amplitude_ma = (data->i_amp_q4 + 8U) / 16U,
 		.i_run_ma = data->i_run_ma,
 		.i_hold_ma = data->i_hold_ma,
 		.vbus_mv = st.vbus_mv,
@@ -285,11 +338,89 @@ int sstep_motor_clear_faults(const struct device *dev)
 
 	(void)atomic_clear(&data->fault_flags);
 	data->faults_reported = 0U;
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+	data->selftest_passed = false; /* test again before the next enable */
+#endif
 	return to_errno(rc);
 }
 
 /* ------------------------------------------------------------------------ */
 /* Class "stepper" on the child sfs,sstep-stepper-driver                    */
+
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+static const char *selftest_str(enum sstep_selftest_result r)
+{
+	switch (r) {
+	case SSTEP_SELFTEST_RUNNING:
+		return "timeout";
+	case SSTEP_SELFTEST_PASS:
+		return "iU + iV + iW is not 0 (a current sensor is broken)";
+	case SSTEP_SELFTEST_LEAK:
+		return "current with all legs low (a switch conducts)";
+	case SSTEP_SELFTEST_OPEN:
+		return "no current (phase open, motor not connected or leg dead)";
+	case SSTEP_SELFTEST_SHORT:
+		return "current too high (short circuit)";
+	case SSTEP_SELFTEST_POLARITY:
+		return "current of the wrong sign (current-sense-invert)";
+	case SSTEP_SELFTEST_WRONG_PHASE:
+		return "current in the other phase (phase on the wrong legs)";
+	case SSTEP_SELFTEST_ABORTED:
+		return "aborted by a bus voltage trip or a power stage error";
+	default:
+		return "not run";
+	}
+}
+
+/* sstep_selftest() of Stepper-C with the outputs on; blocks the caller until it ends */
+static int run_selftest(const struct sstep_motor_config *cfg, struct sstep_motor_data *data)
+{
+	const struct power_stage_info *info = &data->stage_info;
+	/* The shared-leg stage measures the third leg: the leg currents must add up to 0 */
+	const bool kirchhoff = (info->legs == 3U);
+	const int32_t i_test = (int32_t)MAX((uint64_t)cfg->i_selftest_ma *
+						    (uint64_t)abs(info->adc_i_span) /
+						    MAX(info->i_full_scale_ma, 1U),
+					    4U);
+	struct sstep_status st = {0};
+	int ret;
+
+	data->kirchhoff_q3 = 0;
+	data->kirchhoff_peak_q3 = 0;
+	(void)atomic_set(&data->selftest_active, kirchhoff ? 1 : 0);
+	ret = to_errno(sstep_selftest(&data->drv, cfg->i_selftest_ma));
+	if (ret == 0) {
+		for (uint32_t ms = 0U; ms < SELFTEST_TIMEOUT_MS; ms++) {
+			k_sleep(K_MSEC(1));
+			(void)sstep_get_status(&data->drv, &st);
+			if (st.selftest != SSTEP_SELFTEST_RUNNING) {
+				break;
+			}
+		}
+	}
+	(void)atomic_set(&data->selftest_active, 0);
+	if (ret != 0) {
+		return ret; /* -ERANGE: the bus voltage, nothing switched on */
+	}
+	if (st.selftest == SSTEP_SELFTEST_RUNNING) {
+		(void)sstep_disable(&data->drv); /* stops the test, outputs off */
+	}
+	if ((st.selftest == SSTEP_SELFTEST_PASS) &&
+	    (!kirchhoff || ((data->kirchhoff_peak_q3 / 8) <= (i_test / 4)))) {
+		LOG_INF("selftest passed: %d mA at duty %u/%u", st.selftest_i_ma, st.selftest_duty,
+			info->pwm_period_ticks);
+		return 0;
+	}
+	LOG_ERR("selftest: %s, phase %c, %d mA at duty %u, legs sum %d counts (test %d)",
+		selftest_str(st.selftest), (st.selftest_phase == 0U) ? 'A' : 'B',
+		st.selftest_i_ma, st.selftest_duty, data->kirchhoff_peak_q3 / 8, i_test);
+	/* Stepper-C has latched what it found; the timeout and the sensor of the
+	 * shared leg are latched here.
+	 */
+	(void)sstep_report_fault(&data->drv, SSTEP_FAULT_SELFTEST);
+	return -EIO;
+}
+#endif
 
 static int drv_enable(const struct device *dev)
 {
@@ -309,7 +440,34 @@ static int drv_enable(const struct device *dev)
 		LOG_ERR("enable refused: the power stage does not allow its outputs");
 		return -EPERM;
 	}
-	return to_errno(sstep_enable(&data->drv));
+
+	struct sstep_status st;
+
+	ret = to_errno(sstep_get_status(&data->drv, &st));
+	if (ret != 0) {
+		return ret;
+	}
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+	if ((st.state == SSTEP_STATE_DISABLED) &&
+	    (!data->selftest_passed || IS_ENABLED(CONFIG_SSTEP_MOTOR_SELFTEST_EVERY_ENABLE))) {
+		ret = run_selftest(cfg, data);
+		if (ret == -ERANGE) {
+			LOG_ERR("enable refused: VBUS %u mV outside %u..%u mV", st.vbus_mv,
+				cfg->vbus_min_mv, cfg->vbus_max_mv);
+		}
+		if (ret != 0) {
+			return ret;
+		}
+		data->selftest_passed = true;
+	}
+#endif
+	/* Bus voltage outside the limits: -ERANGE, not latched (the supply may come up) */
+	ret = to_errno(sstep_enable(&data->drv));
+	if (ret == -ERANGE) {
+		LOG_ERR("enable refused: VBUS %u mV outside %u..%u mV", st.vbus_mv, cfg->vbus_min_mv,
+			cfg->vbus_max_mv);
+	}
+	return ret;
 }
 
 static int drv_disable(const struct device *dev)
@@ -539,6 +697,7 @@ static int build_config(const struct device *dev, struct sstep_config *out)
 			.adc_i_span = ps->adc_i_span,
 			.adc_vbus_mv_full = ps->adc_vbus_mv_full,
 			.adc_full = ps->adc_full,
+			.sample_window_ticks = ps->sample_window_ticks,
 		},
 		.ctrl = {
 			.drive_mode = cfg->voltage_drive ? SSTEP_DRIVE_VOLTAGE
@@ -554,6 +713,7 @@ static int build_config(const struct device *dev, struct sstep_config *out)
 			.v_max = cfg->v_max,
 			.accel = cfg->accel_max,
 			.decel = 0U,
+			.i_slew_ma_per_ms = cfg->i_slew_ma_per_ms,
 		},
 		.hal = {
 			.context = (void *)dev,
@@ -591,6 +751,7 @@ static int sstep_motor_init(const struct device *dev)
 		return to_errno(ret);
 	}
 
+	data->stage = cfg->stage;
 	data->speed = cfg->v_max;
 	data->accel = cfg->accel_max;
 	data->decel = 0U;
@@ -644,6 +805,10 @@ static int sstep_motor_init(const struct device *dev)
 		.hold_delay_ms = DT_INST_PROP(n, hold_delay_ms),                                   \
 		.v_max = DT_INST_PROP(n, max_velocity),                                            \
 		.accel_max = DT_INST_PROP(n, max_acceleration),                                    \
+		.i_slew_ma_per_ms = DT_INST_PROP(n, current_slew_ma_per_ms),                       \
+		.i_selftest_ma = (DT_INST_PROP(n, selftest_current_milliamp) != 0)                 \
+					 ? DT_INST_PROP(n, selftest_current_milliamp)               \
+					 : DT_INST_PROP(n, rated_current_milliamp) * 3 / 10,        \
 	};                                                                                         \
 	static struct sstep_motor_data sstep_motor_data_##n;                                       \
 	DEVICE_DT_INST_DEFINE(n, sstep_motor_init, NULL, &sstep_motor_data_##n,                    \

@@ -9,12 +9,12 @@ from dataclasses import dataclass
 from . import registers as r
 
 FIRST = r.TORQUE_ENABLE
-LAST = r.PRESENT_INPUT_VOLTAGE
+LAST = r.PRESENT_TEMPERATURE
 BLOCK_ADDRESS, BLOCK_SIZE = r.block(FIRST, LAST)
 
 LIVE = [r.TORQUE_ENABLE, r.HARDWARE_ERROR_STATUS, r.GOAL_POSITION, r.MOVING, r.MOVING_STATUS,
         r.PRESENT_CURRENT, r.PRESENT_VELOCITY, r.PRESENT_POSITION, r.PRESENT_INPUT_VOLTAGE,
-        r.REALTIME_TICK]
+        r.PRESENT_TEMPERATURE, r.REALTIME_TICK]
 
 
 @dataclass
@@ -36,6 +36,7 @@ class Sample:
             "moving": v["Moving"],
             "hardware_error_status": v["Hardware Error Status"],
             "realtime_tick_ms": v["Realtime Tick"],
+            "temperature_c": v["Present Temperature"],
         }
 
 

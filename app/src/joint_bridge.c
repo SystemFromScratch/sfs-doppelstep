@@ -15,7 +15,9 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/kernel.h>
 
+#include <doppelstep/drivers/power_stage.h>
 #include <doppelstep/drivers/x430_servo.h>
+#include <zephyr/logging/log.h>
 
 #include "app_msg.h"
 #include "joint.h"
@@ -32,6 +34,9 @@
 #define DXL_VELOCITY_LIMIT_MAX 1023
 
 static const struct device *servo;
+static const struct device *const stage = DEVICE_DT_GET(DT_PHANDLE(MOTOR_NODE, power_stage));
+
+LOG_MODULE_REGISTER(joint_bridge, CONFIG_SFS_LOG_LEVEL);
 
 static const struct joint_cfg jcfg = {
 	.full_steps_per_rev = DT_PROP(MOTOR_NODE, full_steps_per_rev),
@@ -87,10 +92,46 @@ static uint8_t hardware_error_bits(uint16_t faults)
 		bits |= X430_HW_ERROR_INPUT_VOLTAGE;
 	}
 	if ((faults & (SSTEP_MOTOR_FAULT_OVERCURRENT | SSTEP_MOTOR_FAULT_EXTERNAL |
-		       SSTEP_MOTOR_FAULT_HAL)) != 0U) {
+		       SSTEP_MOTOR_FAULT_HAL | SSTEP_MOTOR_FAULT_SELFTEST)) != 0U) {
 		bits |= X430_HW_ERROR_ELECTRICAL_SHOCK;
 	}
 	return bits;
+}
+
+/* Present Temperature from the power stage sensor, and the overheating trip of an
+ * XM430: above Temperature Limit (31) Overheating Error is raised; it is in the
+ * factory Shutdown mask (63), so the emulator switches the torque off and keeps it off
+ * until a Reboot. A sensor fault (open or shorted NTC) trips as well: without a reading
+ * the stage is not protected. Bus lock held.
+ */
+static void refresh_temperature(void)
+{
+	static bool fault_logged;
+	int16_t decidegc;
+	const int ret = power_stage_get_temperature(stage, &decidegc);
+	const bool tripped = (reg(X430_ADDR_HARDWARE_ERROR_STATUS) & X430_HW_ERROR_OVERHEATING) != 0;
+
+	if (ret == 0) {
+		/* the register holds whole degC, 0..255 */
+		const int32_t celsius = CLAMP(((int32_t)decidegc + 5) / 10, 0, 255);
+
+		(void)x430_servo_reg_set(servo, X430_ADDR_PRESENT_TEMPERATURE, celsius);
+		if ((celsius > reg(X430_ADDR_TEMPERATURE_LIMIT)) && !tripped) {
+			LOG_WRN("overheating: %d degC above Temperature Limit %d degC", celsius,
+				reg(X430_ADDR_TEMPERATURE_LIMIT));
+			x430_servo_raise_hw_error(servo, X430_HW_ERROR_OVERHEATING);
+		}
+	} else if (ret == -EIO) {
+		if (!fault_logged) {
+			LOG_ERR("temperature sensor fault (NTC open or shorted)");
+			fault_logged = true;
+		}
+		if (!tripped) {
+			x430_servo_raise_hw_error(servo, X430_HW_ERROR_OVERHEATING);
+		}
+	} else {
+		/* -ENOSYS (no sensor), -EAGAIN (no reading yet): register unchanged */
+	}
 }
 
 /* Live registers from the motor snapshot. Bus lock held. */
@@ -131,6 +172,8 @@ static void refresh_live(void)
 		}
 	}
 	faults_reported = st->faults;
+
+	refresh_temperature();
 
 	/* Outputs off while Torque Enable says on (fault, external disable) */
 	if ((reg(X430_ADDR_TORQUE_ENABLE) != 0) &&
@@ -202,7 +245,15 @@ static uint8_t on_write(const struct device *dev, uint16_t address, uint8_t size
 		if (value != 0) {
 			/* The library copies Present Position into Goal Position next */
 			refresh_live();
-			return to_status(app_call(APP_CMD_ENABLE, 0, 0U, 0U));
+			const int rc = app_call(APP_CMD_ENABLE, 0, 0U, 0U);
+
+			/* Bus voltage outside the motor node limits: refused, nothing
+			 * latched in the motor; the host sees why.
+			 */
+			if (rc == -ERANGE) {
+				x430_servo_raise_hw_error(servo, X430_HW_ERROR_INPUT_VOLTAGE);
+			}
+			return to_status(rc);
 		}
 		return to_status(app_call(APP_CMD_DISABLE, 0, 0U, 0U));
 

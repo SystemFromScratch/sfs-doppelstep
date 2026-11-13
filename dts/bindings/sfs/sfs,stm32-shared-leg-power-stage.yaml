@@ -84,6 +84,69 @@ properties:
     required: true
     description: adc-master channel of the bus voltage divider.
 
+  temperature-channel:
+    type: int
+    description: |
+      adc-master channel of the NTC divider (power stage temperature); none = no
+      sensor, power_stage_get_temperature() then returns -ENOSYS. The divider is
+      the NTC from the ADC reference to the input and ntc-bottom-ohm from the
+      input to ground. Converted every PWM period, as the fourth injected rank.
+
+  ntc-r25-ohm:
+    type: int
+    description: NTC resistance at 25 degC [Ohm]. Required with temperature-channel.
+
+  ntc-beta:
+    type: int
+    description: |
+      B constant of the NTC [K], for the range of interest (B25/85 for a trip
+      level near 80 degC). Required with temperature-channel.
+
+  ntc-bottom-ohm:
+    type: int
+    description: Fixed resistor from the ADC input to ground [Ohm]. Required with temperature-channel.
+
+  sample-window-ns:
+    type: int
+    default: 0
+    description: |
+      Time around the top of the counter that every leg spends on its low-side
+      switch at least [ns], so that the shunt samples see the phase currents and
+      no switching edge: dead time, settling of the amplifier, and the sampling
+      phases of the injected conversions. Stepper-C keeps every compare value at
+      or below the period minus this time and lowers its voltage limit by the
+      same fraction (sample_window_ticks). At most a quarter of the period.
+
+  hw-trip-current-milliamp:
+    type: int
+    description: |
+      Short-circuit level of the hardware trip [mA]; none = no hardware trip.
+      COMP1, COMP2 and COMP4 compare the non-inverting inputs of OPAMP1..3
+      (PA1, PA7, PB0: shunt voltage on the bias of the board) with DAC3 and drive
+      the break input BRK of the timer: the outputs go off in hardware, within the
+      break filter (about 0.5 us). Catches a current down through a low-side
+      switch: shoot-through, a phase shorted to the bus, a phase-to-phase short.
+      The level follows the calibrated offset. Set it above trip-current-milliamp
+      of the motor node.
+
+  hw-trip-vbus-mv:
+    type: int
+    description: |
+      Bus overvoltage level of the hardware trip [mV]; none = no hardware trip.
+      COMP3 compares the bus divider (PA0) with DAC1 channel 1 and drives the
+      break input BRK2 of the timer. Set it above vbus-max-mv of the motor node.
+
+  current-offset-min-counts:
+    type: int
+    description: |
+      Lowest acceptable current sensor offset at 0 A [ADC counts]. Outside
+      [min, max], power_stage_calibrate() fails with -EIO and the outputs are
+      refused: amplifier, shunt or bias network broken. None = no check.
+
+  current-offset-max-counts:
+    type: int
+    description: Highest acceptable current sensor offset at 0 A [ADC counts].
+
   adc-vref-mv:
     required: true
 

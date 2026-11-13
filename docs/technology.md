@@ -12,7 +12,7 @@ the Python tools.
 |---|---|
 | Real-time operating system | **Zephyr RTOS v4.5.0**: drivers, devicetree, Kconfig, threads, sysbuild |
 | Bootloader | **MCUboot** with an RSA-2048 signature check and serial recovery |
-| Motor control | **Stepper-C v1.2.0**: closed-loop microstepping current control |
+| Motor control | **Stepper-C** v1.3.0: closed-loop microstepping current control, the self-test of the bridge and the wiring |
 | Servo protocol | **DYNAMIXEL X430 Control Table Emulator** on **DXL2-C v1.0.0** (Protocol 2.0) |
 | Simulation | **Stepper-Lab** plant model, power stage values from **ngspice** (sfs-stepper-power-spice), Zephyr **native_sim** |
 | Hardware access | STM32Cube **LL drivers** (hal_stm32), **CMSIS 6**, **SEGGER RTT** |
@@ -65,9 +65,9 @@ Details: [Firmware update](firmware-update.md).
 
 | Item | Detail |
 |---|---|
-| Version | v1.2.0 (`west.yml`) |
+| Version | v1.3.0 (`west.yml`) |
 | Source | [github.com/AntonVynohradov/Stepper-C](https://github.com/AntonVynohradov/Stepper-C), SystemFromScratch® |
-| Role | Closed-loop microstepping current control of a two-phase stepper motor: the current controller (fast loop, 20 kHz), the motion profiles (slow loop, 1 kHz), current and voltage protection |
+| Role | Closed-loop microstepping current control of a two-phase stepper motor: the current controller (fast loop, 20 kHz), the motion profiles (slow loop, 1 kHz), current and voltage protection, the self-test before the first enable |
 | Why | A hardware-agnostic library in portable C, with no heap and no RTOS, that reaches the hardware only through callbacks. Doppelstep wraps it in a Zephyr driver instead of re-implementing control in the application |
 
 Build options used here (`modules/stepper-c/Kconfig`):
@@ -77,6 +77,7 @@ Build options used here (`modules/stepper-c/Kconfig`):
 | Numeric backend | Single-precision float on the STM32G431 (hardware FPU). The fixed-point backend (Q15/Q31, integer only) is tested in CI for cores without an FPU |
 | Power stage topology | Three half-bridges with a shared leg: the B-G431B-ESC1 has three legs, not four |
 | Microstepping | 16 microsteps per full step, 3200 per revolution |
+| Self-test (`SSTEP_CFG_SELFTEST`) | On with the real motor and in `native_sim`; off in the simulated-motor build on the board (flash) |
 
 ## Servo protocol
 
@@ -102,7 +103,7 @@ Build options used here (`modules/stepper-c/Kconfig`):
 
 | Component | Version | Role | Why |
 |---|---|---|---|
-| **Stepper-Lab** | `main` during development, pinned before a release | The motor and power stage model in C (`sil/c/sstep_plant.c`) and its parameters (`params/*.json`) | It is the same C code as the Xcos block of the Scilab prototype, so the firmware is tested against the model the controller was designed with |
+| **Stepper-Lab** | pinned commit until its first release | The motor and power stage model in C (`sil/c/sstep_plant.c`) and its parameters (`params/*.json`) | It is the same C code as the Xcos block of the Scilab prototype, so the firmware is tested against the model the controller was designed with |
 | **sfs-stepper-power-spice** | pinned commit until its first release | ngspice model of one leg of the B-G431B-ESC1; writes the stage parameters of Stepper-Lab | The leg voltage error (dead time, body diodes, resistance) comes from a circuit simulation, not from a guess |
 | **Zephyr native_sim** | part of Zephyr v4.5.0 | Builds the whole firmware as a Linux program | The complete chain, protocol to motor model, runs on any PC and in CI |
 
@@ -112,8 +113,8 @@ How the three repositories work together: [Simulated motor](simulation.md).
 
 | Component | Version | Role |
 |---|---|---|
-| **ztest** and **Twister** | Zephyr v4.5.0 | 62 test cases in 5 suites: unit conversions, queues, the watchdog supervisor, the power stage API, the motor driver on a fake power stage |
-| **pytest** (+ pytest-timeout) | 9.0.2 (2.4.0) | 28 SIL and integration tests against the `native_sim` firmware over Protocol 2.0, plus 8 motion tests on the fixed-point backend |
+| **ztest** and **Twister** | Zephyr v4.5.0 | 73 test cases in 6 configurations: unit conversions, queues, the watchdog supervisor, the power stage API, the motor driver on a fake power stage (with and without the self-test of Stepper-C) |
+| **pytest** (+ pytest-timeout) | 9.0.2 (2.4.0) | 29 SIL and integration tests against the `native_sim` firmware over Protocol 2.0, plus 8 motion tests on the fixed-point backend |
 | **DynamixelSDK** | 4.1.0 | The official ROBOTIS library under ROS 2 `dynamixel_hardware_interface`: the integration tests run the ros2_control loop with it |
 | **Layer check** | `scripts/check-layers.sh` | Enforces the architecture rules: no register access outside the backends, no floating point above them, no DYNAMIXEL code in the motor driver |
 | **GitHub Actions** | `.github/workflows/ci.yml` | Runs `scripts/ci.sh` on every push to `main` and every pull request: layer check, three pristine builds, all tests |

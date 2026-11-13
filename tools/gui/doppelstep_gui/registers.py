@@ -66,7 +66,7 @@ TABLE = [
     R("Protocol Type", 13, 1, "eeprom", "rw"),
     R("Homing Offset", 20, 4, "eeprom", "rw", signed=True),
     R("Moving Threshold", 24, 4, "eeprom", "rw"),
-    R("Temperature Limit", 31, 1, "eeprom", "rw"),
+    R("Temperature Limit", 31, 1, "eeprom", "rw", unit="°C"),
     R("Max Voltage Limit", 32, 2, "eeprom", "rw", unit="V", scale=V_PER_UNIT),
     R("Min Voltage Limit", 34, 2, "eeprom", "rw", unit="V", scale=V_PER_UNIT),
     R("PWM Limit", 36, 2, "eeprom", "rw"),
@@ -106,7 +106,7 @@ TABLE = [
     R("Velocity Trajectory", 136, 4, "ram", "r", signed=True),
     R("Position Trajectory", 140, 4, "ram", "r", signed=True),
     R("Present Input Voltage", 144, 2, "ram", "r", unit="V", scale=V_PER_UNIT),
-    R("Present Temperature", 146, 1, "ram", "r"),
+    R("Present Temperature", 146, 1, "ram", "r", unit="°C"),
     R("Backup Ready", 147, 1, "ram", "r"),
 ]
 del R
@@ -134,6 +134,8 @@ PRESENT_CURRENT = BY_NAME["Present Current"]
 PRESENT_VELOCITY = BY_NAME["Present Velocity"]
 PRESENT_POSITION = BY_NAME["Present Position"]
 PRESENT_INPUT_VOLTAGE = BY_NAME["Present Input Voltage"]
+PRESENT_TEMPERATURE = BY_NAME["Present Temperature"]
+TEMPERATURE_LIMIT = BY_NAME["Temperature Limit"]
 
 # Baud Rate (8) codes: drivers/x430/x430_servo.c (ROBOTIS e-Manual)
 BAUD_RATES = {0: 9600, 1: 57600, 2: 115200, 3: 1000000, 4: 2000000, 5: 3000000,
@@ -143,7 +145,8 @@ BAUD_RATES = {0: 9600, 1: 57600, 2: 115200, 3: 1000000, 4: 2000000, 5: 3000000,
 OPERATING_MODES = {1: "velocity control", 3: "position control"}
 
 # Hardware Error Status bits checked by the firmware (tests/sil/test_protection.py)
-HW_ERROR_BITS = {0x01: "Input Voltage Error", 0x10: "Electrical Shock Error"}
+HW_ERROR_BITS = {0x01: "Input Voltage Error", 0x04: "Overheating Error",
+                 0x10: "Electrical Shock Error"}
 
 XM430_W350_MODEL = 1020
 

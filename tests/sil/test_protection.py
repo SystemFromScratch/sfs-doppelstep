@@ -19,6 +19,7 @@ RUN_A = 1.5
 HOLD_A = 0.5
 HW_INPUT_VOLTAGE = 0x01           # Hardware Error Status bits (XM430 e-Manual)
 HW_ELECTRICAL_SHOCK = 0x10
+HW_OVERHEATING = 0x04
 
 
 def load_angle(torque, current):
@@ -79,22 +80,48 @@ def test_overload_trips_and_is_reported(firmware_factory):
     assert not bus.last_status.alert
 
 
-def test_undervoltage_is_reported(firmware_factory):
+def test_torque_enable_below_vbus_min_is_refused(firmware_factory):
+    """Bus voltage outside vbus-min-mv..vbus-max-mv: Torque Enable answers Result Fail
+    before anything is energised, Input Voltage Error tells the host why. Nothing is
+    latched in the motor: with the supply back the torque comes on."""
     fw = firmware_factory(["-sim_vbus_mv=9000"])           # below vbus-min-mv of the motor node
     bus = dxl2.Bus(fw.pty)
     assert bus.read(DXL_ID, dxl2.PRESENT_INPUT_VOLTAGE) == 90
-    bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
-    wait_until(lambda: bus.read(DXL_ID, dxl2.HARDWARE_ERROR_STATUS) & HW_INPUT_VOLTAGE, 1.0,
-               what="input voltage error")
+    with pytest.raises(dxl2.DxlError) as error:
+        bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
+    assert error.value.error == dxl2.ERR_RESULT_FAIL
+    assert bus.read(DXL_ID, dxl2.HARDWARE_ERROR_STATUS) & HW_INPUT_VOLTAGE
     assert bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 0
+    s = fw.next_sample()
+    assert (s.i_a, s.i_b) == (0, 0), "outputs must stay off"
 
 
 def test_torque_enable_in_a_fault_is_rejected(firmware_factory):
-    fw = firmware_factory(["-sim_vbus_mv=9000"])           # below vbus-min-mv of the motor node
+    fw = firmware_factory(["-sim_load_unm=400000"])        # overload trip, latched
     bus = dxl2.Bus(fw.pty)
     bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
-    wait_until(lambda: bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 0, 1.0, what="trip")
+    wait_until(lambda: bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 0, 2.0, what="trip")
     with pytest.raises(dxl2.DxlError) as error:
         bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
     assert error.value.error == dxl2.ERR_RESULT_FAIL
     assert bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 0
+
+
+def test_overheating_trips_like_an_xm430(bus):
+    """Present Temperature above Temperature Limit raises Overheating Error; it is in the
+    factory Shutdown mask, so the torque stays off until a Reboot. native_sim reports a
+    fixed 25 degC: a Temperature Limit of 20 degC takes the same path as a hot stage."""
+    assert bus.read(DXL_ID, dxl2.PRESENT_TEMPERATURE) == 25
+    bus.write(DXL_ID, dxl2.TEMPERATURE_LIMIT, 20)                  # EEPROM, torque off
+    wait_until(lambda: bus.read(DXL_ID, dxl2.HARDWARE_ERROR_STATUS) & HW_OVERHEATING, 1.0,
+               what="Overheating Error")
+    with pytest.raises(dxl2.DxlError):
+        bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)
+    assert bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 0
+
+    bus.write(DXL_ID, dxl2.TEMPERATURE_LIMIT, 80)                  # status carries the Alert bit only
+    bus.reboot(DXL_ID)                                             # clears Hardware Error Status
+    wait_until(lambda: bus.read(DXL_ID, dxl2.HARDWARE_ERROR_STATUS) == 0, 1.0,
+               what="error cleared by the Reboot")
+    bus.write(DXL_ID, dxl2.TORQUE_ENABLE, 1)                       # works again
+    assert bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 1

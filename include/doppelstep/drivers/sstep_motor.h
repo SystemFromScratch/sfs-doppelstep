@@ -42,6 +42,7 @@ enum sstep_motor_state {
 #define SSTEP_MOTOR_FAULT_HAL          BIT(3) /**< The power stage refused a command. */
 #define SSTEP_MOTOR_FAULT_EXTERNAL     BIT(4) /**< The power stage reported its aux trip. */
 #define SSTEP_MOTOR_FAULT_STALL        BIT(5)
+#define SSTEP_MOTOR_FAULT_SELFTEST     BIT(6) /**< The self-test before the first enable failed. */
 
 struct sstep_motor_status {
 	enum sstep_motor_state state;
@@ -49,7 +50,8 @@ struct sstep_motor_status {
 	int32_t position;        /**< Commanded position [microsteps]. */
 	int32_t target;          /**< Target of the current move [microsteps]. */
 	int32_t velocity;        /**< Commanded velocity [microsteps/s]. */
-	uint32_t i_amplitude_ma; /**< Root of iA^2 + iB^2 [mA]. */
+	uint32_t i_amplitude_ma; /**< Root of iA^2 + iB^2 [mA], averaged over the last 8 calls of
+				  *   sstep_motor_get_status(); 0 with the outputs off. */
 	uint32_t i_run_ma;       /**< Active run current [mA]. */
 	uint32_t i_hold_ma;      /**< Active hold current [mA]. */
 	uint32_t vbus_mv;        /**< Measured bus voltage [mV]. */

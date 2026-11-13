@@ -8,4 +8,4 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(test_power_stage LANGUAGES C)
 
 target_sources(app PRIVATE src/main.c ../common/fake_power_stage.c)
-target_include_directories(app PRIVATE ../common)
+target_include_directories(app PRIVATE ../common ../../../drivers/power_stage)

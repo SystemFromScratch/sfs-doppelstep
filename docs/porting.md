@@ -22,7 +22,9 @@ Copy `drivers/power_stage/power_stage_stm32.c` as the starting point, and use th
   Choose the interrupt type in the backend: zero-latency where the core has it, otherwise the
   highest normal priority.
 - [ ] **Sampling instant.** With low-side shunts, sample when the low-side switches conduct: at the
-  center of a center-aligned period, triggered by the timer in hardware.
+  center of a center-aligned period, triggered by the timer in hardware. Report the time the
+  conversions need around it in `sample_window_ticks` of `power_stage_info`, in compare ticks:
+  Stepper-C then keeps every compare value below the period minus it.
 - [ ] **Offset calibration** runs with the outputs off and blocks only the caller.
 - [ ] **Polarity.** `adc_i_span` follows the gain sign; `current-sense-invert` corrects the
   result of bring-up step 3.
@@ -34,11 +36,23 @@ Copy `drivers/power_stage/power_stage_stm32.c` as the starting point, and use th
   switch the outputs off in the interrupt, count it in `overruns` and pass the trip with the next
   sample ([Architecture](architecture.md)). Without the check, an overrunning fast loop stops every
   thread for good.
-- [ ] **`POWER_STAGE_TRIP_AUX`** covers a leg the sample does not show and stays clear until calibration has
+- [ ] **`POWER_STAGE_TRIP_AUX`** covers the current of every leg, also the one the sample does not show (fill
+  `i_aux` of the sample with it, or `adc_i_zero` without a measurement), and stays clear until calibration has
   succeeded: with an unknown offset a false trip would latch a fault at every start. Without such a
   measurement, leave `set_aux_trip` out and remove `aux-trip` from the motor node, because the motor
   driver refuses to start when the node asks for a check the stage cannot do.
+- [ ] **Hardware trips are optional but recommended.** A comparator into the break input of the timer
+  switches the gates off within a microsecond, the software trips within a PWM period. Pass them
+  as `POWER_STAGE_TRIP_HW_OC` / `_HW_OV` and refuse the outputs until a reset after one
+  ([Protection](protection.md#hardware-trips)).
+- [ ] **Offset window.** Fail `calibrate` with `-EIO` for an implausible offset and keep
+  `outputs_allowed` false: a broken amplifier must not reach the motor.
+- [ ] **Self-test.** `sstep_selftest()` of Stepper-C drives the legs itself from the fast loop
+  before the first enable (`CONFIG_SSTEP_MOTOR_SELFTEST`): `write` and `output_enable` must work
+  there, and compare 0 must hold a leg on its low side. With three legs, `i_aux` must carry the
+  third leg: the driver checks iU + iV + iW = 0 meanwhile.
 - [ ] **`get_stats`** is optional: without a cycle counter, leave `fast_cycles_max` at 0.
+- [ ] **`get_temperature`** is optional: without a sensor leave it out (`-ENOSYS`); return `-EIO` for a reading at a rail, so that the application trips instead of trusting it.
 - [ ] `pwm-frequency` is an integer multiple of `slow-loop-hz`.
 - [ ] Add the board build to `scripts/ci.sh` and extend the allowed file list of
   `scripts/check-layers.sh` with the new backend.

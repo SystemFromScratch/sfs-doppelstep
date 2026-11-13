@@ -58,7 +58,10 @@ dθe/dt   = p ω
   long runs do not lose accuracy.
 - **Load:** `CONFIG_SFS_SIM_LOAD_UNM`, or `power_stage_sim_set_load()`. It is
   a constant active torque, like gravity on a joint, so it pulls the rotor back when the
-  motor loses synchronism or the torque is off.
+  motor loses synchronism or the torque is off. Until Stepper-C first drives the motor, the
+  joint rests on a support: the load does not act during the
+  [self-test](protection.md#self-test-of-the-bridge-and-the-motor), which needs the rotor at
+  rest.
 
 ## Parameters
 
@@ -112,7 +115,7 @@ currents, and the longest fast-loop callback in cycles and µs.
 
 ### Flash budget
 
-The simulated-motor image with MCUboot has about 2.9 KiB left in the 86 KiB application slot.
+The simulated-motor image with MCUboot has 748 B left in the 86 KiB application slot (86 964 of 87 712 B); it therefore leaves out the self-test (`CONFIG_SSTEP_SELFTEST=n`, which also removes its code from Stepper-C), the hardware comparators and the offset window ([Protection](protection.md)).
 It ran out once, when the fast-loop overrun check and the watchdog came in
 ([Architecture](architecture.md)); printf without floating point (`CONFIG_CBPRINTF_FP_SUPPORT=n`
 in `app/prj.conf`, no log prints a float) gave back about 4.8 KiB. Check the `FLASH:` line of
@@ -196,12 +199,11 @@ are described in [SIL and integration tests](testing.md).
     The model used to call `sinf` and `cosf` in each of the four RK4 stages, and the argument
     reduction of picolibc made the cost depend on the angle. Now it computes them once per step
     and moves them to the stages with the angle addition (Stepper-Lab `sil/c/sstep_plant.c`,
-    1 to 2 ulp from before). With it, all 20 GUI test scenarios pass on the board. Open item:
-    under the heaviest bus load (200 Goal Position writes during a move) a few answers are
-    still lost now and then. Check the fast loop max after every change of the model
+    1 to 2 ulp from before). With it, all 20 GUI test scenarios pass on the board, and 45 000
+    reads in a row under load get an answer ([open item](overview.md#status-and-known-limits):
+    rare lost answers in the GUI). Check the fast loop max after every change of the model
     ([hardware checklist](hardware-checklist.md), check 13).
 - On `native_sim`, code takes no simulated time. Interrupt load and priorities are
   validated only on the board (variant A).
-- Stepper-Lab follows `main`, so a build depends on when the workspace was last updated, and
-  the CI image (`WEST_UPDATE=0`) keeps the commit it was built with. Pin it again, and move both
-  simulation repositories to tags at their first release, so that the model version has a name.
+- Stepper-Lab and sfs-stepper-power-spice have no releases: `west.yml` pins the tested
+  commits. Move both to tags at their first release, so that the model version has a name.

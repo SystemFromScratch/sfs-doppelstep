@@ -27,7 +27,7 @@ static const struct device *const motor_no_aux = DEVICE_DT_GET(DT_NODELABEL(moto
 #define ADC_VBUS_24V 2866U
 #define ADC_OVER     (ADC_ZERO - 200U)
 
-static const struct power_stage_sample zero = {ADC_ZERO, ADC_ZERO, ADC_VBUS_24V};
+static const struct power_stage_sample zero = {ADC_ZERO, ADC_ZERO, ADC_VBUS_24V, ADC_ZERO};
 
 static uint32_t steps_completed_events;
 static uint32_t fault_events;
@@ -88,6 +88,7 @@ static void before_each(void *fixture)
 	zassert_ok(stepper_ctrl_set_reference_position(ctrl, 0));
 	zassert_ok(stepper_set_event_cb(drv, drv_event, NULL));
 	zassert_ok(stepper_ctrl_set_event_cb(ctrl, ctrl_event, NULL));
+	fake_power_stage_fire(stage, &zero, 0U); /* a bus voltage for the enable check */
 	zassert_ok(sstep_motor_process(motor));
 	steps_completed_events = 0U;
 	fault_events = 0U;
@@ -295,6 +296,28 @@ ZTEST(motor, test_aux_trip_reports_external_fault)
 	zassert_true((status().faults & SSTEP_MOTOR_FAULT_EXTERNAL) != 0U);
 }
 
+ZTEST(motor, test_hw_overcurrent_trip_latches_overcurrent)
+{
+	zassert_ok(stepper_enable(drv));
+	run_ms(1);
+	fake_power_stage_fire(stage, &zero, POWER_STAGE_TRIP_HW_OC);
+	zassert_false(fake_power_stage_output_on(stage));
+	zassert_ok(sstep_motor_process(motor));
+	zassert_equal(status().state, SSTEP_MOTOR_FAULT);
+	zassert_true((status().faults & SSTEP_MOTOR_FAULT_OVERCURRENT) != 0U);
+}
+
+ZTEST(motor, test_hw_overvoltage_trip_latches_overvoltage)
+{
+	zassert_ok(stepper_enable(drv));
+	run_ms(1);
+	fake_power_stage_fire(stage, &zero, POWER_STAGE_TRIP_HW_OV);
+	zassert_false(fake_power_stage_output_on(stage));
+	zassert_ok(sstep_motor_process(motor));
+	zassert_equal(status().state, SSTEP_MOTOR_FAULT);
+	zassert_true((status().faults & SSTEP_MOTOR_FAULT_OVERVOLTAGE) != 0U);
+}
+
 ZTEST(motor, test_fast_loop_overrun_reports_a_hal_fault)
 {
 	zassert_ok(stepper_enable(drv));
@@ -391,19 +414,48 @@ ZTEST(motor, test_set_current_is_limited_to_the_node_values)
 	zassert_ok(sstep_motor_set_current(motor, 1500U, 500U));
 }
 
-ZTEST(motor, test_status_amplitude_is_the_root_of_both_phases)
+ZTEST(motor, test_status_amplitude_is_the_averaged_root_of_both_phases)
 {
 	/* 10 and 14 counts of 2048 at 60155 mA: 294 mA and 411 mA */
-	const struct power_stage_sample s = {ADC_ZERO - 10U, ADC_ZERO - 14U, ADC_VBUS_24V};
+	const struct power_stage_sample s = {ADC_ZERO - 10U, ADC_ZERO - 14U, ADC_VBUS_24V, ADC_ZERO};
+	uint32_t first;
+
+	zassert_ok(stepper_enable(drv));
+	fake_power_stage_fire(stage, &s, 0U);
+	first = status().i_amplitude_ma;
+	zassert_within(first, 505U / 8U, 10U, "one call: an eighth (%u mA)", first);
+	for (int k = 0; k < 60; k++) {
+		fake_power_stage_fire(stage, &s, 0U);
+		(void)status();
+	}
+	zassert_within(status().i_amplitude_ma, 505U, 10U, "%u mA", status().i_amplitude_ma);
+}
+
+ZTEST(motor, test_status_amplitude_is_zero_with_the_outputs_off)
+{
+	const struct power_stage_sample s = {ADC_ZERO - 10U, ADC_ZERO - 14U, ADC_VBUS_24V, ADC_ZERO};
 
 	fake_power_stage_fire(stage, &s, 0U);
-	zassert_within(status().i_amplitude_ma, 505U, 10U, "%u mA", status().i_amplitude_ma);
+	zassert_equal(status().i_amplitude_ma, 0U, "sensor offset with no current flowing");
 }
 
 ZTEST(motor, test_status_reports_the_bus_voltage)
 {
 	fake_power_stage_fire(stage, &zero, 0U);
 	zassert_within(status().vbus_mv, 24000U, 20U);
+}
+
+ZTEST(motor, test_enable_with_vbus_out_of_range_is_refused)
+{
+	const struct power_stage_sample low = {ADC_ZERO, ADC_ZERO, 955U, ADC_ZERO}; /* 8 V */
+
+	fake_power_stage_fire(stage, &low, 0U);
+	zassert_equal(stepper_enable(drv), -ERANGE);
+	zassert_false(fake_power_stage_output_on(stage));
+	zassert_equal(status().state, SSTEP_MOTOR_DISABLED, "not latched");
+	zassert_equal(status().faults, 0U);
+	fake_power_stage_fire(stage, &zero, 0U);
+	zassert_ok(stepper_enable(drv), "works once the supply is back");
 }
 
 ZTEST_SUITE(motor, NULL, NULL, before_each, NULL, NULL);

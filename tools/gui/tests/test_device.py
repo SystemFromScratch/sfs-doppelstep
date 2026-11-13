@@ -35,6 +35,15 @@ def test_no_answer_times_out(bus):
         bus.ping(9)
 
 
+def test_answer_waiting_after_the_deadline_is_not_lost(servo):
+    """The poller thread can be held past its 0.1 s deadline by the GUI thread (the GIL
+    while matplotlib redraws). An answer that arrived meanwhile is in the port: it must be
+    read once more before giving up, not reported as no answer."""
+    late = Bus(servo, timeout=0.0)          # the deadline has passed before the first read
+    assert late.ping(1) == (1020, 1)
+    assert late.read(1, r.GOAL_POSITION) == 0
+
+
 def test_sync_read_and_write(bus):
     bus.sync_write(r.GOAL_POSITION, {1: 1536})
     assert bus.sync_read([1], r.GOAL_POSITION) == {1: 1536}
@@ -52,6 +61,7 @@ def test_live_block_decodes_the_live_registers(bus):
     assert values["Present Position"] == 2048
     sample = poller.Sample(0.5, values)
     assert sample.physical()["present_position_deg"] == pytest.approx(180.0)
+    assert "Present Temperature" in values and "temperature_c" in sample.physical()
 
 
 def test_csv_recorder(tmp_path, bus):

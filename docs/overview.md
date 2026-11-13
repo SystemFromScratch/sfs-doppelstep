@@ -72,12 +72,12 @@ Measured on this version with the CI build (`scripts/ci.sh`), unless noted.
 |---|---|
 | Microcontroller | STM32G431CB: Arm Cortex-M4F, 170 MHz, 128 KiB flash, 32 KiB RAM |
 | RTOS | Zephyr RTOS v4.5.0, with sysbuild and MCUboot |
-| Application size | 74 088 B flash of the 87 712 B slot, 19 032 B RAM; with the simulated motor 84 760 B |
+| Application size | 79 568 B flash of the 87 712 B slot; with the simulated motor 86 964 B |
 | Bootloader size | MCUboot, 37 148 B flash of its 38 KiB partition |
 | Control rates | Current loop 20 kHz (PWM rate), motion loop 1 kHz, bus status every 10 ms |
 | Motor resolution | 3200 microsteps per revolution (200 steps × 16) |
 | Bus | DYNAMIXEL Protocol 2.0, 1 Mbps (factory value), XM430-W350, model number 1020 |
-| Automated tests | 62 ztest cases in 5 suites, 28 SIL and integration tests, 8 motion tests on the fixed-point backend: 98 per CI run, plus 44 host tests of the GUI |
+| Automated tests | 73 ztest cases in 6 configurations, 29 SIL and integration tests, 8 motion tests on the fixed-point backend: 110 per CI run, plus 45 host tests of the GUI |
 | Toolchain | Zephyr SDK 1.0.1 in a pinned Docker image |
 | License | Apache License 2.0 |
 
@@ -92,23 +92,27 @@ wherever they matter:
 - **Lost steps are not reported.** A load above the holding torque makes the motor lose
   synchronism silently. A test documents this as an expected failure
   ([Tests](testing.md#expected-failure-lost-synchronism)).
-- **Not yet checked with a real motor.** On the board with the simulated motor all 20 GUI
-  test scenarios pass, the fast-loop overrun check and the watchdog work, and the firmware
-  update over the bus loads and verifies an image. The checks with a motor are part C of the
-  [hardware checklist](hardware-checklist.md).
+- **Hardware checklist not complete.** With a 17HS19-2004S1 at 12 V the self-test, all 20 GUI
+  test scenarios in three runs, the hardware comparators and two minutes of moves at 1.5 A
+  pass (bridge 39 → 48 °C). Open: the self-test with a coil on the wrong legs (check 27) and
+  the current ripple and vibration at rest (checks 15, 16) of the
+  [hardware checklist](hardware-checklist.md). Once, in the first run of the GUI scenarios
+  with the motor, Torque Enable was refused in the Bus Watchdog scenario; not again in the 13
+  runs after it, and the RTT log lost the reason.
 - **Rotor vibration at rest in the model:** one ADC step in the current loop excites the
   mechanical resonance (up to about 3 rpm, 0.2 microstep). Not yet measured on a real motor.
 - **Fast-loop execution time** is measured with the simulated motor on the board, where the
   motor model runs in the same interrupt: 37 µs of the 50 µs period during a move
-  ([Simulated motor](simulation.md#limits)). The real-motor build has no model and is not
-  measured yet.
-- **Rare lost answers with the simulated motor:** under the heaviest bus load (200 Goal
-  Position writes during a move) a few answers are lost now and then; the cause is not found
-  yet.
-- **Stepper-Lab follows `main`** in `west.yml` during development. Pin it to a commit or tag
-  before a release (`scripts/package_release.py` refuses a branch).
-- **Temperature:** the NTC sensor is not converted yet. Present Temperature keeps its table
-  value and there is no overheating trip.
+  ([Simulated motor](simulation.md#limits)). The real-motor build has no model; its time is
+  not measured yet, and no overrun occurred in the runs with the motor.
+- **Rare lost answers in the GUI:** now and then the live-register poller reported "no
+  answer". The board itself answered 45 000 reads in a row under load (ruled out: UART overrun,
+  byte stuffing, timing). A host-side cause is fixed: `Bus.receive()` gave up before reading an
+  answer that arrived while the GUI thread held the poller past its deadline. Whether it was the
+  only one is open: report the GUI log if it happens again.
+- **Temperature:** the power stage NTC is measured and trips the torque above Temperature
+  Limit, but not yet checked against a thermometer on the board. The motor winding has no
+  sensor.
 - **Bus:** a single-wire TTL bus instead of the debugger's serial port, and a shared bus with
   real DYNAMIXEL servos, are planned.
 

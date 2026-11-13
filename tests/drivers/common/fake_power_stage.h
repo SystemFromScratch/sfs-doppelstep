@@ -23,4 +23,14 @@ void fake_power_stage_set_outputs_allowed(const struct device *dev, bool allowed
 int32_t fake_power_stage_shift_total(const struct device *dev);
 uint32_t fake_power_stage_aux_trip_ma(const struct device *dev);
 
+/** Load model: the sample of one PWM period from the compares and the output state. */
+typedef void (*fake_plant_fn)(const uint16_t *compare, bool outputs_on,
+			      struct power_stage_sample *out, void *ctx);
+
+/**
+ * While fn is set, a timer fires 20 samples of fn every millisecond (the fast
+ * loop of 20 kHz). NULL stops it.
+ */
+void fake_power_stage_set_plant(const struct device *dev, fake_plant_fn fn, void *ctx);
+
 #endif /* FAKE_POWER_STAGE_H */

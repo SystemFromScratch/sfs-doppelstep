@@ -22,6 +22,29 @@ config SSTEP_MOTOR_CHILD_INIT_PRIORITY
 	help
 	  After the parent device.
 
+config SSTEP_MOTOR_SELFTEST
+	bool "Self-test of the bridge and the motor before the first enable"
+	default n if DT_HAS_SFS_SIM_POWER_STAGE_ENABLED && !ARCH_POSIX
+	default y
+	select SSTEP_SELFTEST
+	help
+	  At the first enable after start (and after clearing the faults),
+	  sstep_selftest() of Stepper-C gives each phase the test current of
+	  selftest-current-milliamp at a slowly rising voltage; with three legs the
+	  driver also checks that the leg currents add up to 0 (the shunt of the
+	  shared leg). A phase without current, a short, a current of the wrong
+	  sign, a phase on the wrong legs, a current with all legs low or a broken
+	  sensor refuses the enable and latches SSTEP_MOTOR_FAULT_SELFTEST. Off by
+	  default for the simulated motor on a board (flash); on for native_sim,
+	  where the SIL tests run it against the model.
+
+config SSTEP_MOTOR_SELFTEST_EVERY_ENABLE
+	bool "Run the self-test at every enable"
+	depends on SSTEP_MOTOR_SELFTEST
+	help
+	  The rotor moves to the nearest full step of the tested coil (at most
+	  one full step) and back, at every enable.
+
 config SSTEP_MOTOR_THREAD_CHECK
 	bool "Check that every call comes from one thread"
 	default y if ASSERT

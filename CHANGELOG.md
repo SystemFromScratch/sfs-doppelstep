@@ -8,8 +8,51 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-13
+
+The real-motor build drives a motor. Checked on the B-G431B-ESC1 with a 17HS19-2004S1 at
+12 V: the self-test, all 20 GUI test scenarios in three runs, the hardware comparators and two
+minutes of moves at 1.5 A. The bridge and the motor are protected in layers, from comparators
+into the timer break input to a self-test before the first Torque Enable. Motor control is
+Stepper-C 1.3.0.
+
 ### Added
 
+- **Protection of the bridge and the motor** ([Protection](docs/protection.md)):
+  - Hardware trips on the B-G431B-ESC1: COMP1/2/4 watch the OPAMP inputs against DAC3
+    (10 A, `hw-trip-current-milliamp`) and COMP3 the bus divider against DAC1 (30 V,
+    `hw-trip-vbus-mv`); they drive the TIM1 break inputs, which switch the gates off within
+    0.5 µs without software. Reported as `POWER_STAGE_TRIP_HW_OC` / `_HW_OV`, latched until a
+    reset.
+  - The leg trip checks U, V and W in the interrupt (was W only), so the motor current is
+    also checked in voltage drive.
+  - Current offset window (`current-offset-min-counts`, `-max-counts`, 2300..2800): a broken
+    amplifier, shunt or bias network refuses the outputs; the bus keeps running and reports
+    Electrical Shock.
+  - Torque Enable with the bus outside `vbus-min-mv`..`vbus-max-mv` answers Result Fail with
+    Input Voltage Error before anything is energised, and latches nothing.
+  - Self-test of the bridge and the motor at the first Torque Enable
+    (`CONFIG_SSTEP_MOTOR_SELFTEST`, `selftest-current-milliamp` 600 mA): `sstep_selftest()` of
+    Stepper-C gives each coil the test current at a slowly rising voltage, and the motor driver
+    adds up the three leg currents meanwhile. An open coil, a short, a wrong current sign, a coil
+    on the wrong legs, a broken current sensor or a leaking switch refuses the torque with
+    Electrical Shock (`SSTEP_MOTOR_FAULT_SELFTEST`) and a log message that names the cause. Off
+    in the simulated-motor build on the board (flash, `CONFIG_SSTEP_SELFTEST` =
+    `SSTEP_CFG_SELFTEST`), on in `native_sim`.
+  - `i_aux` (current of the shared leg) in `struct power_stage_sample`.
+- **Sampling window and current slew** (Stepper-C 1.3.0): `sample-window-ns` of
+  the power stage node (2400 ns on the B-G431B-ESC1) keeps every leg on its low-side switch
+  around the samples; `current-slew-ma-per-ms` of the motor node (30) lets the current rise
+  after Torque Enable. Found at the first run with the motor: Torque Enable at 1 A and 1.5 A
+  from 12 V tripped the undervoltage protection, because a duty cycle near 100 % corrupted the
+  bus voltage sample ([Hardware](docs/hardware.md#sampling-window)).
+  `power_stage_info.sample_window_ticks` in the class API.
+
+- **Power stage temperature:** the NTC of the B-G431B-ESC1 (TDK NTCG103JF103FT1 on PB14) is
+  converted in every PWM period and shown in Present Temperature (146) and in the GUI. Above
+  Temperature Limit (31, 80 °C) Overheating Error switches the torque off until a Reboot, as on
+  an XM430; an open or shorted NTC trips too. `power_stage_get_temperature()` in the class API,
+  NTC properties of the power stage node.
 - **Fast-loop overrun protection.** When the fast loop does not finish within its PWM period,
   the STM32 backend switches the outputs off in the interrupt and reports
   `POWER_STAGE_TRIP_OVERRUN`; the motor faults (`SSTEP_FAULT_HAL`, Electrical Shock Error)
@@ -27,11 +70,20 @@ All notable changes to Doppelstep are listed here. The format follows
   merged HEX (first flashing), the signed update file for MCUboot, the signed HEX and the ELF
   into `output/` (git-ignored), named `doppelstep-<git describe>-b_g431b_esc1-…`
   (`scripts/export_output.py`). The GUI preselects the newest signed image there.
-- **GUI torque state:** the Motion tab shows the torque state from the live registers (green
-  *TORQUE ON*, grey *Torque off*); Torque ON and Apply are disabled while the torque is on.
+- **GUI Motion tab:** Goal Position and Goal Velocity are enabled only in the Operating Mode
+  in which they act (the device stores the other one and does nothing with it); Profile
+  Velocity and Acceleration show their physical value (2 = 0.458 rev/min); the Goal Velocity
+  frame fits in the window again.
+- **GUI torque button:** one button in the Motion tab shows the torque state from the live
+  registers and toggles it: green *TORQUE ON*, red *TORQUE OFF*. It replaces Torque ON and STOP.
 
 ### Fixed
 
+- **The Stepper-C options of Kconfig reached the library only by chance:**
+  `modules/stepper-c/CMakeLists.txt` built the `SSTEP_CFG_*` definitions, but `sstep.cmake`
+  never applied them, so the library always had its defaults. These equalled the Kconfig
+  defaults until `CONFIG_SSTEP_SELFTEST` came; the definitions are now set on the library and
+  on its users (the size of `struct sstep` depends on them).
 - **Firmware update over the bus failed** (GUI). Three causes, each confirmed on the board:
   smpclient was imported after the DYNAMIXEL Reboot, which took about 0.8 s on Windows, longer
   than the 500 ms in which MCUboot waits for SMP; MCUboot answers the echo with rc 8 (echo not
@@ -46,6 +98,9 @@ All notable changes to Doppelstep are listed here. The format follows
   (`x430_servo_set_factory_value()`). The servo node states the direct drive 1:1 of the
   17HS19-2004S1. The voltage limits stay those of the XM430
   ([DYNAMIXEL emulation](docs/dynamixel.md#factory-values-and-the-eeprom)).
+- **GUI: an answer that arrived after the poller's deadline was thrown away.** `Bus.receive()`
+  gave up before reading the port once more, so a poller thread held past its 0.1 s by the GUI
+  thread reported "no answer" although the answer was waiting (`test_answer_waiting_after_the_deadline_is_not_lost`).
 - **GUI on Windows lost most answers** of the board. `SerialLink.read()` changed the port
   timeout on every read; on Windows pyserial then reconfigures the port, and the ST-LINK
   Virtual COM Port re-initialises its UART and loses the bytes in flight (12 of 100 answers
@@ -53,22 +108,52 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ### Changed
 
-- **Stepper-Lab follows `main`** in `west.yml` during development (it was pinned to a commit):
-  its model change, one `sin` / `cos` per RK4 step, takes the fast loop of the simulated motor
-  from 47.5 to 37 µs during a move. Pin it again before a release; `scripts/package_release.py`
-  refuses a branch.
+- Present Current is averaged over 8 ms and reads 0 with the torque off: on the board a single
+  sample moved by an ADC step (29 mA), and the sensor offset drift showed 30 to 60 mA with no
+  current flowing.
+
+- `CONFIG_SFS_CMD_TIMEOUT_MS` is 150 ms (was 50), longer than the self-test of Torque Enable.
+- Stepper-C v1.3.0 (was v1.2.0): the self-test, the bus voltage check of the enable
+  (`SSTEP_ERR_VBUS` → `-ERANGE`), the trip of the shared leg, the sampling window and the current
+  slew come from the library.
+- Torque Enable below `vbus-min-mv` is refused at once; before, it was accepted and the
+  undervoltage trip latched a fault.
+
+- **Stepper-Lab** pinned to `9fc2eef` (was `main` during development): its model change, one
+  `sin` / `cos` per RK4 step, takes the fast loop of the simulated motor from 47.5 to 37 µs
+  during a move.
 - **power_stage API:** the fast-loop callback takes `uint32_t trips` (`POWER_STAGE_TRIP_AUX`,
   `POWER_STAGE_TRIP_OVERRUN`) in place of `bool aux_trip`. Out-of-tree backends and callbacks
   must be updated ([Porting](docs/porting.md)).
 - **Printf without floating point** (`CONFIG_CBPRINTF_FP_SUPPORT=n` in `app/prj.conf`): no log
   prints a float, and picolibc now links its integer printf. About 4.8 KiB less flash in every
-  board build; the simulated motor fits next to MCUboot again (2.9 KiB to spare).
+  board build; the simulated motor fits next to MCUboot again.
 - **Dead time set to 1200 ns** (`dead-time-ns` in `app/boards/b_g431b_esc1.overlay`). The
   real-motor build now enables the power stage on Torque Enable. The value comes from an
   ngspice sweep of one leg with the gate circuit of schematic MB1419 rev C (L6387ED at 10 V,
   33 Ω gate resistors, 1 Ω + 10 nF snubber): shoot-through up to 600 ns, the first clean value
   at 900 ns, plus a margin of 1.3. It is not yet measured on the board: follow bring-up step 1
   ([Hardware and bring-up](docs/hardware.md#bring-up-checklist)) before connecting a motor.
+
+### Known limits
+
+- **Dead time not measured on the board:** 1200 ns comes from the ngspice sweep. The motor ran
+  at 12 V and 1.5 A without a fault or a hot switch, but confirm the value with an
+  oscilloscope before higher voltages ([bring-up step 1](docs/hardware.md#bring-up-checklist)).
+- **Hardware checklist not complete:** the self-test with a coil on the wrong legs (check 27),
+  the current ripple and the vibration at rest (checks 15, 16), the NTC against a thermometer
+  and the fast-loop time of the real-motor build are open
+  ([hardware checklist](docs/hardware-checklist.md)).
+- Once, in the first run of the GUI scenarios with the motor, Torque Enable was refused in the
+  Bus Watchdog scenario; it did not happen in the 13 runs after it, and the RTT log lost the
+  reason.
+- Lost steps are not reported (the motor has no encoder).
+- The simulated-motor image with MCUboot leaves out the self-test, the hardware comparators
+  and the offset window, for flash ([Simulated motor](docs/simulation.md#flash-budget)).
+- **Development signing key:** the images are signed with the public development key of
+  MCUboot; for a product, sign with your own key ([Firmware update](docs/firmware-update.md)).
+- The X430 emulator, Stepper-Lab and sfs-stepper-power-spice have no releases yet: `west.yml`
+  pins them to the tested commits.
 
 ## [0.1.0] - 2026-11-08
 
@@ -128,5 +213,6 @@ outputs off (see *Known limits*).
 - The X430 emulator, Stepper-Lab and sfs-stepper-power-spice have no releases yet: `west.yml`
   pins them to the tested commits.
 
-[Unreleased]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/SystemFromScratch/sfs-doppelstep/releases/tag/v0.1.0

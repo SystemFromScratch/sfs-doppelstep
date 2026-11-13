@@ -18,7 +18,40 @@ struct fake_data {
 	bool output_on;
 	int32_t shift_total;
 	uint32_t aux_trip_ma;
+	fake_plant_fn plant;
+	void *plant_ctx;
+	struct k_timer plant_timer;
 };
+
+/* 20 PWM periods per millisecond, from the plant, as the sim backend does */
+static void plant_tick(struct k_timer *timer)
+{
+	const struct device *dev = k_timer_user_data_get(timer);
+	struct fake_data *data = dev->data;
+
+	for (int k = 0; (k < 20) && (data->plant != NULL); k++) {
+		struct power_stage_sample s;
+
+		data->plant(data->compare, data->output_on, &s, data->plant_ctx);
+		if (data->cb != NULL) {
+			data->cb(&s, 0U, data->ctx);
+		}
+	}
+}
+
+void fake_power_stage_set_plant(const struct device *dev, fake_plant_fn fn, void *ctx)
+{
+	struct fake_data *data = dev->data;
+
+	k_timer_stop(&data->plant_timer);
+	data->plant = NULL;
+	data->plant_ctx = ctx;
+	data->plant = fn;
+	if (fn != NULL) {
+		k_timer_user_data_set(&data->plant_timer, (void *)dev);
+		k_timer_start(&data->plant_timer, K_MSEC(1), K_MSEC(1));
+	}
+}
 
 static int fake_init(const struct device *dev)
 {
@@ -37,6 +70,7 @@ static int fake_init(const struct device *dev)
 		.adc_vbus_mv_full = 34283U,
 		.adc_full = 4095,
 	};
+	k_timer_init(&data->plant_timer, plant_tick, NULL);
 	return 0;
 }
 

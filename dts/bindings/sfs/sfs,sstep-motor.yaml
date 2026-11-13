@@ -58,8 +58,24 @@ properties:
   aux-trip:
     type: boolean
     description: |
-      Also check the leg the samples do not show (phase W of the shared leg, which
-      carries iA + iB), at the trip current.
+      Ask the power stage to check the current of every leg in its interrupt,
+      also the leg the samples do not show (phase W of the shared leg, which
+      carries iA + iB), at the trip current, also in voltage drive.
+
+  current-slew-ma-per-ms:
+    type: int
+    default: 0
+    description: |
+      Largest change of the current amplitude [mA/ms] (Stepper-C i_slew_ma_per_ms):
+      after the enable the current rises from 0, and it moves between run and hold
+      current at this rate. 0 = at once.
+
+  selftest-current-milliamp:
+    type: int
+    default: 0
+    description: |
+      Current of the self-test before the first enable (CONFIG_SSTEP_MOTOR_SELFTEST)
+      [mA]; 0 = 30 % of rated-current-milliamp.
 
   voltage-drive:
     type: boolean

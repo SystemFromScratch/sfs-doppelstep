@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * The queues between the communication and the control task: a test thread plays
- * the control side. CONFIG_SFS_CMD_TIMEOUT_MS is 50 by default.
+ * the control side. CONFIG_SFS_CMD_TIMEOUT_MS is 150 by default.
  */
 
 #include <errno.h>

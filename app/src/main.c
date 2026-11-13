@@ -11,6 +11,8 @@
  * STATUS LED.
  */
 
+#include <errno.h>
+
 #include <zephyr/app_version.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
@@ -99,8 +101,13 @@ static int startup(void)
 		return -ENODEV;
 	}
 
+	/* -EIO: an offset outside its window (broken amplifier, shunt or bias). The
+	 * stage refuses its outputs; the bus still runs and reports Electrical Shock.
+	 */
 	ret = power_stage_calibrate(stage, CONFIG_SFS_STAGE_OFFSET_SAMPLES);
-	if (ret != 0) {
+	const bool sensor_fault = (ret == -EIO);
+
+	if ((ret != 0) && !sensor_fault) {
 		return ret;
 	}
 
@@ -118,6 +125,11 @@ static int startup(void)
 	ret = joint_bridge_init(servo);
 	if (ret != 0) {
 		return ret;
+	}
+	if (sensor_fault) {
+		x430_servo_lock(servo);
+		x430_servo_raise_hw_error(servo, X430_HW_ERROR_ELECTRICAL_SHOCK);
+		x430_servo_unlock(servo);
 	}
 
 	k_thread_start(comm_task_id);

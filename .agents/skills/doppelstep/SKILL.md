@@ -22,7 +22,7 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
   `native_sim/native/64` (the same application as a Linux program, simulated
   motor always on, section 7). Planned next family: TI MSPM0 (`docs/porting.md`).
 - Libraries (west projects, no `zephyr/module.yml` of their own):
-  Stepper-C (`modules/lib/stepper-c`, pinned **v1.2.0**),
+  Stepper-C (`modules/lib/stepper-c`, v1.3.0: `sample_window_ticks`, `i_slew_ma_per_ms`, `sstep_selftest()`, `SSTEP_ERR_VBUS`),
   DYNAMIXEL-X430 emulator (`modules/lib/dynamixel-x430`, pinned **commit** of
   main until its first release), DXL2-C (`modules/lib/dxl2-c`, the tag `x430.cmake` expects),
   Stepper-Lab (`modules/lib/stepper-lab`, follows **main** during development, pin it to a
@@ -150,7 +150,7 @@ west build -b native_sim/native/64 -s app -d build-native                       
 
 | Context | Rule |
 |---|---|
-| Interrupt of the backend (STM32: ADC1_2, zero latency, priority 0) | Fast loop and the aux trip only; **no kernel calls**, no logging, no locks |
+| Interrupt of the backend (STM32: ADC1_2, zero latency, priority 0) | Fast loop, the leg trip of every leg and the break flags only; **no kernel calls**, no logging, no locks |
 | `control_task`, cooperative | The **only** caller of the motor driver, standard classes included (`CONFIG_SSTEP_MOTOR_THREAD_CHECK`) |
 | `comm_task` | `x430_servo_process()`, `joint_bridge`, live registers; motion only through `app_call()` |
 | `main` | Startup order: devices ready → offset calibration (outputs off) → `control_task` → `joint_bridge_init` → `comm_task`, then the LED |
@@ -164,6 +164,14 @@ west build -b native_sim/native/64 -s app -d build-native                       
   (`docs/porting.md`). CI runs the motion tests on the fixed-point backend.
 - STM32 backend: TIM1, ADC1 and ADC2 are programmed with LL; their DT nodes stay `disabled`.
   Configure TIM1 (MOE=0, OSSI=1, idle low) before `pinctrl_apply_state()`.
+- Protection (`docs/protection.md`): hardware comparators into the TIM1 break inputs, the leg
+  trip, the offset window, the VBUS check and the self-test of `stepper_enable()`. The self-test
+  is `sstep_selftest()` of Stepper-C (`CONFIG_SSTEP_MOTOR_SELFTEST` selects `CONFIG_SSTEP_SELFTEST`
+  = `SSTEP_CFG_SELFTEST`); while it runs, the fast callback adds up iU + iV + iW (the W shunt,
+  which Stepper-C does not see) and fails it with `SSTEP_MOTOR_FAULT_SELFTEST`. The bus voltage
+  check of the enable is `SSTEP_ERR_VBUS` → `-ERANGE`. Keep
+  `CONFIG_SFS_CMD_TIMEOUT_MS` above its 100 ms bound. The simulated-motor board build leaves the
+  comparators, the offset window and the self-test out (`app/sim.overlay`, Kconfig default).
 - FPU: `CONFIG_FPU_SHARING=y`, `control_task` has `K_FP_REGS` under that option.
 - `fast_cycles_max` (DWT cycle counter, `power_stage_get_stats`) measures the fast-loop
   callback on the board; keep it outside the callback's own work.
@@ -254,12 +262,12 @@ west build -b native_sim/native/64 -s app -d build-native                       
 - The architecture rules of section 6 and simulated-motor rules of section 7 hold.
 - No secrets, license files or SEGGER binaries committed.
 - Both debug modes and both runners still documented and configured.
-- Open hardware items (dead time measured with an oscilloscope, real-motor checks, NTC, rotor
+- Open hardware items (dead time measured with an oscilloscope, real-motor checks, NTC against a thermometer, rotor
   vibration) are not silently "solved".
 - The fast loop stays within its budget: simulated motor on the board 37 µs of 50 µs during a
   move (`fast loop max`, `overruns` 0). The overrun check (`POWER_STAGE_TRIP_OVERRUN`) and the
   IWDG supervisor (`app/src/supervisor.c`, fed only while both tasks run) stay in place.
-- The simulated-motor image with MCUboot has about 3 KiB of flash left: watch the `FLASH:` line.
+- The simulated-motor image with MCUboot has only 748 B of flash left (86 964 / 87 712 B): watch the `FLASH:` line.
 - A user-visible change has a line under `## [Unreleased]` in `CHANGELOG.md`.
 
 ## 11. Release

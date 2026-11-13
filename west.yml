@@ -56,7 +56,7 @@ manifest:
     - name: stepper-c
       remote: antonvynohradov
       repo-path: Stepper-C
-      revision: v1.2.0
+      revision: v1.3.0
       path: modules/lib/stepper-c
 
     # No release yet: pinned to the commit of main this firmware is tested
@@ -77,16 +77,15 @@ manifest:
       revision: v1.0.0
       path: modules/lib/dxl2-c
 
-    # Simulated motor (docs/simulation.md). No releases yet. Stepper-Lab follows
-    # main during development (the model changes with the firmware); power-spice
-    # stays pinned to its tested commit. Pin both to a commit or a release tag
-    # before a release: scripts/package_release.py refuses a branch. The two stay
-    # siblings under modules/lib: the parameter export of power-spice writes into
-    # Stepper-Lab.
+    # Simulated motor (docs/simulation.md). No releases yet: both pinned to the
+    # commit this firmware is tested with (scripts/package_release.py refuses a
+    # branch). During development Stepper-Lab may follow main, as the model changes
+    # with the firmware; pin it again before a release. The two stay siblings
+    # under modules/lib: the parameter export of power-spice writes into Stepper-Lab.
     - name: stepper-lab
       remote: antonvynohradov
       repo-path: Stepper-Lab
-      revision: main
+      revision: 9fc2eef98454203b68e31576fa755d5446e836d8
       path: modules/lib/stepper-lab
 
     - name: sfs-stepper-power-spice

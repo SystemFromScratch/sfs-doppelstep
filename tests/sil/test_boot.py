@@ -26,6 +26,7 @@ def test_live_registers_at_rest(bus):
     assert bus.read(DXL_ID, dxl2.MOVING) == 0
     assert bus.read(DXL_ID, dxl2.TORQUE_ENABLE) == 0
     assert bus.read(DXL_ID, dxl2.HARDWARE_ERROR_STATUS) == 0
+    assert bus.read(DXL_ID, dxl2.PRESENT_TEMPERATURE) == 25        # native_sim: fixed 25.0 degC
 
 
 def test_factory_eeprom(bus):

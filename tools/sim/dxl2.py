@@ -50,6 +50,8 @@ PRESENT_CURRENT = _reg("Present Current")
 PRESENT_VELOCITY = _reg("Present Velocity")
 PRESENT_POSITION = _reg("Present Position")
 PRESENT_INPUT_VOLTAGE = _reg("Present Input Voltage")
+PRESENT_TEMPERATURE = _reg("Present Temperature")
+TEMPERATURE_LIMIT = _reg("Temperature Limit")
 
 SIGNED = {(r.address, r.size) for r in TABLE if r.signed}
 

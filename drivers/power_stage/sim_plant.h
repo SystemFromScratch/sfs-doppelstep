@@ -26,8 +26,8 @@
 int sim_plant_init(const struct power_stage_info *info, uint32_t microsteps,
 		   uint32_t full_steps_per_rev);
 
-/** ADC sample of the present state and |iA + iB| of the shared leg [mA]. ISR. */
-void sim_plant_sample(struct power_stage_sample *sample, uint32_t *i_w_ma);
+/** ADC sample of the present state and the largest leg current |iA|, |iB|, |iA + iB| [mA]. ISR. */
+void sim_plant_sample(struct power_stage_sample *sample, uint32_t *i_leg_max_ma);
 
 /** Compare values for the next period. ISR. */
 void sim_plant_set_compare(const uint16_t *compare, size_t legs);

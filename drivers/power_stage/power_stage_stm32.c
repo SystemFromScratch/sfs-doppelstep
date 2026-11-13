@@ -15,6 +15,10 @@
  * At the top of the counter all legs are on their low-side switch (PWM mode 1:
  * high side while CNT < CCRx), the only moment the low-side shunts carry the
  * phase currents. The end of the ADC1 injected sequence runs the fast loop.
+ *
+ * Optional hardware trips (hw-trip-current-milliamp, hw-trip-vbus-mv): COMP1/2/4
+ * watch the OPAMP inputs against DAC3, COMP3 the bus divider against DAC1; they
+ * drive the break inputs BRK and BRK2 of the timer, which clear MOE in hardware.
  */
 
 #define DT_DRV_COMPAT sfs_stm32_shared_leg_power_stage
@@ -37,6 +41,8 @@
 
 #include <doppelstep/drivers/power_stage.h>
 
+#include "hw_trip.h"
+#include "ntc.h"
 #include "power_stage_scaling.h"
 
 LOG_MODULE_REGISTER(power_stage, CONFIG_POWER_STAGE_LOG_LEVEL);
@@ -72,6 +78,30 @@ BUILD_ASSERT(DT_PROP_LEN(PS_NODE, vbus_divider) == 2, "vbus-divider = <R_low R_h
 #define CH_W __LL_ADC_DECIMAL_NB_TO_CHANNEL(DT_PROP(PS_NODE, phase_w_channel))
 #define CH_VBUS __LL_ADC_DECIMAL_NB_TO_CHANNEL(DT_PROP(PS_NODE, vbus_channel))
 
+/* Optional NTC (temperature-channel): fourth injected rank of the master ADC */
+#define HAS_NTC DT_NODE_HAS_PROP(PS_NODE, temperature_channel)
+#if HAS_NTC
+BUILD_ASSERT(DT_NODE_HAS_PROP(PS_NODE, ntc_r25_ohm) && DT_NODE_HAS_PROP(PS_NODE, ntc_beta) &&
+		     DT_NODE_HAS_PROP(PS_NODE, ntc_bottom_ohm),
+	     "temperature-channel needs ntc-r25-ohm, ntc-beta and ntc-bottom-ohm");
+#define CH_TEMP __LL_ADC_DECIMAL_NB_TO_CHANNEL(DT_PROP(PS_NODE, temperature_channel))
+#endif
+
+/* Optional hardware trips and offset window (hw_trip.h) */
+#define HAS_HW_OC DT_NODE_HAS_PROP(PS_NODE, hw_trip_current_milliamp)
+#define HAS_HW_OV DT_NODE_HAS_PROP(PS_NODE, hw_trip_vbus_mv)
+#define HAS_OFFSET_WINDOW DT_NODE_HAS_PROP(PS_NODE, current_offset_min_counts)
+BUILD_ASSERT(HAS_OFFSET_WINDOW == DT_NODE_HAS_PROP(PS_NODE, current_offset_max_counts),
+	     "current-offset-min-counts and current-offset-max-counts go together");
+#if HAS_HW_OC || HAS_HW_OV
+#include <stm32_ll_bus.h>
+#include <stm32_ll_comp.h>
+#include <stm32_ll_dac.h>
+/* fDTS / 16, N = 5 at 170 MHz: 0.47 us, longer than the switching spikes */
+#define BREAK_FILTER LL_TIM_BREAK_FILTER_FDIV16_N5
+#define BREAK2_FILTER LL_TIM_BREAK2_FILTER_FDIV16_N5
+#endif
+
 /* Fast-loop interrupt: end of the injected sequence of the master ADC. */
 #define ADC_IRQN DT_IRQN(ADCM_NODE)
 #define ADC_IRQ_PRIO 0
@@ -95,9 +125,11 @@ static volatile uint16_t offset_u = ADC_MID;
 static volatile uint16_t offset_v = ADC_MID;
 static volatile uint16_t offset_w = ADC_MID;
 static volatile bool offsets_valid;     /* the W trip means nothing before calibration */
-static volatile uint16_t w_trip_counts; /* 0 = disabled */
+static volatile uint16_t leg_trip_counts; /* 0 = disabled */
 static volatile uint32_t isr_count;
+static volatile uint16_t raw_temp; /* last NTC reading, 0 = none yet */
 static volatile uint32_t fast_cycles_max;
+static volatile bool hw_trip_latched; /* a break input fired: outputs off until reset */
 
 /* Overrun of the fast loop: counted, reported to the callback once */
 static volatile uint32_t overruns;
@@ -128,6 +160,9 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 		const uint16_t raw_vbus = LL_ADC_INJ_ReadConversionData12(ADC_M, LL_ADC_INJ_RANK_2);
 		const uint16_t raw_w = LL_ADC_INJ_ReadConversionData12(ADC_M, LL_ADC_INJ_RANK_3);
 		const uint16_t raw_v = LL_ADC_INJ_ReadConversionData12(ADC_S, LL_ADC_INJ_RANK_1);
+#if HAS_NTC
+		raw_temp = LL_ADC_INJ_ReadConversionData12(ADC_M, LL_ADC_INJ_RANK_4);
+#endif
 		const power_stage_fast_cb_t fn = fast_fn;
 
 		LL_ADC_ClearFlag_JEOS(ADC_M);
@@ -145,18 +180,36 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 				.i_a = recentre(raw_u, offset_u),
 				.i_b = recentre(raw_v, offset_v),
 				.vbus = raw_vbus,
+				.i_aux = recentre(raw_w, offset_w),
 			};
-			const uint16_t trip = w_trip_counts;
+			const int32_t trip = (int32_t)leg_trip_counts;
 			uint32_t trips = 0U;
 
-			if ((trip != 0U) && offsets_valid &&
-			    ((uint16_t)abs((int32_t)raw_w - (int32_t)offset_w) > trip)) {
+			/* Every leg, also in voltage drive where Stepper-C does not check */
+			if ((trip != 0) && offsets_valid &&
+			    ((abs((int32_t)raw_u - (int32_t)offset_u) > trip) ||
+			     (abs((int32_t)raw_v - (int32_t)offset_v) > trip) ||
+			     (abs((int32_t)raw_w - (int32_t)offset_w) > trip))) {
 				trips |= POWER_STAGE_TRIP_AUX;
 			}
 			if (overrun_pending) {
 				overrun_pending = false;
 				trips |= POWER_STAGE_TRIP_OVERRUN;
 			}
+#if HAS_HW_OC
+			if (LL_TIM_IsActiveFlag_BRK(TIMx) != 0U) {
+				LL_TIM_ClearFlag_BRK(TIMx);
+				hw_trip_latched = true;
+				trips |= POWER_STAGE_TRIP_HW_OC;
+			}
+#endif
+#if HAS_HW_OV
+			if (LL_TIM_IsActiveFlag_BRK2(TIMx) != 0U) {
+				LL_TIM_ClearFlag_BRK2(TIMx);
+				hw_trip_latched = true;
+				trips |= POWER_STAGE_TRIP_HW_OV;
+			}
+#endif
 
 			fn(&sample, trips, fast_ctx);
 			const uint32_t cycles = DWT->CYCCNT - start;
@@ -259,6 +312,13 @@ static void timer_init(void)
 					  LL_TIM_CHANNEL_CH3N};
 
 	info.pwm_period_ticks = (uint16_t)arr;
+	/* Compare ticks = timer ticks: a leg at CCR = ARR - W is low for W ticks on each
+	 * side of the top of the counter
+	 */
+	info.sample_window_ticks = (uint16_t)MIN(
+		((uint64_t)DT_PROP(PS_NODE, sample_window_ns) * info.timer_clock_hz + 999999999U) /
+			1000000000U,
+		arr / 4U);
 
 	LL_TIM_DisableCounter(tim);
 	LL_TIM_DisableAllOutputs(tim);
@@ -300,9 +360,125 @@ static void timer_init(void)
 	LL_TIM_GenerateEvent_UPDATE(tim);
 	LL_TIM_EnableCounter(tim);
 
-	LOG_INF("TIM1: %u Hz clock, ARR %u (%u Hz), dead time %u ns (%u ticks)",
-		info.timer_clock_hz, arr, info.pwm_freq_hz, info.dead_time_ns, dt_ticks);
+	LOG_INF("TIM1: %u Hz clock, ARR %u (%u Hz), dead time %u ns (%u ticks), sample window "
+		"%u ticks",
+		info.timer_clock_hz, arr, info.pwm_freq_hz, info.dead_time_ns, dt_ticks,
+		info.sample_window_ticks);
 }
+
+#if HAS_HW_OC || HAS_HW_OV
+
+/* DAC channel to the comparators only (no pin), at full scale: no trip before
+ * calibration sets the level.
+ */
+static void dac_internal(DAC_TypeDef *dac, uint32_t channel)
+{
+	LL_DAC_SetHighFrequencyMode(dac, LL_DAC_HIGH_FREQ_MODE_ABOVE_160MHZ);
+	LL_DAC_ConfigOutput(dac, channel, LL_DAC_OUTPUT_MODE_NORMAL, LL_DAC_OUTPUT_BUFFER_DISABLE,
+			    LL_DAC_OUTPUT_CONNECT_INTERNAL);
+	LL_DAC_ConvertData12RightAligned(dac, channel, HW_TRIP_DAC_FULL);
+	LL_DAC_Enable(dac, channel);
+}
+
+/* Output high while the input (pin IO1) is above the DAC level */
+static void comp_on(COMP_TypeDef *comp, uint32_t input_minus)
+{
+	LL_COMP_SetInputPlus(comp, LL_COMP_INPUT_PLUS_IO1);
+	LL_COMP_SetInputMinus(comp, input_minus);
+	LL_COMP_SetInputHysteresis(comp, LL_COMP_HYSTERESIS_NONE);
+	LL_COMP_SetOutputPolarity(comp, LL_COMP_OUTPUTPOL_NONINVERTED);
+	LL_COMP_SetOutputBlankingSource(comp, LL_COMP_BLANKINGSRC_NONE);
+	LL_COMP_Enable(comp);
+}
+
+static void hw_trips_init(void)
+{
+	TIM_TypeDef *const tim = TIMx;
+
+	LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG); /* COMP registers */
+#if HAS_HW_OC
+	/* COMPx INP IO1: PA1, PA7, PB0 = OPAMP1..3 non-inverting inputs */
+	LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_DAC3);
+	dac_internal(DAC3, LL_DAC_CHANNEL_1);
+	dac_internal(DAC3, LL_DAC_CHANNEL_2);
+	comp_on(COMP1, LL_COMP_INPUT_MINUS_DAC3_CH1);
+	comp_on(COMP2, LL_COMP_INPUT_MINUS_DAC3_CH2);
+	comp_on(COMP4, LL_COMP_INPUT_MINUS_DAC3_CH2);
+#endif
+#if HAS_HW_OV
+	/* COMP3 INP IO1: PA0, the bus divider */
+	LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_DAC1);
+	dac_internal(DAC1, LL_DAC_CHANNEL_1);
+	comp_on(COMP3, LL_COMP_INPUT_MINUS_DAC1_CH1);
+#endif
+	k_busy_wait(10); /* comparator start-up, DAC settling */
+
+	/* The break pins are not used: their sources are enabled after reset */
+	LL_TIM_DisableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN, LL_TIM_BKIN_SOURCE_BKIN);
+	LL_TIM_DisableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN2, LL_TIM_BKIN_SOURCE_BKIN);
+#if HAS_HW_OC
+	LL_TIM_EnableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN, LL_TIM_BKIN_SOURCE_BKCOMP1);
+	LL_TIM_EnableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN, LL_TIM_BKIN_SOURCE_BKCOMP2);
+	LL_TIM_EnableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN, LL_TIM_BKIN_SOURCE_BKCOMP4);
+	LL_TIM_ConfigBRK(tim, LL_TIM_BREAK_POLARITY_HIGH, BREAK_FILTER, LL_TIM_BREAK_AFMODE_INPUT);
+	LL_TIM_ClearFlag_BRK(tim);
+	LL_TIM_EnableBRK(tim);
+#endif
+#if HAS_HW_OV
+	LL_TIM_EnableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN2, LL_TIM_BKIN_SOURCE_BKCOMP3);
+	LL_TIM_ConfigBRK2(tim, LL_TIM_BREAK2_POLARITY_HIGH, BREAK2_FILTER,
+			  LL_TIM_BREAK2_AFMODE_INPUT);
+	LL_TIM_ClearFlag_BRK2(tim);
+	LL_TIM_EnableBRK2(tim);
+#endif
+}
+
+#if HAS_HW_OC
+/* Gain of the PGA from its non-inverting input */
+static uint32_t pga_gain(void)
+{
+	switch (DT_STRING_TOKEN(PS_NODE, opamp_gain)) {
+	case OPAMP_GAIN_2:
+		return 2U;
+	case OPAMP_GAIN_4:
+		return 4U;
+	case OPAMP_GAIN_8:
+		return 8U;
+	case OPAMP_GAIN_16:
+		return 16U;
+	case OPAMP_GAIN_32:
+		return 32U;
+	case OPAMP_GAIN_64:
+		return 64U;
+	default:
+		return 1U; /* level too high: the software trips still act */
+	}
+}
+#endif
+
+/* Levels from the calibrated offsets */
+static void hw_trips_arm(void)
+{
+#if HAS_HW_OC
+	const uint32_t trip_ma = DT_PROP(PS_NODE, hw_trip_current_milliamp);
+	const uint16_t dac_u = hw_trip_oc_dac(offset_u, trip_ma, info.i_full_scale_ma, pga_gain());
+	const uint16_t dac_vw = hw_trip_oc_dac(MAX(offset_v, offset_w), trip_ma,
+					       info.i_full_scale_ma, pga_gain());
+
+	LL_DAC_ConvertData12RightAligned(DAC3, LL_DAC_CHANNEL_1, dac_u);
+	LL_DAC_ConvertData12RightAligned(DAC3, LL_DAC_CHANNEL_2, dac_vw);
+	LOG_INF("hardware overcurrent trip %u mA: DAC3 %u, %u", trip_ma, dac_u, dac_vw);
+#endif
+#if HAS_HW_OV
+	const uint32_t trip_mv = DT_PROP(PS_NODE, hw_trip_vbus_mv);
+	const uint16_t dac_vbus = hw_trip_vbus_dac(trip_mv, info.adc_vbus_mv_full, ADC_FULL);
+
+	LL_DAC_ConvertData12RightAligned(DAC1, LL_DAC_CHANNEL_1, dac_vbus);
+	LOG_INF("hardware overvoltage trip %u mV: DAC1 %u", trip_mv, dac_vbus);
+#endif
+}
+
+#endif /* HAS_HW_OC || HAS_HW_OV */
 
 static int adc_wait(ADC_TypeDef *adc, uint32_t (*busy)(const ADC_TypeDef *))
 {
@@ -373,9 +549,17 @@ static int adcs_init(void)
 	LL_ADC_SetChannelSamplingTime(ADC_M, CH_W, LL_ADC_SAMPLINGTIME_6CYCLES_5);
 	LL_ADC_SetChannelSamplingTime(ADC_S, CH_V, LL_ADC_SAMPLINGTIME_6CYCLES_5);
 
+#if HAS_NTC
+	/* After the currents: about 0.9 us more before the fast loop starts */
+	LL_ADC_SetChannelSamplingTime(ADC_M, CH_TEMP, LL_ADC_SAMPLINGTIME_24CYCLES_5);
+	LL_ADC_INJ_ConfigQueueContext(ADC_M, LL_ADC_INJ_TRIG_EXT_TIM1_TRGO2,
+				      LL_ADC_INJ_TRIG_EXT_RISING, LL_ADC_INJ_SEQ_SCAN_ENABLE_4RANKS,
+				      CH_U, CH_VBUS, CH_W, CH_TEMP);
+#else
 	LL_ADC_INJ_ConfigQueueContext(ADC_M, LL_ADC_INJ_TRIG_EXT_TIM1_TRGO2,
 				      LL_ADC_INJ_TRIG_EXT_RISING, LL_ADC_INJ_SEQ_SCAN_ENABLE_3RANKS,
 				      CH_U, CH_VBUS, CH_W, CH_U);
+#endif
 	LL_ADC_INJ_ConfigQueueContext(ADC_S, LL_ADC_INJ_TRIG_EXT_TIM1_TRGO2,
 				      LL_ADC_INJ_TRIG_EXT_RISING, LL_ADC_INJ_SEQ_SCAN_DISABLE, CH_V,
 				      CH_V, CH_V, CH_V);
@@ -426,6 +610,9 @@ static int stm32_init(const struct device *dev)
 	 * already driven to the idle level (all switches off).
 	 */
 	timer_init();
+#if HAS_HW_OC || HAS_HW_OV
+	hw_trips_init();
+#endif
 
 	ret = pinctrl_apply_state(PINCTRL_DT_DEV_CONFIG_GET(PS_NODE), PINCTRL_STATE_DEFAULT);
 	if (ret != 0) {
@@ -458,6 +645,8 @@ static int stm32_get_info(const struct device *dev, struct power_stage_info *out
 {
 	ARG_UNUSED(dev);
 	*out = info;
+	/* Not before a successful calibration, never after a hardware trip */
+	out->outputs_allowed = info.outputs_allowed && offsets_valid && !hw_trip_latched;
 	return 0;
 }
 
@@ -489,8 +678,24 @@ static int stm32_calibrate(const struct device *dev, uint32_t samples)
 	offset_u = (uint16_t)((cal_sum_u + samples / 2U) / samples);
 	offset_v = (uint16_t)((cal_sum_v + samples / 2U) / samples);
 	offset_w = (uint16_t)((cal_sum_w + samples / 2U) / samples);
-	offsets_valid = true;
 	LOG_INF("current offsets U %u, V %u, W %u counts", offset_u, offset_v, offset_w);
+#if HAS_OFFSET_WINDOW
+	{
+		const uint16_t lo = DT_PROP(PS_NODE, current_offset_min_counts);
+		const uint16_t hi = DT_PROP(PS_NODE, current_offset_max_counts);
+
+		if (!hw_offset_in_window(offset_u, lo, hi) || !hw_offset_in_window(offset_v, lo, hi) ||
+		    !hw_offset_in_window(offset_w, lo, hi)) {
+			LOG_ERR("current offsets outside %u..%u: amplifier, shunt or bias fault; "
+				"outputs refused", lo, hi);
+			return -EIO;
+		}
+	}
+#endif
+#if HAS_HW_OC || HAS_HW_OV
+	hw_trips_arm();
+#endif
+	offsets_valid = true;
 	return 0;
 }
 
@@ -513,7 +718,7 @@ static int stm32_set_aux_trip(const struct device *dev, uint32_t trip_ma)
 		counts = (uint32_t)((uint64_t)trip_ma * ADC_MID / info.i_full_scale_ma);
 		counts = MAX(counts, 1U);
 	}
-	w_trip_counts = (uint16_t)MIN(counts, ADC_MID);
+	leg_trip_counts = (uint16_t)MIN(counts, ADC_MID);
 	return 0;
 }
 
@@ -539,8 +744,11 @@ static int stm32_output_enable(const struct device *dev, bool enable)
 	ARG_UNUSED(dev);
 
 	if (enable) {
-		if (!info.outputs_allowed) {
+		if (!info.outputs_allowed || !offsets_valid) {
 			return -EPERM;
+		}
+		if (hw_trip_latched) {
+			return -EIO;
 		}
 		LL_TIM_EnableAllOutputs(tim);
 	} else {
@@ -559,6 +767,23 @@ static int stm32_get_stats(const struct device *dev, struct power_stage_stats *s
 	return 0;
 }
 
+static int stm32_get_temperature(const struct device *dev, int16_t *decidegc)
+{
+	ARG_UNUSED(dev);
+#if HAS_NTC
+	const uint16_t counts = raw_temp;
+
+	if (counts == 0U) {
+		return -EAGAIN; /* no conversion yet */
+	}
+	return ntc_decidegc(counts, ADC_FULL, DT_PROP(PS_NODE, ntc_r25_ohm),
+			    DT_PROP(PS_NODE, ntc_beta), DT_PROP(PS_NODE, ntc_bottom_ohm), decidegc);
+#else
+	ARG_UNUSED(decidegc);
+	return -ENOSYS;
+#endif
+}
+
 static DEVICE_API(power_stage, stm32_api) = {
 	.get_info = stm32_get_info,
 	.calibrate = stm32_calibrate,
@@ -567,6 +792,7 @@ static DEVICE_API(power_stage, stm32_api) = {
 	.output_enable = stm32_output_enable,
 	.set_aux_trip = stm32_set_aux_trip,
 	.get_stats = stm32_get_stats,
+	.get_temperature = stm32_get_temperature,
 };
 
 DEVICE_DT_INST_DEFINE(0, stm32_init, NULL, NULL, NULL, POST_KERNEL,

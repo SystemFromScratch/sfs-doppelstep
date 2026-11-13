@@ -61,12 +61,12 @@ static void model_period(uint32_t trips)
 {
 	const power_stage_fast_cb_t cb = fast_cb;
 	struct power_stage_sample sample;
-	uint32_t i_w_ma;
+	uint32_t i_leg_ma;
 	const uint32_t trip = aux_trip_ma;
 
 	isr_count++;
-	sim_plant_sample(&sample, &i_w_ma);
-	if ((trip != 0U) && offsets_valid && (i_w_ma > trip)) {
+	sim_plant_sample(&sample, &i_leg_ma);
+	if ((trip != 0U) && offsets_valid && (i_leg_ma > trip)) {
 		trips |= POWER_STAGE_TRIP_AUX;
 	}
 	if (cb != NULL) {
@@ -289,6 +289,20 @@ static int sim_set_aux_trip(const struct device *dev, uint32_t trip_ma)
 	return 0;
 }
 
+/* The model has no thermal part. On the board the real sensor of the timebase stage
+ * answers (the board temperature); on native_sim a fixed 25.0 degC.
+ */
+static int sim_get_temperature(const struct device *dev, int16_t *decidegc)
+{
+	ARG_UNUSED(dev);
+#if HAS_TIMEBASE
+	return power_stage_get_temperature(timebase, decidegc);
+#else
+	*decidegc = 250;
+	return 0;
+#endif
+}
+
 static int sim_get_stats(const struct device *dev, struct power_stage_stats *stats)
 {
 	ARG_UNUSED(dev);
@@ -363,6 +377,7 @@ static DEVICE_API(power_stage, sim_api) = {
 	.output_enable = sim_output_enable,
 	.set_aux_trip = sim_set_aux_trip,
 	.get_stats = sim_get_stats,
+	.get_temperature = sim_get_temperature,
 	.position_shifted = sim_position_shifted,
 };
 

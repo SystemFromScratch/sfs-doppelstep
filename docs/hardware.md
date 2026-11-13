@@ -40,8 +40,10 @@ open between the coils). Swapping the two ends of one coil reverses the sign of 
 bring-up step 3 checks it.
 
 W carries the sum of both coil currents, iA + iB, up to √2 times the phase current. The
-firmware measures its shunt too and switches the outputs off when |iW| exceeds the trip
-current (`aux-trip` of the motor node).
+firmware checks the current of every leg, W included, and switches the outputs off when one
+exceeds the trip current (`aux-trip` of the motor node). Before the first Torque Enable a
+self-test checks each coil at 600 mA: a coil on the wrong legs, an open coil or a short refuses
+the torque with a message in the log ([Protection](protection.md)).
 
 The supply goes to the power input pads of the board (+ and −). The firmware accepts
 10–28 V (`vbus-min-mv`, `vbus-max-mv`) and is tuned for 24 V; use a laboratory supply with a
@@ -64,6 +66,42 @@ The scaling comes from the power stage node of the devicetree
 | Current full scale | ±60.2 A with a 3.3 V reference, about 29 mA per ADC count |
 | VBUS divider | 18 kΩ / (18 kΩ + 169 kΩ) |
 | VBUS full scale | 34.3 V |
+| Temperature | NTC RT1 from 3.3 V to PB14 (ADC1_IN5), R60 4.7 kΩ to ground, C66 10 nF; RT1 = TDK NTCG103JF103FT1, R25 10 kΩ ±1 %, B25/85 3435 K ±1 % |
+
+The bus voltage is measured in every PWM period: Present Input Voltage is the supply of the
+bridge. Any supply from 10 V (`vbus-min-mv`, undervoltage trip) to 28 V (`vbus-max-mv`) works;
+for the first run with a motor a low one, for example 12 V, limits the damage of a mistake.
+The 24.0 V of the simulated-motor build is the bus voltage of the model
+(`CONFIG_SFS_SIM_VBUS_MV`), not a measurement. With USB only and no supply, the ADC of the test
+board read about 4.7 V on the bus input, below the 10 V undervoltage trip.
+
+The temperature is converted as the fourth injected conversion of every PWM period (about
+0.9 µs more before the fast loop) and read with the beta model, about 1309 counts at 25 °C and
+3025 at 80 °C. Present Temperature shows it in whole °C. Above Temperature Limit (31, factory
+80 °C) the firmware raises Overheating Error, which is in the factory Shutdown mask: the torque
+goes off and stays off until a Reboot, as on an XM430. A reading at a rail (NTC open or shorted)
+trips the same way, because the stage is then not protected. The simulated-motor build on the
+board reads the real NTC; `native_sim` reports a fixed 25 °C.
+
+## Sampling window
+
+The ADC samples the shunts and the bus voltage at the top of the PWM counter, where every
+leg is on its low-side switch. A leg with a duty cycle near 100 % leaves that state only
+for a moment, and its edges and dead time then fall into the samples. On the board this
+happened at the first run with the motor: Torque Enable at 1 A and 1.5 A from a 12 V supply
+saturated the current controller for a few milliseconds, one corrupted bus voltage sample
+read below 10 V and the undervoltage trip fired (Hardware Error Status 0x01), whatever the
+current limit of the supply.
+
+`sample-window-ns` (2400 ns, 408 timer ticks) reserves that time: Stepper-C keeps every
+compare value at or below the period minus the window (`sample_window_ticks`) and lowers
+its voltage limit by the same 9.6 %, keeping the direction of the voltage vector. Before
+the trigger the window covers the dead time (1.2 µs) and about 1 µs of settling, after it
+the sampling phases of U, VBUS and W (about 1.5 µs). With it the same Torque Enable at 1.5 A
+and moves up to 46 rpm ran without a fault at 12 V.
+
+`current-slew-ma-per-ms` (30 mA/ms) also lets the current rise after Torque Enable instead
+of stepping it: 1.5 A in 50 ms, so the supply sees no current step.
 
 ## The DYNAMIXEL bus
 
@@ -108,7 +146,8 @@ the integration guide of Stepper-C.
 5. **Motion.** Small Goal Position steps (DYNAMIXEL Wizard or the [GUI](gui/index.md)), then
    the OpenMANIPULATOR-X profile.
 6. **Protection.** Lower `trip-current-milliamp` and `vbus-max-mv`, then check the trips and
-   the Hardware Error Status.
+   the Hardware Error Status; part E of the [hardware checklist](hardware-checklist.md) checks
+   the self-test and the hardware comparators ([Protection](protection.md)).
 
 After a change to the drivers or the threads, also run the
 [hardware checklist](hardware-checklist.md): it covers what the PC tests cannot see.

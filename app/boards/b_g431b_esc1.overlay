@@ -18,7 +18,7 @@
 		pinctrl-0 = <&tim1_ch1_pa8 &tim1_ch1n_pc13
 			     &tim1_ch2_pa9 &tim1_ch2n_pa12
 			     &tim1_ch3_pa10 &tim1_ch3n_pb15
-			     &adc1_in1_pa0>;
+			     &adc1_in1_pa0 &adc1_in5_pb14>;
 		pinctrl-names = "default";
 
 		timer = <&timers1>;
@@ -44,6 +44,15 @@
 		 */
 		dead-time-ns = <1200>;
 
+		/* Low-side time around the top of the counter for the samples: before
+		 * the ADC trigger the dead time (1.2 us) and about 1 us of settling,
+		 * after it the sampling phases of U, VBUS and W (about 1.5 us). Without
+		 * it a duty cycle near 100 % (a 1 A current step at 12 V) corrupted the
+		 * VBUS sample and tripped the undervoltage protection on the board.
+		 * 2400 ns = 408 of 4250 ticks: the voltage limit drops by 9.6 %.
+		 */
+		sample-window-ns = <2400>;
+
 		/* OP1_OUT PA2 = ADC1_IN3, OP2_OUT PA6 = ADC2_IN3,
 		 * OP3_OUT PB1 = ADC1_IN12, VBUS PA0 = ADC1_IN1
 		 */
@@ -51,6 +60,17 @@
 		phase-v-channel = <3>;
 		phase-w-channel = <12>;
 		vbus-channel = <1>;
+
+		/* Power stage temperature (schematic MB1419 rev C, sheets 4 and 6):
+		 * +3.3 V - RT1 NTC - PB14 (ADC1_IN5) - R60 4.7k - GND, C66 10 nF.
+		 * RT1 = TDK NTCG103JF103FT1: R25 10 kOhm +-1 %, B25/85 3435 K +-1 %
+		 * (B25/50 3380 K; B25/85 fits the 80 degC Temperature Limit).
+		 */
+		temperature-channel = <5>;
+		ntc-r25-ohm = <10000>;
+		ntc-beta = <3435>;
+		ntc-bottom-ohm = <4700>;
+
 		adc-vref-mv = <3300>;
 
 		/* 3 mOhm shunts, -64/7 = -9.143 V/V (MCSDK, NuttX, SimpleFOC) */
@@ -59,6 +79,19 @@
 
 		/* 18k / (18k + 169k) */
 		vbus-divider = <18000 169000>;
+
+		/* Hardware trips (schematic MB1419 rev C, sheet 6): each OPAMP+
+		 * input is the shunt through 1.5k with 22k to +3.3 V and 2.2k to
+		 * GND, V+ = 0.129 V + 4/7 Vshunt (1.71 mV/A); the comparator offset
+		 * of +-5 mV is about +-3 A. 10 A: about 3 x trip-current-milliamp
+		 * of the motor. 30 V: above vbus-max-mv (28 V).
+		 */
+		hw-trip-current-milliamp = <10000>;
+		hw-trip-vbus-mv = <30000>;
+
+		/* Offsets measured on the board: 2534 (U), 2528 counts = 16 x 0.129 V */
+		current-offset-min-counts = <2300>;
+		current-offset-max-counts = <2800>;
 	};
 
 	motor: motor {
@@ -76,6 +109,12 @@
 		vbus-min-mv = <10000>;
 		vbus-max-mv = <28000>;
 		trip-current-milliamp = <3500>;
+		/* The current rises at 30 mA/ms after Torque Enable (1.5 A in 50 ms):
+		 * no step on the supply
+		 */
+		current-slew-ma-per-ms = <30>;
+		/* Self-test before the first Torque Enable: 30 % of the rated current */
+		selftest-current-milliamp = <600>;
 		aux-trip;
 
 		slow-loop-hz = <1000>;

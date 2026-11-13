@@ -49,9 +49,14 @@ class Bus:
                         self.on_traffic("rx", status.raw)
                     return status
                 left = deadline - time.monotonic()
-                if left <= 0:
+                # Read even after the deadline: this thread may have been held past it
+                # (the GUI thread keeps the GIL while it redraws), and the answer may be
+                # waiting in the port. Give up only when nothing more arrived.
+                data = self.link.read(max(0.0, left))
+                if data:
+                    self.rx += data
+                elif left <= 0:
                     return None
-                self.rx += self.link.read(left)
 
     def flush(self):
         with self.lock:

@@ -11,7 +11,7 @@ firmware. [Checks on the board](hardware-checklist.md) cover what a PC cannot se
 | `tests/app/msg` | Queues: timeout, discarded late answer, full queue, latest status |
 | `tests/app/supervisor` | Watchdog decision: fed only when every task has checked in since the last check |
 | `tests/drivers/power_stage` | API contract of the class on the simulation backend, `-ENOSYS` of optional functions |
-| `tests/drivers/sstep_motor` | Motor driver through the standard classes, on a fake power stage; a fast-loop overrun faults the motor only with the outputs on |
+| `tests/drivers/sstep_motor` | Motor driver through the standard classes, on a fake power stage; a fast-loop overrun faults the motor only with the outputs on; hardware trips; the bus voltage check of the enable. Scenario `.selftest`: the self-test of Stepper-C at the enable against a load model fired by a timer, with an open phase and a dead sensor of the shared leg |
 
 ```bash
 west twister -T tests/app -T tests/drivers -p native_sim/native/64 --integration

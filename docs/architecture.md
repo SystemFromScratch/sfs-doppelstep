@@ -135,6 +135,16 @@ off a late period is harmless and no fault latches: a flash write of the EEPROM 
 only with the torque off, stalls the CPU for many periods on the STM32G431.
 `power_stage_get_stats()` counts every overrun, also those.
 
+**Trips and self-test.** The STM32 backend checks the current of every leg in the interrupt
+and passes `POWER_STAGE_TRIP_AUX`; its comparators switch the outputs off in hardware through
+the break inputs of TIM1 and pass `POWER_STAGE_TRIP_HW_OC` or `_HW_OV`. The motor driver latches
+each trip as a fault. Before the first enable, `stepper_enable()` runs
+`sstep_selftest()` of Stepper-C, which also checks the bus voltage: for a few tens of
+milliseconds the fast loop of the library drives the legs itself, the fast callback adds up
+the three leg currents, and the control task waits. `CONFIG_SFS_CMD_TIMEOUT_MS` (150 ms) is
+longer than that, so the host gets the result of Torque Enable, not a timeout
+([Protection](protection.md)).
+
 **Watchdog.** A fast loop can also take almost the whole period without overrunning it: then the
 threads get too little time, and the overrun check sees nothing. The independent watchdog (IWDG)
 covers that and any hung task (`app/src/supervisor.h`). The control task and the communication

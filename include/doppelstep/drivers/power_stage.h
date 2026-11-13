@@ -47,6 +47,8 @@ struct power_stage_info {
 	uint16_t adc_i_zero;       /**< Reading at 0 A after offset compensation. */
 	uint32_t adc_vbus_mv_full; /**< Bus voltage at adc_full [mV]. */
 	uint16_t adc_full;         /**< Largest ADC reading. */
+	uint16_t sample_window_ticks; /**< Compare ticks of every period each leg spends at least
+				       *   on its low-side switch, for the samples; 0 = none. */
 };
 
 /** One synchronous measurement, in ADC counts. */
@@ -54,6 +56,8 @@ struct power_stage_sample {
 	uint16_t i_a;  /**< Phase A current, zero at adc_i_zero. */
 	uint16_t i_b;  /**< Phase B current, zero at adc_i_zero. */
 	uint16_t vbus; /**< Bus voltage. */
+	uint16_t i_aux; /**< Current of the leg the phases do not show (shared leg W), zero at
+			 *   adc_i_zero; adc_i_zero when the stage does not measure it. */
 };
 
 /** Diagnostics of the fast loop. */
@@ -68,9 +72,10 @@ struct power_stage_stats {
  * @{
  */
 /**
- * A leg that the sample does not show exceeds the trip level. Never set until
- * power_stage_calibrate() has succeeded: without the sensor offset the level means
- * nothing, and a fault would latch.
+ * The current of a leg exceeds the trip level of power_stage_set_aux_trip(); every
+ * leg is checked, also in voltage drive, where Stepper-C does not check the current.
+ * Never set until power_stage_calibrate() has succeeded: without the sensor offset
+ * the level means nothing, and a fault would latch.
  */
 #define POWER_STAGE_TRIP_AUX BIT(0)
 /**
@@ -81,6 +86,14 @@ struct power_stage_stats {
  * switch the motor off over the bus.
  */
 #define POWER_STAGE_TRIP_OVERRUN BIT(1)
+/**
+ * A hardware comparator saw a leg current above the short-circuit level and the
+ * timer's break input has switched the outputs off, without software. Latched in the
+ * backend: the outputs stay off until a reset.
+ */
+#define POWER_STAGE_TRIP_HW_OC BIT(2)
+/** As POWER_STAGE_TRIP_HW_OC, for a bus voltage above the hardware level. */
+#define POWER_STAGE_TRIP_HW_OV BIT(3)
 /** @} */
 
 /**
@@ -88,7 +101,7 @@ struct power_stage_stats {
  *        interrupt, which may run above the kernel's interrupt lock.
  *        It must not call kernel services.
  * @param sample    Measurement of this period.
- * @param trips     POWER_STAGE_TRIP_AUX, POWER_STAGE_TRIP_OVERRUN or 0.
+ * @param trips     POWER_STAGE_TRIP_* flags, or 0.
  * @param ctx       Pointer given to power_stage_set_fast_callback().
  */
 typedef void (*power_stage_fast_cb_t)(const struct power_stage_sample *sample, uint32_t trips,
@@ -104,6 +117,7 @@ __subsystem struct power_stage_driver_api {
 	int (*set_aux_trip)(const struct device *dev, uint32_t trip_ma);
 	int (*get_stats)(const struct device *dev, struct power_stage_stats *stats);
 	int (*position_shifted)(const struct device *dev, int32_t delta_usteps);
+	int (*get_temperature)(const struct device *dev, int16_t *decidegc);
 };
 
 /** Topology and scaling. */
@@ -137,7 +151,7 @@ static inline int power_stage_output_enable(const struct device *dev, bool enabl
 	return DEVICE_API_GET(power_stage, dev)->output_enable(dev, enable);
 }
 
-/** Overcurrent level of the leg the sample does not show [mA]; 0 disables the check. */
+/** Overcurrent level of every leg [mA], checked in the interrupt; 0 disables the check. */
 static inline int power_stage_set_aux_trip(const struct device *dev, uint32_t trip_ma)
 {
 	const struct power_stage_driver_api *api = DEVICE_API_GET(power_stage, dev);
@@ -162,6 +176,20 @@ static inline int power_stage_position_shifted(const struct device *dev, int32_t
 	const struct power_stage_driver_api *api = DEVICE_API_GET(power_stage, dev);
 
 	return (api->position_shifted != NULL) ? api->position_shifted(dev, delta_usteps) : -ENOSYS;
+}
+
+/**
+ * Temperature of the power stage [0.1 degC], from its sensor (an NTC on the B-G431B-ESC1).
+ * Any thread; not in the fast-loop callback.
+ * @retval -ENOSYS no sensor.
+ * @retval -EAGAIN no measurement yet (right after the start).
+ * @retval -EIO    sensor fault: reading at a rail (NTC open or shorted).
+ */
+static inline int power_stage_get_temperature(const struct device *dev, int16_t *decidegc)
+{
+	const struct power_stage_driver_api *api = DEVICE_API_GET(power_stage, dev);
+
+	return (api->get_temperature != NULL) ? api->get_temperature(dev, decidegc) : -ENOSYS;
 }
 
 #ifdef __cplusplus

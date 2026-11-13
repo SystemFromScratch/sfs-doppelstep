@@ -31,4 +31,5 @@ def test_scaled_values():
 def test_hw_error_text():
     assert r.hw_error_text(0) == "none"
     assert r.hw_error_text(0x11) == "Input Voltage Error, Electrical Shock Error"
-    assert r.hw_error_text(0x04) == "bits 0x04"
+    assert r.hw_error_text(0x04) == "Overheating Error"
+    assert r.hw_error_text(0x08) == "bits 0x08"

@@ -8,7 +8,8 @@
  * overridable with CONFIG_SFS_SIM_* (-1 = file value). Here the topology is the
  * shared leg of the ESC1 and outputs off means open windings (the currents are
  * zero, the rotor coasts). The load torque acts from the first time the
- * outputs are enabled: at power-on the joint rests on a support. See
+ * motor is driven (leg W modulated, not during the self-test): until then the
+ * joint rests on a support. See
  * docs/simulation.md.
  */
 
@@ -40,6 +41,7 @@ BUILD_ASSERT(SSTEP_PLANT_PARAM_LEG_ERROR_N <= SSTEP_PLANT_LEG_ERROR_MAX,
 static struct sstep_plant plant;
 static struct sstep_plant_adc adc;
 static int32_t usteps_per_e_turn;
+static int32_t adc_i_zero;
 
 /* Fast-loop interrupt only */
 static float cmp[SSTEP_PLANT_LEGS];
@@ -76,15 +78,20 @@ static void publish(void)
 
 /* ------------------------------------------------------------------------ */
 
-void sim_plant_sample(struct power_stage_sample *sample, uint32_t *i_w_ma)
+void sim_plant_sample(struct power_stage_sample *sample, uint32_t *i_leg_max_ma)
 {
 	float counts[3];
+	const float i_w = fabsf(plant.x[0] + plant.x[1]);
 
 	sstep_plant_adc_sample(&plant, &adc, counts);
 	sample->i_a = (uint16_t)counts[0];
 	sample->i_b = (uint16_t)counts[1];
 	sample->vbus = (uint16_t)counts[2];
-	*i_w_ma = (uint32_t)lroundf(fabsf(plant.x[0] + plant.x[1]) * 1000.0f);
+	/* shared leg: iW = -(iA + iB), with the same scale as the phases */
+	sample->i_aux = (uint16_t)CLAMP(3 * adc_i_zero - (int32_t)sample->i_a - (int32_t)sample->i_b,
+					0, UINT16_MAX);
+	*i_leg_max_ma = (uint32_t)lroundf(
+		fmaxf(fmaxf(fabsf(plant.x[0]), fabsf(plant.x[1])), i_w) * 1000.0f);
 }
 
 void sim_plant_set_compare(const uint16_t *compare, size_t legs)
@@ -92,14 +99,18 @@ void sim_plant_set_compare(const uint16_t *compare, size_t legs)
 	for (size_t k = 0; k < MIN(legs, SSTEP_PLANT_LEGS); k++) {
 		cmp[k] = (float)compare[k];
 	}
+	/* The joint leaves its support when the motor first drives it: Stepper-C
+	 * modulates the shared leg W, the self-test before the first enable keeps
+	 * it low and needs the rotor at rest.
+	 */
+	if (enabled && (legs > 2U) && (compare[2] != 0U)) {
+		loaded = true;
+	}
 }
 
 void sim_plant_set_enabled(bool enable)
 {
 	enabled = enable;
-	if (enable) {
-		loaded = true;
-	}
 }
 
 void sim_plant_step(void)
@@ -148,6 +159,7 @@ static bool off_by_more_than(float value, float ref, float rel)
 int sim_plant_init(const struct power_stage_info *info, uint32_t microsteps,
 		   uint32_t full_steps_per_rev)
 {
+	adc_i_zero = (int32_t)info->adc_i_zero;
 	static const float err_i[] = SSTEP_PLANT_PARAM_LEG_ERROR_I;
 	static const float err_v[] = SSTEP_PLANT_PARAM_LEG_ERROR_V;
 	const struct sstep_plant_motor motor = {

@@ -18,10 +18,11 @@ This page lists that mapping, the units, and what differs from a real XM430.
 | Current Limit (38) | Run current = min(limit × 2.69 mA, `run-current-milliamp`) |
 | Present Position (132), Position Trajectory (140) | Commanded position (no encoder) |
 | Present Velocity (128), Velocity Trajectory (136) | Commanded velocity |
-| Present Current (126) | Phase current amplitude √(iA² + iB²) |
+| Present Current (126) | Phase current amplitude √(iA² + iB²), averaged over 8 ms (one ADC step is 29 mA on the ESC1); 0 with the torque off |
 | Present Input Voltage (144) | Measured VBUS (0.1 V) |
+| Present Temperature (146), Temperature Limit (31) | Power stage NTC in whole °C; above the limit Overheating Error, which switches the torque off until a Reboot ([Hardware](hardware.md#current-and-voltage-scaling)) |
 | Moving (122), Moving Status (123) | From the status of the motor driver |
-| Hardware Error Status (70) | Over/undervoltage → Input Voltage; overcurrent, W trip, HAL → Electrical Shock |
+| Hardware Error Status (70) | Over/undervoltage, hardware overvoltage trip, Torque Enable outside the supply limits → Input Voltage; overcurrent, leg trip, hardware short-circuit trip, fast-loop overrun, failed self-test, current sensor offset fault → Electrical Shock; temperature above the limit or NTC fault → Overheating ([Protection](protection.md)) |
 | Bus Watchdog | `stepper_ctrl_stop()` |
 | REBOOT / FACTORY_RESET | Outputs off, faults cleared; on the board (MCUboot) REBOOT then resets the MCU: silent for 500 ms plus startup, Present Position restarts ([Firmware update](firmware-update.md#dynamixel-reboot-on-the-board)) |
 | CLEAR (multi-turn) | Position redefined within one turn |
@@ -112,7 +113,7 @@ Sync Read of current, velocity and position, Sync Write of the goal, at 100 Hz
 | Factory Current Limit and Velocity Limit | Those of the real motor ([Factory values](#factory-values-and-the-eeprom)) |
 | Max / Min Voltage Limit | 16 / 9.5 V as an XM430, not checked; the board runs at 24 V |
 | Reboot on the board | Resets the MCU: 500 ms of silence plus startup, Present Position restarts at 2048 |
-| Present Temperature | Keeps its table value: the NTC sensor is not converted yet, no overheating trip |
+| Present Temperature | The power stage (NTC on the board), not the motor winding |
 | Several IDs on one bus | One ID per board |
 
 DYNAMIXEL and ROBOTIS are trademarks of ROBOTIS Co., Ltd. Doppelstep is an independent

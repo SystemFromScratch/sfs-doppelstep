@@ -286,7 +286,7 @@ class App(tk.Tk):
         bar.pack(fill=tk.X)
         self.status_values = {}
         for key in ("Torque", "Hardware error", "Moving", "Position", "Velocity", "Current",
-                    "Input voltage"):
+                    "Input voltage", "Temperature"):
             box = ttk.Frame(bar, style="Card.TFrame", padding=(10, 4))
             box.pack(side=tk.LEFT, padx=(0, 6))
             ttk.Label(box, text=key, style="CardTitle.TLabel").pack(anchor="w")
@@ -314,6 +314,9 @@ class App(tk.Tk):
         sv["Velocity"].configure(text=f"{phys['present_velocity_rpm']:.1f} rpm")
         sv["Current"].configure(text=f"{phys['present_current_ma']:.0f} mA")
         sv["Input voltage"].configure(text=f"{phys['input_voltage_v']:.1f} V")
+        # Overheating Error trips the torque above Temperature Limit (factory 80 degC)
+        sv["Temperature"].configure(text=f"{phys['temperature_c']} °C",
+                                    style="CardBad.TLabel" if hw & 0x04 else "Value.TLabel")
         for listener in self.sample_listeners:
             listener(sample)
 
