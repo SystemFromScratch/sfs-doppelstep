@@ -81,11 +81,12 @@ Doppelstep **0.2.0** drives a real motor: checked on the B-G431B-ESC1 with a 17H
 - [x] MCUboot with serial recovery over the bus; bench GUI
 - [x] Documentation website and PDF manual
 - [x] Dead time of the power stage: 1200 ns, from an ngspice sweep with the MB1419 gate circuit
+- [x] Effective dead time and current at rest measured on the board without a current probe: 1.05 µs at 24 V, 1.4 µs at 12 V; ripple below the ADC resolution ([Measurements with MCUViewer](https://systemfromscratch.github.io/sfs-doppelstep/measurements/))
 - [ ] Dead time measured on the board with an oscilloscope ([bring-up step 1](https://systemfromscratch.github.io/sfs-doppelstep/hardware/#bring-up-checklist))
 - [x] Checked on the board with the simulated motor: all 20 GUI test scenarios, fast loop 37 µs of 50 µs, watchdog, firmware update over the bus
 - [x] Checked with a real motor (17HS19-2004S1, 12 V and 24 V): all 20 GUI test scenarios in three runs, hardware comparators, 2 minutes of moves at 1.5 A
 - [x] Self-test on the board: no supply, open coil, no motor, coil on the wrong legs, swapped coils ([test record](https://systemfromscratch.github.io/sfs-doppelstep/test-record/))
-- [ ] Rest of the [hardware checklist](https://systemfromscratch.github.io/sfs-doppelstep/hardware-checklist/) with the motor: current ripple and vibration at rest (checks 15, 16)
+- [ ] Rest of the [hardware checklist](https://systemfromscratch.github.io/sfs-doppelstep/hardware-checklist/) with the motor: vibration at rest (check 16)
 - [ ] Lost steps reported (the motor has no encoder)
 - [x] Temperature sensor (power stage NTC) and overheating trip
 - [ ] Single-wire TTL bus shared with real DYNAMIXEL servos

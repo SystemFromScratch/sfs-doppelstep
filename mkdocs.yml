@@ -47,6 +47,7 @@ nav:
       - Getting started: getting-started.md
       - Hardware and bring-up: hardware.md
       - Dead time of the power stage: dead-time.md
+      - Measurements with MCUViewer: measurements.md
       - Protection: protection.md
       - DYNAMIXEL emulation: dynamixel.md
       - Configuration: configuration.md

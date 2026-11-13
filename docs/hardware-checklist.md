@@ -60,7 +60,7 @@ fault path through the interrupt. Checks 15 and 16 concern a finding from the si
 
 | # | Check | Expected |
 |---|---|---|
-| 15 | Phase current at rest with a current probe, at the 0.5 A hold current and at several rotor positions | Records the current ripple. In the model the current loop toggles by one ADC step (29.4 mA, about 570 mV of phase voltage) |
+| 15 | Phase current at rest with a current probe or the [MCUViewer bench build](measurements.md#current-ripple-at-rest-check-15), at the 0.5 A hold current and at several rotor positions | Records the current ripple. In the model the current loop toggles by one ADC step (29.4 mA, about 570 mV of phase voltage) |
 | 16 | Vibration and noise of the motor at rest, at the same positions | Records whether the motor audibly or measurably vibrates around 125 Hz at 0.5 A |
 
 If checks 15 and 16 show a real problem, consider oversampling in the ADC, a lower current loop

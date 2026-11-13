@@ -11,3 +11,6 @@ tests:
   doppelstep.drivers.sstep_motor.selftest:
     extra_configs:
       - CONFIG_SSTEP_MOTOR_SELFTEST=y
+  doppelstep.drivers.sstep_motor.mcuviewer:
+    extra_configs:
+      - CONFIG_SSTEP_MOTOR_MCUVIEWER=y

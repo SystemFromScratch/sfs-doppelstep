@@ -1,0 +1,278 @@
+{
+  "format": "mcuviewer-project",
+  "schema_version": 3,
+  "app_version": "1.4.0",
+  "id": "80d2796c-8e30-4777-b11e-9acbf96d1d78",
+  "elf": {
+    "path": "../../build-mcuviewer/app/zephyr/zephyr.elf"
+  },
+  "viewer": {
+    "viewport_width_ms": 10000.0,
+    "probe": {
+      "speed_khz": 4000,
+      "keep_connection": false
+    }
+  },
+  "trace": {
+    "channels": [
+      {
+        "name": "CH0"
+      },
+      {
+        "name": "CH1"
+      },
+      {
+        "name": "CH2"
+      },
+      {
+        "name": "CH3"
+      },
+      {
+        "name": "CH4"
+      },
+      {
+        "name": "CH5"
+      },
+      {
+        "name": "CH6"
+      },
+      {
+        "name": "CH7"
+      },
+      {
+        "name": "CH8"
+      },
+      {
+        "name": "CH9"
+      }
+    ]
+  },
+  "variables": [
+    {
+      "name": "mcuv.capture_arm",
+      "address": "0x20002028",
+      "type": "u32",
+      "color": "#99E6CDCB"
+    },
+    {
+      "name": "mcuv.capture_count",
+      "address": "0x20002030",
+      "type": "u32",
+      "color": "#1B892FA6"
+    },
+    {
+      "name": "mcuv.capture_divider",
+      "address": "0x2000202C",
+      "type": "u32",
+      "color": "#709BE32C"
+    },
+    {
+      "name": "mcuv.i_a_avg_ma",
+      "address": "0x2000200C",
+      "type": "i32",
+      "color": "#4FA3FFFF"
+    },
+    {
+      "name": "mcuv.i_a_ma",
+      "address": "0x20001FF0",
+      "type": "i32",
+      "color": "#4FA3FFFF"
+    },
+    {
+      "name": "mcuv.i_a_pp_ma",
+      "address": "0x20002020",
+      "type": "i32",
+      "color": "#4FA3FFFF"
+    },
+    {
+      "name": "mcuv.i_b_avg_ma",
+      "address": "0x20002010",
+      "type": "i32",
+      "color": "#FF9F43FF"
+    },
+    {
+      "name": "mcuv.i_b_ma",
+      "address": "0x20001FF4",
+      "type": "i32",
+      "color": "#FF9F43FF"
+    },
+    {
+      "name": "mcuv.i_b_pp_ma",
+      "address": "0x20002024",
+      "type": "i32",
+      "color": "#FF9F43FF"
+    },
+    {
+      "name": "mcuv.i_w_ma",
+      "address": "0x20001FF8",
+      "type": "i32",
+      "color": "#E0E0E0FF"
+    },
+    {
+      "name": "mcuv.outputs_on",
+      "address": "0x20002008",
+      "type": "u32",
+      "color": "#694A9190"
+    },
+    {
+      "name": "mcuv.v_a_avg_mv",
+      "address": "0x20002014",
+      "type": "i32",
+      "color": "#B38CFFFF"
+    },
+    {
+      "name": "mcuv.v_a_mv",
+      "address": "0x20001FFC",
+      "type": "i32",
+      "color": "#B38CFFFF"
+    },
+    {
+      "name": "mcuv.v_b_avg_mv",
+      "address": "0x20002018",
+      "type": "i32",
+      "color": "#2ED3B7FF"
+    },
+    {
+      "name": "mcuv.v_b_mv",
+      "address": "0x20002000",
+      "type": "i32",
+      "color": "#2ED3B7FF"
+    },
+    {
+      "name": "mcuv.vbus_mv",
+      "address": "0x20002004",
+      "type": "i32",
+      "color": "#FFD166FF"
+    }
+  ],
+  "groups": [
+    {
+      "name": "Capture",
+      "plots": [
+        {
+          "name": "Capture buffer",
+          "type": "table",
+          "series": [
+            {
+              "variable": "mcuv.capture_arm"
+            },
+            {
+              "variable": "mcuv.capture_count"
+            },
+            {
+              "variable": "mcuv.capture_divider"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Current ripple",
+      "plots": [
+        {
+          "name": "Phase currents [mA]",
+          "series": [
+            {
+              "variable": "mcuv.i_a_ma"
+            },
+            {
+              "variable": "mcuv.i_b_ma"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Dead time",
+      "plots": [
+        {
+          "name": "Averaged currents [mA]",
+          "y_axis": {
+            "limits_enabled": true,
+            "min": -1800.0,
+            "max": 1800.0
+          },
+          "series": [
+            {
+              "variable": "mcuv.i_a_avg_ma"
+            },
+            {
+              "variable": "mcuv.i_b_avg_ma"
+            }
+          ]
+        },
+        {
+          "name": "Averaged phase voltages [mV]",
+          "y_axis": {
+            "limits_enabled": true,
+            "min": -6000.0,
+            "max": 6000.0
+          },
+          "series": [
+            {
+              "variable": "mcuv.v_a_avg_mv"
+            },
+            {
+              "variable": "mcuv.v_b_avg_mv"
+            }
+          ]
+        },
+        {
+          "name": "Phase A voltage over current",
+          "type": "xy",
+          "y_axis": {
+            "limits_enabled": true,
+            "min": -6000.0,
+            "max": 6000.0
+          },
+          "x_axis": {
+            "limits_enabled": true,
+            "min": -1800.0,
+            "max": 1800.0,
+            "variable": "mcuv.i_a_avg_ma"
+          },
+          "series": [
+            {
+              "variable": "mcuv.v_a_avg_mv"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Live values",
+      "plots": [
+        {
+          "name": "Values",
+          "type": "table",
+          "series": [
+            {
+              "variable": "mcuv.i_a_avg_ma"
+            },
+            {
+              "variable": "mcuv.i_a_pp_ma"
+            },
+            {
+              "variable": "mcuv.i_b_avg_ma"
+            },
+            {
+              "variable": "mcuv.i_b_pp_ma"
+            },
+            {
+              "variable": "mcuv.outputs_on"
+            },
+            {
+              "variable": "mcuv.v_a_avg_mv"
+            },
+            {
+              "variable": "mcuv.v_b_avg_mv"
+            },
+            {
+              "variable": "mcuv.vbus_mv"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

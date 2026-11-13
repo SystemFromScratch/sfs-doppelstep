@@ -8,6 +8,24 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Measurements with MCUViewer** ([Measurements with MCUViewer](docs/measurements.md)):
+  `CONFIG_SSTEP_MOTOR_MCUVIEWER`, off by default, publishes the measured phase currents,
+  the commanded phase voltages, their averages and the peak-to-peak current of the fast
+  loop in the global variable `mcuv`, and records them at up to 20 kHz into `mcuv_buf`
+  on request. `app/mcuviewer.conf` makes the bench build. `tools/mcuviewer/mcuv.py`
+  starts a capture over the SWD probe and evaluates the current ripple at rest (hardware
+  checklist, check 15) and the effective dead time, without a current probe, with a table
+  of the loss per current range. `tools/mcuviewer/doppelstep.mcuv` is a ready MCUViewer
+  project. CI builds the bench build and checks that the release build does not contain
+  the option.
+- **Measured on the board** (B-G431B-ESC1, 17HS19-2004S1, 24 V and 12 V;
+  [test record](docs/test-record.md)): the current ripple at rest is below the resolution
+  of the ADC (about 31 mA rms noise, the same with the torque off; no toggle at 125 Hz).
+  The effective dead time is 1.05 µs at 24 V and 1.4 µs at 12 V (set 1.2 µs). Open: the
+  fit gives 2.75 Ω for the phase circuit at both voltages instead of 1.6 Ω.
+
 ## [0.2.0] - 2026-11-13
 
 The real-motor build drives a motor. Checked on the B-G431B-ESC1 with a 17HS19-2004S1 at

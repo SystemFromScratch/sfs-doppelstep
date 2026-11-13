@@ -113,12 +113,18 @@ build_checks() {
         grep -q '^CONFIG_SFS_DXL_REBOOT_RESETS_MCU=y$' "${esc1}/app/zephyr/.config"
     check "DYNAMIXEL Reboot stays emulated on native_sim" \
         grep -q '^# CONFIG_SFS_DXL_REBOOT_RESETS_MCU is not set$' build-tests/zephyr/.config
+    check "MCUViewer variables off in the release build" \
+        grep -q '^# CONFIG_SSTEP_MOTOR_MCUVIEWER is not set$' "${esc1}/app/zephyr/.config"
+    check "MCUViewer variables in the bench build" \
+        grep -q '^CONFIG_SSTEP_MOTOR_MCUVIEWER=y$' build-ci/esc1-mcuviewer/app/zephyr/.config
     echo "::endgroup::"
 }
 
 build esc1 --sysbuild -b b_g431b_esc1 -s app -d build-ci/esc1
 build esc1-sim --sysbuild -b b_g431b_esc1 -s app -d build-ci/esc1-sim \
     -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay "${sim_args[@]}"
+build esc1-mcuviewer --sysbuild -b b_g431b_esc1 -s app -d build-ci/esc1-mcuviewer \
+    -- -DEXTRA_CONF_FILE=mcuviewer.conf
 build native-tests -b native_sim/native/64 -s app -d build-tests \
     -- -DEXTRA_CONF_FILE=sim-test.conf "${sim_args[@]}"
 build_checks

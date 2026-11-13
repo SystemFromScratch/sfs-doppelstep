@@ -22,6 +22,8 @@
 #include <doppelstep/drivers/power_stage.h>
 #include <doppelstep/drivers/sstep_motor.h>
 
+#include "sstep_mcuviewer.h"
+
 #if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
 /* The test takes about 40 to 55 ms, at most about 440 ms while a rotor keeps moving
  * (Stepper-C 1.4.0). stepper_enable() does not wait for it: the slow loop
@@ -127,6 +129,9 @@ struct sstep_motor_data {
 #if defined(CONFIG_SSTEP_MOTOR_THREAD_CHECK)
 	k_tid_t owner;
 #endif
+#if defined(CONFIG_SSTEP_MOTOR_MCUVIEWER)
+	bool mcuv_owner; /* this instance feeds the MCUViewer variables */
+#endif
 };
 
 /* Child nodes */
@@ -187,6 +192,11 @@ static int hal_pwm_write(void *context, const uint16_t compare[SSTEP_LEGS_MAX])
 	const struct sstep_motor_config *cfg = dev->config;
 	const struct sstep_motor_data *data = dev->data;
 
+#if defined(CONFIG_SSTEP_MOTOR_MCUVIEWER)
+	if (data->mcuv_owner) {
+		sstep_mcuv_compare(compare, data->stage_info.legs);
+	}
+#endif
 	return power_stage_write(cfg->stage, compare, data->stage_info.legs);
 }
 
@@ -256,6 +266,17 @@ static void fast_loop(const struct power_stage_sample *s, uint32_t trips, void *
 		data->kirchhoff_peak = MAX(data->kirchhoff_peak, sum);
 		data->kirchhoff_run = (sum > data->kirchhoff_limit) ? (data->kirchhoff_run + 1U) : 0U;
 		data->kirchhoff_run_max = MAX(data->kirchhoff_run_max, data->kirchhoff_run);
+	}
+#endif
+#if defined(CONFIG_SSTEP_MOTOR_MCUVIEWER)
+	{
+		const struct sstep_motor_data *const md =
+			CONTAINER_OF(drv, struct sstep_motor_data, drv);
+
+		/* Before Stepper-C writes the compares of the next period */
+		if (md->mcuv_owner) {
+			sstep_mcuv_sample(s, atomic_get(&md->outputs_on) != 0);
+		}
 	}
 #endif
 	(void)sstep_fast_loop(drv, &sample);
@@ -901,6 +922,12 @@ static int sstep_motor_init(const struct device *dev)
 	} else {
 		(void)power_stage_set_aux_trip(cfg->stage, 0U);
 	}
+#if defined(CONFIG_SSTEP_MOTOR_MCUVIEWER)
+	data->mcuv_owner = sstep_mcuv_attach(&data->stage_info);
+	if (data->mcuv_owner) {
+		LOG_WRN("%s: MCUViewer variables on (bench build): mcuv, mcuv_buf", dev->name);
+	}
+#endif
 	ret = power_stage_set_fast_callback(cfg->stage, fast_loop, &data->drv);
 	if (ret != 0) {
 		return ret;

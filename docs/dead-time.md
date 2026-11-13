@@ -202,6 +202,12 @@ Only after this measurement, and not below 900 ns, can the dead time be lowered.
 procedure is [bring-up step 1](hardware.md#bring-up-checklist), and
 [hardware checklist](hardware-checklist.md) check 5.
 
+With a motor, the firmware can also measure the **effective** dead time: the voltage
+each leg loses during the dead time, from the phase voltage the current loop needs at a
+given current ([Measurements with MCUViewer](measurements.md#effective-dead-time)). It
+shows how large the loss really is and how it distorts the phase voltage. It does not
+replace the oscilloscope above, because it cannot see the gates or a short shoot-through.
+
 ## Limits of the method
 
 - The sweep covers one operating point: 24 V, 20 kHz, phase currents up to ±3 A. Repeat it

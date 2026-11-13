@@ -45,6 +45,29 @@ config SSTEP_MOTOR_SELFTEST_EVERY_ENABLE
 	  The rotor moves to the nearest full step of the tested coil (at most
 	  one full step) and back, at every enable.
 
+config SSTEP_MOTOR_MCUVIEWER
+	bool "Measurement variables and capture buffer for MCUViewer"
+	help
+	  Only for measurements on the bench; off in every release build.
+	  The fast loop publishes the measured phase currents, the commanded
+	  phase voltages, their averages and the peak-to-peak current in the
+	  global variable `mcuv`, and records them into `mcuv_buf` on request
+	  (mcuv.capture_arm = 1). MCUViewer, a debugger or
+	  tools/mcuviewer/mcuv.py read them over SWD while the motor runs:
+	  current ripple at rest and effective dead time without a current
+	  probe (docs/measurements.md). Costs RAM for the buffer and a few
+	  tens of CPU cycles per fast-loop period: check `fast loop max`.
+	  One motor instance is recorded: the first one to start.
+
+config SSTEP_MOTOR_MCUVIEWER_SAMPLES
+	int "Points of the capture buffer"
+	depends on SSTEP_MOTOR_MCUVIEWER
+	default 1024
+	range 16 8192
+	help
+	  8 bytes per point (phase currents and voltages). 1024 points are
+	  51 ms at 20 kHz, or about 1 s with a divider of 20.
+
 config SSTEP_MOTOR_THREAD_CHECK
 	bool "Check that every call comes from one thread"
 	default y if ASSERT

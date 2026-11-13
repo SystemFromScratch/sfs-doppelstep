@@ -89,19 +89,23 @@ wherever they matter:
 
 - **Dead time not yet measured.** `dead-time-ns` is 1200 ns, from an ngspice sweep with the
   gate circuit of schematic MB1419. It is not yet confirmed with an oscilloscope on the board
-  ([bring-up step 1](hardware.md#bring-up-checklist)).
+  ([bring-up step 1](hardware.md#bring-up-checklist)). The effective dead time, the loss it
+  causes, is measured: 1.05 µs at 24 V and 1.4 µs at 12 V ([Measurements with MCUViewer](measurements.md)).
 - **Lost steps are not reported.** A load above the holding torque makes the motor lose
   synchronism silently. A test documents this as an expected failure
   ([Tests](testing.md#expected-failure-lost-synchronism)).
 - **Hardware checklist not complete.** With a 17HS19-2004S1 at 12 V and 24 V all 20 GUI
   test scenarios in three runs, the hardware comparators, two minutes of moves at 1.5 A
   (bridge 39 → 48 °C) and every self-test scenario pass ([Protection](protection.md#checking-it-on-the-bench)).
-  Open: the current ripple and the vibration at rest (checks 15, 16) of the
-  [hardware checklist](hardware-checklist.md). Once, in the first run of the GUI scenarios
+  Open: the vibration at rest (check 16) of the [hardware checklist](hardware-checklist.md);
+  the current ripple of check 15 is below the resolution of the ADC
+  ([Measurements with MCUViewer](measurements.md#current-at-rest)). Once, in the first run of the GUI scenarios
   with the motor, Torque Enable was refused in the Bus Watchdog scenario; not again in the
   13 runs after it, and the RTT log lost the reason.
 - **Rotor vibration at rest in the model:** one ADC step in the current loop excites the
-  mechanical resonance (up to about 3 rpm, 0.2 microstep). Not yet measured on a real motor.
+  mechanical resonance (up to about 3 rpm, 0.2 microstep). On the board the ADC noise of
+  about one step rms hides this toggle: no line at 125 Hz in the current at rest. Whether the
+  rotor vibrates is still to be checked (check 16).
 - **Fast-loop execution time** is measured with the simulated motor on the board, where the
   motor model runs in the same interrupt: 37 µs of the 50 µs period during a move
   ([Simulated motor](simulation.md#limits)). The real-motor build has no model; its time is

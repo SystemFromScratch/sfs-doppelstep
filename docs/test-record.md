@@ -72,6 +72,21 @@ sum stayed at 2 to 4 counts against the limit of 5.
 | ros2_control loop: Sync Read and Sync Write at 100 Hz for 3 s, sine goal | 300 cycles, no failed Sync Read, tracking error at most 11 pulses |
 | Moves of ±90° at 1.5 A | Reached; Hardware Error 0, VBUS 24.0 V, 41 °C |
 
+## On the board with the motor, MCUViewer bench build, 24 V and 12 V
+
+After the release: the bench build with `CONFIG_SSTEP_MOTOR_MCUVIEWER`, read with MCUViewer
+1.4 and `tools/mcuviewer/mcuv.py` through the on-board ST-LINK. Procedure and plots in
+[Measurements with MCUViewer](measurements.md#results-on-the-b-g431b-esc1).
+
+| Check | Result |
+|---|---|
+| Fast loop with the probe variables | At most 15.4 µs of 50 µs, no overrun in 23 million periods |
+| Current at rest, 0.5 A, five positions over a full step (check 15) | Mean currents as the microstep sine (353 mA at the half step). Noise about 31 mA rms (one ADC step), the same as with the torque off: the ripple is below the resolution. No toggle at 125 Hz |
+| Zero current with the torque off | 68 and 119 mA half a second after the disable, 9 to 36 mA after a minute |
+| Current at rest at 12 V, full step | The same as at 24 V: 499.2 mA, 30.6 mA rms |
+| Effective dead time, two slow moves at 1.5 A | 24 V: 1.05 µs (set 1.2 µs), 0.50 V per leg. 12 V: 1.4 µs (1.25 and 1.51 µs per move), 0.34 V per leg. At each voltage the same above 250 mA |
+| Phase circuit resistance from the same fit | 2.79 Ω at 24 V, 2.74 Ω at 12 V, more than the 1.6 Ω of the motor data: open |
+
 ## Problems found by these tests
 
 | Found | Cause | Fixed in |
@@ -86,13 +101,20 @@ sum stayed at 2 to 4 counts against the limit of 5.
 
 ## Open
 
-- **Current ripple and vibration at rest** (checks 15 and 16): need a current probe and an
-  oscilloscope, and listening to the motor at several rotor positions.
+- **Vibration and noise at rest** (check 16): listening to the motor at several rotor
+  positions. The current ripple of check 15 is measured: below the resolution of the ADC.
+- **Resistance of the phase circuit**: the dead-time fit gives 2.75 Ω at 24 V and at 12 V
+  instead of 1.6 Ω. Measure the coils with an ohmmeter, and the current at rest with a
+  multimeter in series, to tell the wiring from the current measurement.
+- **Effective dead time depends on the bus voltage** (1.05 µs at 24 V, 1.4 µs at 12 V):
+  likely the switching edges with the 10 nF snubbers; to confirm with the oscilloscope
+  of bring-up step 1.
 - **Dead time on the oscilloscope** (bring-up step 1) and **switching spikes at 24 V**
   (check 30): 1200 ns comes from the ngspice sweep. No fault and no hot switch at 24 V and
   1.5 A.
 - **Hardware overcurrent with a low trip level** (check 29 as written): the comparators were
   checked by sweeping the DAC level instead; a level of 1 A trips at rest (comparator offset).
-- **NTC against a thermometer** and the **fast-loop time of the real-motor build**.
+- **NTC against a thermometer** and the **fast-loop time of the release build** (the bench
+  build with the probe variables takes at most 15.4 µs).
 - Once, in the first run of the GUI scenarios at 12 V, Torque Enable was refused in the Bus
   Watchdog scenario; not again in the 13 runs after it, and the RTT log lost the reason.
