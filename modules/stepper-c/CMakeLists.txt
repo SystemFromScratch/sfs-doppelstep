@@ -20,13 +20,19 @@ if(CONFIG_SSTEP)
     set(SSTEP_MATH_BACKEND "FIXED" CACHE STRING "Stepper-C numeric backend" FORCE)
   endif()
 
-  set(SSTEP_COMPILE_DEFINITIONS
+  # The SSTEP_CFG_* options (inc/sstep_config.h). sstep.cmake appends the backend to
+  # COMPILE_DEFINITIONS and sets them on the library with its interface scope (PUBLIC),
+  # so the driver that holds the instance compiles sstep.h with the same values:
+  # SSTEP_STATE_BYTES depends on them. COMPILE_OPTIONS would also be PUBLIC, so -O2 is
+  # set on the library sources below instead.
+  set(COMPILE_DEFINITIONS
     "SSTEP_CFG_TOPOLOGY_FULL_BRIDGE=$<IF:$<BOOL:${CONFIG_SSTEP_TOPOLOGY_FULL_BRIDGE}>,1,0>"
     "SSTEP_CFG_TOPOLOGY_SHARED_LEG=$<IF:$<BOOL:${CONFIG_SSTEP_TOPOLOGY_SHARED_LEG}>,1,0>"
     "SSTEP_CFG_MICROSTEPS_MAX=${CONFIG_SSTEP_MICROSTEPS_MAX}U"
     "SSTEP_CFG_SINE_TABLE_BITS=${CONFIG_SSTEP_SINE_TABLE_BITS}U"
     "SSTEP_CFG_ARG_CHECKS=$<IF:$<BOOL:${CONFIG_SSTEP_ARG_CHECKS}>,1,0>"
     "SSTEP_CFG_SELFTEST=$<IF:$<BOOL:${CONFIG_SSTEP_SELFTEST}>,1,0>"
+    "SSTEP_CFG_STALL=$<IF:$<BOOL:${CONFIG_SSTEP_STALL}>,1,0>"
   )
 
   # Zephyr's CMAKE_MODULE_PATH has its own version.cmake: put the library's
@@ -34,11 +40,6 @@ if(CONFIG_SSTEP)
   list(PREPEND CMAKE_MODULE_PATH "${SSTEP_SOURCE_DIR}/cmake")
 
   include("${SSTEP_SOURCE_DIR}/sstep.cmake")
-
-  # The SSTEP_CFG_* options: sstep.cmake sets only the backend. PUBLIC, because
-  # SSTEP_STATE_BYTES of sstep.h depends on them: the driver that holds the
-  # instance must see the values the library was compiled with.
-  target_compile_definitions(sstep PUBLIC ${SSTEP_COMPILE_DEFINITIONS})
 
   # Same compiler flags as the kernel (CPU, FPU ABI, warnings, autoconf.h).
   target_link_libraries(sstep PUBLIC zephyr_interface)

@@ -23,8 +23,21 @@
 #include <doppelstep/drivers/sstep_motor.h>
 
 #if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
-/* Longest test: about 60 ms; the bus command waits CONFIG_SFS_CMD_TIMEOUT_MS */
-#define SELFTEST_TIMEOUT_MS 100U
+/* The test takes about 40 to 55 ms, at most about 440 ms while a rotor keeps moving
+ * (Stepper-C 1.4.0). stepper_enable() does not wait for it: the slow loop
+ * ends it, so a DYNAMIXEL host gets the answer to Torque Enable at once, as from an
+ * XM430.
+ */
+#define SELFTEST_TIMEOUT_MS 500U
+
+/* A motion command received while the self-test runs, executed when it passes */
+enum queued_op {
+	QUEUED_NONE,
+	QUEUED_MOVE_TO,
+	QUEUED_MOVE_BY,
+	QUEUED_RUN,
+	QUEUED_STOP,
+};
 #endif
 
 LOG_MODULE_REGISTER(sstep_motor, CONFIG_SSTEP_MOTOR_LOG_LEVEL);
@@ -78,9 +91,21 @@ struct sstep_motor_data {
 	 * shared leg meanwhile (Kirchhoff: iU + iV + iW = 0), which Stepper-C does not see.
 	 */
 	atomic_t selftest_active;
-	int32_t kirchhoff_q3; /* iU + iV + iW filtered over 8 periods [counts * 8] */
-	int32_t kirchhoff_peak_q3;
+	/* |iU + iV + iW| above kirchhoff_limit for kirchhoff_fail periods in a row is a
+	 * broken sensor: a broken sensor is wrong as long as current flows, a disturbed
+	 * sample (a switching edge) only once.
+	 */
+	int32_t kirchhoff_limit;    /* a quarter of the test current [counts] */
+	uint32_t kirchhoff_fail;    /* 2 ms in fast-loop periods */
+	uint32_t kirchhoff_run;     /* periods in a row above the limit */
+	uint32_t kirchhoff_run_max; /* longest run of the test */
+	int32_t kirchhoff_peak;     /* largest |iU + iV + iW| of the test [counts] */
 	bool selftest_passed;
+	/* stepper_enable() accepted, the self-test runs, Stepper-C enables after it */
+	bool enable_pending;
+	uint32_t pending_calls; /* slow-loop periods since the test started */
+	enum queued_op queued_op;
+	int32_t queued_arg;
 #endif
 
 	/* Filtered current amplitude [mA * 16], see sstep_motor_get_status() */
@@ -225,15 +250,20 @@ static void fast_loop(const struct power_stage_sample *s, uint32_t trips, void *
 	struct sstep_motor_data *const data = CONTAINER_OF(drv, struct sstep_motor_data, drv);
 
 	if (atomic_get(&data->selftest_active) != 0) {
-		const int32_t sum = (int32_t)s->i_a + (int32_t)s->i_b + (int32_t)s->i_aux -
-				    (3 * (int32_t)data->stage_info.adc_i_zero);
+		const int32_t sum = abs((int32_t)s->i_a + (int32_t)s->i_b + (int32_t)s->i_aux -
+					(3 * (int32_t)data->stage_info.adc_i_zero));
 
-		data->kirchhoff_q3 += sum - (data->kirchhoff_q3 / 8);
-		data->kirchhoff_peak_q3 = MAX(data->kirchhoff_peak_q3, abs(data->kirchhoff_q3));
+		data->kirchhoff_peak = MAX(data->kirchhoff_peak, sum);
+		data->kirchhoff_run = (sum > data->kirchhoff_limit) ? (data->kirchhoff_run + 1U) : 0U;
+		data->kirchhoff_run_max = MAX(data->kirchhoff_run_max, data->kirchhoff_run);
 	}
 #endif
 	(void)sstep_fast_loop(drv, &sample);
 }
+
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+static void finish_enable(const struct sstep_motor_config *cfg, struct sstep_motor_data *data);
+#endif
 
 /* ------------------------------------------------------------------------ */
 /* Extension on the parent node                                             */
@@ -253,6 +283,11 @@ int sstep_motor_process(const struct device *dev)
 	CHECK_CALLER(data);
 
 	rc = sstep_slow_loop(&data->drv);
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+	if (data->enable_pending) {
+		finish_enable(dev->config, data);
+	}
+#endif
 
 	faults = (uint16_t)atomic_get(&data->fault_flags);
 	fresh = faults & (uint16_t)~data->faults_reported;
@@ -282,6 +317,13 @@ int sstep_motor_get_status(const struct device *dev, struct sstep_motor_status *
 	if (rc != SSTEP_OK) {
 		return to_errno(rc);
 	}
+
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+	/* The outputs are on and the rotor is held while the self-test runs: torque on */
+	if (data->enable_pending && (st.state == SSTEP_STATE_DISABLED)) {
+		st.state = SSTEP_STATE_HOLDING;
+	}
+#endif
 
 	const uint32_t ia = (uint32_t)MIN(abs(st.i_a_ma), 32767);
 	const uint32_t ib = (uint32_t)MIN(abs(st.i_b_ma), 32767);
@@ -340,6 +382,8 @@ int sstep_motor_clear_faults(const struct device *dev)
 	data->faults_reported = 0U;
 #if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
 	data->selftest_passed = false; /* test again before the next enable */
+	data->enable_pending = false;
+	data->queued_op = QUEUED_NONE;
 #endif
 	return to_errno(rc);
 }
@@ -372,53 +416,106 @@ static const char *selftest_str(enum sstep_selftest_result r)
 	}
 }
 
-/* sstep_selftest() of Stepper-C with the outputs on; blocks the caller until it ends */
-static int run_selftest(const struct sstep_motor_config *cfg, struct sstep_motor_data *data)
+static int32_t selftest_counts(const struct sstep_motor_config *cfg,
+			       const struct power_stage_info *info)
 {
-	const struct power_stage_info *info = &data->stage_info;
+	return (int32_t)MAX((uint64_t)cfg->i_selftest_ma * (uint64_t)abs(info->adc_i_span) /
+				    MAX(info->i_full_scale_ma, 1U),
+			    4U);
+}
+
+/* Starts sstep_selftest() of Stepper-C; -ERANGE for the bus voltage (nothing on) */
+static int start_selftest(const struct sstep_motor_config *cfg, struct sstep_motor_data *data)
+{
 	/* The shared-leg stage measures the third leg: the leg currents must add up to 0 */
-	const bool kirchhoff = (info->legs == 3U);
-	const int32_t i_test = (int32_t)MAX((uint64_t)cfg->i_selftest_ma *
-						    (uint64_t)abs(info->adc_i_span) /
-						    MAX(info->i_full_scale_ma, 1U),
-					    4U);
-	struct sstep_status st = {0};
+	const bool kirchhoff = (data->stage_info.legs == 3U);
 	int ret;
 
-	data->kirchhoff_q3 = 0;
-	data->kirchhoff_peak_q3 = 0;
+	data->kirchhoff_limit = selftest_counts(cfg, &data->stage_info) / 4;
+	data->kirchhoff_fail = MAX((2U * data->stage_info.pwm_freq_hz) / 1000U, 1U);
+	data->kirchhoff_run = 0U;
+	data->kirchhoff_run_max = 0U;
+	data->kirchhoff_peak = 0;
 	(void)atomic_set(&data->selftest_active, kirchhoff ? 1 : 0);
 	ret = to_errno(sstep_selftest(&data->drv, cfg->i_selftest_ma));
-	if (ret == 0) {
-		for (uint32_t ms = 0U; ms < SELFTEST_TIMEOUT_MS; ms++) {
-			k_sleep(K_MSEC(1));
-			(void)sstep_get_status(&data->drv, &st);
-			if (st.selftest != SSTEP_SELFTEST_RUNNING) {
-				break;
-			}
-		}
+	if (ret != 0) {
+		(void)atomic_set(&data->selftest_active, 0);
+		return ret;
+	}
+	data->enable_pending = true;
+	data->pending_calls = 0U;
+	data->queued_op = QUEUED_NONE;
+	return 0;
+}
+
+static int run_queued(struct sstep_motor_data *data)
+{
+	switch (data->queued_op) {
+	case QUEUED_MOVE_TO:
+		return sstep_move_to(&data->drv, data->queued_arg);
+	case QUEUED_MOVE_BY:
+		return sstep_move_by(&data->drv, data->queued_arg);
+	case QUEUED_RUN:
+		return sstep_run(&data->drv, data->queued_arg);
+	case QUEUED_STOP:
+		return sstep_stop(&data->drv);
+	default:
+		return SSTEP_OK;
+	}
+}
+
+/* Slow loop: the end of the self-test enables Stepper-C or latches the fault */
+static void finish_enable(const struct sstep_motor_config *cfg, struct sstep_motor_data *data)
+{
+	const struct power_stage_info *info = &data->stage_info;
+	const bool kirchhoff = (info->legs == 3U);
+	struct sstep_status st;
+
+	(void)sstep_get_status(&data->drv, &st);
+	data->pending_calls++;
+	/* Counted in slow-loop periods: the test runs in fast-loop periods, not in time */
+	if ((st.selftest == SSTEP_SELFTEST_RUNNING) &&
+	    (data->pending_calls < ((SELFTEST_TIMEOUT_MS * cfg->slow_loop_hz) / 1000U))) {
+		return;
 	}
 	(void)atomic_set(&data->selftest_active, 0);
-	if (ret != 0) {
-		return ret; /* -ERANGE: the bus voltage, nothing switched on */
-	}
+	data->enable_pending = false;
 	if (st.selftest == SSTEP_SELFTEST_RUNNING) {
 		(void)sstep_disable(&data->drv); /* stops the test, outputs off */
 	}
 	if ((st.selftest == SSTEP_SELFTEST_PASS) &&
-	    (!kirchhoff || ((data->kirchhoff_peak_q3 / 8) <= (i_test / 4)))) {
-		LOG_INF("selftest passed: %d mA at duty %u/%u", st.selftest_i_ma, st.selftest_duty,
-			info->pwm_period_ticks);
-		return 0;
+	    (!kirchhoff || (data->kirchhoff_run_max < data->kirchhoff_fail))) {
+		int rc;
+
+		LOG_INF("selftest passed: %d mA at duty %u/%u, legs sum up to %d counts (limit %d), "
+			"%u periods in a row above",
+			st.selftest_i_ma, st.selftest_duty, info->pwm_period_ticks,
+			data->kirchhoff_peak, data->kirchhoff_limit, data->kirchhoff_run_max);
+		data->selftest_passed = true;
+		rc = sstep_enable(&data->drv);
+		if (rc == SSTEP_OK) {
+			rc = run_queued(data);
+		}
+		data->queued_op = QUEUED_NONE;
+		if (rc != SSTEP_OK) {
+			/* the supply fell during the test: the outputs stay off */
+			LOG_ERR("enable after the selftest refused (%d)", rc);
+			(void)sstep_report_fault(&data->drv, (rc == SSTEP_ERR_VBUS)
+								     ? SSTEP_FAULT_UNDERVOLTAGE
+								     : SSTEP_FAULT_HAL);
+		}
+		return;
 	}
-	LOG_ERR("selftest: %s, phase %c, %d mA at duty %u, legs sum %d counts (test %d)",
+	data->queued_op = QUEUED_NONE;
+	LOG_ERR("selftest: %s, phase %c, %d mA at duty %u, legs sum up to %d counts (limit %d), "
+		"%u periods in a row above (fails at %u)",
 		selftest_str(st.selftest), (st.selftest_phase == 0U) ? 'A' : 'B',
-		st.selftest_i_ma, st.selftest_duty, data->kirchhoff_peak_q3 / 8, i_test);
+		st.selftest_i_ma, st.selftest_duty, data->kirchhoff_peak, data->kirchhoff_limit,
+		data->kirchhoff_run_max, data->kirchhoff_fail);
 	/* Stepper-C has latched what it found; the timeout and the sensor of the
 	 * shared leg are latched here.
 	 */
 	(void)sstep_report_fault(&data->drv, SSTEP_FAULT_SELFTEST);
-	return -EIO;
 }
 #endif
 
@@ -448,17 +545,18 @@ static int drv_enable(const struct device *dev)
 		return ret;
 	}
 #if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+	if (data->enable_pending) {
+		return 0; /* already accepted */
+	}
 	if ((st.state == SSTEP_STATE_DISABLED) &&
 	    (!data->selftest_passed || IS_ENABLED(CONFIG_SSTEP_MOTOR_SELFTEST_EVERY_ENABLE))) {
-		ret = run_selftest(cfg, data);
+		/* Accepted at once; sstep_motor_process() enables Stepper-C after the test */
+		ret = start_selftest(cfg, data);
 		if (ret == -ERANGE) {
 			LOG_ERR("enable refused: VBUS %u mV outside %u..%u mV", st.vbus_mv,
 				cfg->vbus_min_mv, cfg->vbus_max_mv);
 		}
-		if (ret != 0) {
-			return ret;
-		}
-		data->selftest_passed = true;
+		return ret;
 	}
 #endif
 	/* Bus voltage outside the limits: -ERANGE, not latched (the supply may come up) */
@@ -476,6 +574,13 @@ static int drv_disable(const struct device *dev)
 	struct sstep_motor_data *data = child->parent->data;
 
 	CHECK_CALLER(data);
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+	if (data->enable_pending) {
+		data->enable_pending = false; /* sstep_disable() stops the test */
+		data->queued_op = QUEUED_NONE;
+		(void)atomic_set(&data->selftest_active, 0);
+	}
+#endif
 	return to_errno(sstep_disable(&data->drv));
 }
 
@@ -610,10 +715,29 @@ static int ctrl_configure_ramp(const struct device *dev, const struct stepper_ct
 	return set_limits(data, ramp->speed_max, ramp->acceleration_max, ramp->deceleration_max);
 }
 
+
+#if defined(CONFIG_SSTEP_MOTOR_SELFTEST)
+/* Motion while the self-test runs: kept and executed when it passes (the latest wins) */
+static bool queue_motion(struct sstep_motor_data *data, enum queued_op op, int32_t arg)
+{
+	if (!data->enable_pending) {
+		return false;
+	}
+	data->queued_op = op;
+	data->queued_arg = arg;
+	return true;
+}
+#else
+#define queue_motion(data, op, arg) false
+#endif
+
 static int ctrl_move_by(const struct device *dev, const int32_t micro_steps)
 {
 	struct sstep_motor_data *data = ctrl_data(dev);
 
+	if (queue_motion(data, QUEUED_MOVE_BY, micro_steps)) {
+		return 0;
+	}
 	return to_errno(sstep_move_by(&data->drv, micro_steps));
 }
 
@@ -621,6 +745,9 @@ static int ctrl_move_to(const struct device *dev, const int32_t micro_steps)
 {
 	struct sstep_motor_data *data = ctrl_data(dev);
 
+	if (queue_motion(data, QUEUED_MOVE_TO, micro_steps)) {
+		return 0;
+	}
 	return to_errno(sstep_move_to(&data->drv, micro_steps));
 }
 
@@ -628,15 +755,21 @@ static int ctrl_run(const struct device *dev, const enum stepper_ctrl_direction 
 {
 	struct sstep_motor_data *data = ctrl_data(dev);
 	const int32_t speed = (int32_t)MIN(data->speed, (uint32_t)INT32_MAX);
+	const int32_t velocity = (direction == STEPPER_CTRL_DIRECTION_NEGATIVE) ? -speed : speed;
 
-	return to_errno(sstep_run(&data->drv,
-				  (direction == STEPPER_CTRL_DIRECTION_NEGATIVE) ? -speed : speed));
+	if (queue_motion(data, QUEUED_RUN, velocity)) {
+		return 0;
+	}
+	return to_errno(sstep_run(&data->drv, velocity));
 }
 
 static int ctrl_stop(const struct device *dev)
 {
 	struct sstep_motor_data *data = ctrl_data(dev);
 
+	if (queue_motion(data, QUEUED_STOP, 0)) {
+		return 0;
+	}
 	return to_errno(sstep_stop(&data->drv));
 }
 

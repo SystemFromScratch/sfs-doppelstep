@@ -39,8 +39,11 @@ def test_load_angle_follows_the_torque_equation(firmware_factory):
 
     s = fw.next_sample()                                    # run current, at rest
     assert s.lag == pytest.approx(load_angle(torque, RUN_A), abs=4)
-    time.sleep(0.8)                                         # hold current after 500 ms
-    s = fw.next_sample()
+    # Hold current 500 ms after the move. Wait in the time of the firmware, not of the
+    # host: a loaded host runs native_sim slower than real time.
+    at_rest = s.t
+    while (s := fw.next_sample()).t < at_rest + 0.8:
+        pass
     assert s.lag == pytest.approx(load_angle(torque, HOLD_A), abs=4)
     assert s.cmd == pulses_to_usteps(1024)
     assert abs(s.rotor - s.cmd) < 16, "steps lost"          # 16 microsteps = 1 full step

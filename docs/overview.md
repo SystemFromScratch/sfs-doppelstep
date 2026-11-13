@@ -73,12 +73,12 @@ Measured on this version with the CI build (`scripts/ci.sh`), unless noted.
 |---|---|
 | Microcontroller | STM32G431CB: Arm Cortex-M4F, 170 MHz, 128 KiB flash, 32 KiB RAM |
 | RTOS | Zephyr RTOS v4.5.0, with sysbuild and MCUboot |
-| Application size | 79 568 B flash of the 87 712 B slot; with the simulated motor 86 964 B |
+| Application size | 77 420 B flash of the 87 712 B slot; with the simulated motor 84 100 B |
 | Bootloader size | MCUboot, 37 148 B flash of its 38 KiB partition |
 | Control rates | Current loop 20 kHz (PWM rate), motion loop 1 kHz, bus status every 10 ms |
 | Motor resolution | 3200 microsteps per revolution (200 steps × 16) |
 | Bus | DYNAMIXEL Protocol 2.0, 1 Mbps (factory value), XM430-W350, model number 1020 |
-| Automated tests | 73 ztest cases in 6 configurations, 29 SIL and integration tests, 8 motion tests on the fixed-point backend: 110 per CI run, plus 45 host tests of the GUI |
+| Automated tests | 77 ztest cases in 6 configurations, 29 SIL and integration tests, 8 motion tests on the fixed-point backend: 114 per CI run, plus 45 host tests of the GUI |
 | Toolchain | Zephyr SDK 1.0.1 in a pinned Docker image |
 | License | Apache License 2.0 |
 
@@ -93,13 +93,13 @@ wherever they matter:
 - **Lost steps are not reported.** A load above the holding torque makes the motor lose
   synchronism silently. A test documents this as an expected failure
   ([Tests](testing.md#expected-failure-lost-synchronism)).
-- **Hardware checklist not complete.** With a 17HS19-2004S1 at 12 V the self-test, all 20 GUI
-  test scenarios in three runs, the hardware comparators and two minutes of moves at 1.5 A
-  pass (bridge 39 → 48 °C). Open: the self-test with a coil on the wrong legs (check 27) and
-  the current ripple and vibration at rest (checks 15, 16) of the
+- **Hardware checklist not complete.** With a 17HS19-2004S1 at 12 V and 24 V all 20 GUI
+  test scenarios in three runs, the hardware comparators, two minutes of moves at 1.5 A
+  (bridge 39 → 48 °C) and every self-test scenario pass ([Protection](protection.md#checking-it-on-the-bench)).
+  Open: the current ripple and the vibration at rest (checks 15, 16) of the
   [hardware checklist](hardware-checklist.md). Once, in the first run of the GUI scenarios
-  with the motor, Torque Enable was refused in the Bus Watchdog scenario; not again in the 13
-  runs after it, and the RTT log lost the reason.
+  with the motor, Torque Enable was refused in the Bus Watchdog scenario; not again in the
+  13 runs after it, and the RTT log lost the reason.
 - **Rotor vibration at rest in the model:** one ADC step in the current loop excites the
   mechanical resonance (up to about 3 rpm, 0.2 microstep). Not yet measured on a real motor.
 - **Fast-loop execution time** is measured with the simulated motor on the board, where the

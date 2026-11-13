@@ -14,9 +14,9 @@ change at run time, such as the ID or the baud rate, are servo registers
 | Motor (R, L, rated current, back-EMF, steps), stage limits, control (microsteps, bandwidth, currents, velocity, acceleration) | Motor node, `app/boards/<board>.overlay` |
 | PWM frequency, dead time, ADC channels, shunt, amplifier gain, VBUS divider | Power stage node, `app/boards/b_g431b_esc1.overlay` |
 | DYNAMIXEL ID, factory baud, start position, gear, NVS partition | Servo node, a child of the UART |
-| Threads, queues, offset samples, command timeout (`CONFIG_SFS_CMD_TIMEOUT_MS` 150, longer than the self-test), watchdog (`CONFIG_SFS_WATCHDOG`, `_TIMEOUT_MS` 500, `_CHECK_MS` 100) | `CONFIG_SFS_*`, `app/Kconfig` |
+| Threads, queues, offset samples, command timeout (`CONFIG_SFS_CMD_TIMEOUT_MS` 50), watchdog (`CONFIG_SFS_WATCHDOG`, `_TIMEOUT_MS` 500, `_CHECK_MS` 100) | `CONFIG_SFS_*`, `app/Kconfig` |
 | Self-test of the bridge and the motor before the first Torque Enable (`CONFIG_SSTEP_MOTOR_SELFTEST`, `_EVERY_ENABLE`) | `drivers/motor/Kconfig` ([Protection](protection.md#self-test-of-the-bridge-and-the-motor)) |
-| Stepper-C build options (backend, topology, sine table, `-O2`) | `CONFIG_SSTEP_*`, `modules/stepper-c/Kconfig` |
+| Stepper-C build options (backend, topology, sine table, self-test, stall detection, `-O2`); passed to the library as its `COMPILE_DEFINITIONS` | `CONFIG_SSTEP_*`, `modules/stepper-c/Kconfig`; `app/prj.conf` turns the full-bridge topology and the stall detection off |
 | X430 model, devices per bus, protocol features | `CONFIG_X430_*` (Kconfig of the emulator) |
 | Bus buffer, poll period, persistent storage, Reboot behaviour | `CONFIG_SFS_DXL_*`, `drivers/x430/Kconfig` |
 | Simulated motor (model parameters, scenario, log) | `CONFIG_SFS_SIM_*`, `app/sim.overlay` ([Simulated motor](simulation.md#parameters)) |

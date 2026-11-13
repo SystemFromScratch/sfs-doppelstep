@@ -59,6 +59,7 @@ nav:
       - Development environment: development.md
       - Tests and CI: testing.md
       - Hardware checklist: hardware-checklist.md
+      - Test record: test-record.md
       - GUI: gui/index.md
   - About:
       - Author & Company: about.md
@@ -204,7 +205,7 @@ extra:
           title: Hardware is slow and costly to test on
           text: >-
             The same firmware runs on a PC with a physical model of the motor and the power
-            stage. 110 automated tests run on every CI build in a pinned Docker image.
+            stage. 114 automated tests run on every CI build in a pinned Docker image.
           tags: [native_sim, Software-in-the-loop, GitHub Actions]
     offer:
       eyebrow: What you get
@@ -259,9 +260,9 @@ extra:
           tags: [Docker, Dev Container, Codespaces]
           link: development/
     stats:                                   # measured values only (CI build of this version)
-      - {value: "110", label: automated tests per CI run}
+      - {value: "114", label: automated tests per CI run}
       - {value: "20 kHz", label: current control loop}
-      - {value: "77.7 KiB", label: application flash}
+      - {value: "75.6 KiB", label: application flash}
       - {value: "18.7 KiB", label: application RAM}
     portfolio:
       title: Part of an open-source embedded portfolio

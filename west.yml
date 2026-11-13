@@ -56,7 +56,7 @@ manifest:
     - name: stepper-c
       remote: antonvynohradov
       repo-path: Stepper-C
-      revision: v1.3.0
+      revision: v1.4.0
       path: modules/lib/stepper-c
 
     # No release yet: pinned to the commit of main this firmware is tested

@@ -19,7 +19,7 @@ The values are those of the B-G431B-ESC1 with the 17HS19-2004S1
 | Stepper-C stall detection | The rotor does not follow the commanded angle | `stall_time_ms` | Outputs off, fault latched | Not enabled in Doppelstep |
 | Current offset check (calibration at start) | An offset outside 2300..2800 counts | Once, at start | Outputs refused for good, the bus keeps running | Electrical Shock (0x10) |
 | Bus voltage check (Torque Enable, Stepper-C) | Bus outside 10..28 V | Before anything is energised | Torque Enable answers Result Fail, nothing latched | Input Voltage (0x01) |
-| Self-test (first Torque Enable, Stepper-C and the motor driver) | Open coil, short, wrong polarity, coil on the wrong legs, broken current sensing, a leaking switch | About 15 to 60 ms, before the motor runs | Torque Enable answers Result Fail, fault latched | Electrical Shock (0x10) |
+| Self-test (first Torque Enable, Stepper-C and the motor driver) | Open coil, short, wrong polarity, coil on the wrong legs, broken current sensing, a leaking switch | About 15 to 60 ms, before the motor runs | Torque Enable is answered at once; on a failure the torque goes off again, fault latched | Electrical Shock (0x10) |
 | Temperature (application) | NTC above Temperature Limit (80 °C), or the NTC open or shorted | With the live registers | Torque off until a Reboot (factory Shutdown mask) | Overheating (0x04) |
 | Watchdog (application) | A task stops checking in | 500 ms | MCU reset: the outputs start off | None (the reset cause is logged) |
 
@@ -123,20 +123,22 @@ Reboot, as on an XM430). With only the USB cable connected the bus reads about 4
 ### Self-test of the bridge and the motor
 
 At the first Torque Enable after start or Reboot, the motor driver runs the self-test of
-Stepper-C, `sstep_selftest()`, before the motor is enabled (`CONFIG_SSTEP_MOTOR_SELFTEST`, which
+Stepper-C, `sstep_selftest()`, before Stepper-C takes over (`CONFIG_SSTEP_MOTOR_SELFTEST`, which
 selects `CONFIG_SSTEP_SELFTEST`, the library option `SSTEP_CFG_SELFTEST`). The fast loop of the
 library runs it, one step per PWM period:
 
 1. **All legs low, 2 ms.** No phase may carry current. A current here means a high-side switch
    that conducts.
 2. **Coil A.** W and V stay low, the duty of U rises slowly until the phase A current reaches
-   the test current (`selftest-current-milliamp`, 600 mA), then holds it for 2 ms.
+   the test current (`selftest-current-milliamp`, 600 mA), then holds it.
 3. **Coil B.** The same with V.
 
 Stepper-C sees the two phase currents only. Meanwhile the motor driver adds up the three leg
-currents of every sample, iU + iV + iW, filtered over 8 periods: above a quarter of the test
-current the shunt or the amplifier of a leg is broken, and the test fails although Stepper-C
-passed it. The algorithm and its limits are in the
+currents of every sample, iU + iV + iW, which must be 0. Above a quarter of the test current
+for 2 ms in a row (40 PWM periods), the shunt or the amplifier of a leg is broken, and the
+test fails although Stepper-C passed it. A broken sensor is wrong for as long as current
+flows; single samples are not: in 15 tests on the board the sum reached 6 to 8 counts (once
+25, a disturbed sample) against the limit of 5, for at most 2 periods in a row. The algorithm and its limits are in the
 [Protection chapter of Stepper-C](https://antonvynohradov.github.io/Stepper-C/protection/).
 
 The voltage is ramped instead of set from the coil resistance: at 12 V the dead time of 1.2 µs
@@ -152,30 +154,45 @@ The levels of the checks include that loss.
 | `iU + iV + iW is not 0 (a current sensor is broken)` | Amplifier or shunt of a leg broken; the three leg currents must add up to zero |
 | `current with all legs low (a switch conducts)` | A high-side switch conducts with its gate off |
 | `aborted by a bus voltage trip or a power stage error` | The supply collapsed during the test (current limit too low) or the stage refused a command |
-| `timeout` | The test did not end within 100 ms: the fast loop does not run |
+| `timeout` | The test did not end within 500 ms: the fast loop does not run |
 
-The log line also gives the coil, the measured current, the current of the other phase and
-the duty. On the board without a motor, at 12 V:
+The log line also gives the phase, its current, the compare value and the sum of the leg
+currents against the test current, both in ADC counts:
 
 ```text
-<err> sstep_motor: selftest: no current (coil open, motor not connected or leg dead), coil A, 2 counts (test -20, other phase 0) at duty 1221/1220
+<err> sstep_motor: selftest: <cause>, phase <A|B>, <current> mA at duty <compare>, legs sum <counts> counts (test <counts>)
 ```
 
-A failed test
-latches the fault: Torque Enable answers Result Fail until a Reboot, so the test does not
-drive a broken bridge again and again.
+**Torque Enable does not wait for the test**, just as an XM430 answers Torque Enable at once:
+DynamixelSDK, and with it the ROS 2 `dynamixel_hardware_interface`, waits only about 34 ms
+for a status packet. The motor driver checks the bus voltage, starts the test and answers;
+Torque Enable then reads 1, and the slow loop enables Stepper-C when the test passes. A Goal
+Position or Goal Velocity written meanwhile is executed then (the latest one). On the board
+at 24 V, Torque Enable is answered in 2 ms, and a Goal Position sent 2 ms later moves the
+motor when the test has passed.
+
+A failed test turns the torque off again, as a shutdown error of an XM430 does: Torque
+Enable reads 0, Hardware Error Status shows Electrical Shock, and the fault stays latched
+until a Reboot, so the test does not drive a broken bridge again and again.
 
 During the test the rotor moves to the nearest full step of the energised coil, at most one
-full step (1.8°), and back when the motor is enabled. That motion induces a current in the
-other coil (about a quarter of the test current in the motor model); the wiring check
-therefore reports a coil on the wrong legs only when the other phase carries half the test
-current or more, and the sensor check uses iU + iV + iW = 0.
+full step (1.8°), and back when the motor is enabled. While it swings into the step it
+induces currents in both coils. Since Stepper-C 1.4.0 every check waits until the rotor is at
+rest: the hold ends when the other phase has stayed below half the own current for 2 ms in a
+row, the pause between the phases when both currents have stayed low for 5 ms, and twice the
+test current counts as a short only without a break for 100 ms. A wrong wiring or a short
+stays, so each check fails after 100 ms. On the motor model the test takes about 40 to 55
+ms, also with a heavy load on the shaft. Stepper-C 1.3.0 judged a single sample: on the board, with the
+phases swapped and the rotor a full step away, it reported a coil on the wrong legs once.
 
 !!! warning "The rotor must be at rest"
-    A rotor turned by an external torque during the test, such as a loaded joint that falls,
-    induces currents of an ampere and more in the shorted coils, and the test reports a short
-    or a leaking switch. Support a joint under gravity load before the first Torque Enable. The test runs once after a start; with
-`CONFIG_SSTEP_MOTOR_SELFTEST_EVERY_ENABLE` it runs at every Torque Enable.
+    A rotor turned by an external torque for longer than the checks wait, such as a loaded
+    joint that falls, keeps inducing currents in the shorted coils, and the test reports a
+    short, a leaking switch or a coil on the wrong legs. Support a joint under gravity load
+    before the first Torque Enable.
+
+The test runs once after a start; with `CONFIG_SSTEP_MOTOR_SELFTEST_EVERY_ENABLE` it runs at
+every Torque Enable.
 
 The self-test is off in the simulated-motor build on the board (flash) and on in `native_sim`,
 where every SIL test runs it against the motor model.
@@ -212,3 +229,16 @@ The PC tests cover the logic: the trips, the fault mapping and every self-test r
 a model. What they cannot check is the analog side: the comparator levels, the break filter and
 the self-test against the real motor. The [hardware checklist](hardware-checklist.md) has the
 steps.
+
+On the B-G431B-ESC1 with the 17HS19-2004S1 at 24 V (2 A current limit), firmware 0.2.0 (all
+tests of the release: [Test record](test-record.md)):
+
+| Scenario | Torque Enable | Result |
+|---|---|---|
+| No supply, USB only (4.7 V) | Result Fail in 2 ms | Input Voltage Error, nothing switched on |
+| One coil disconnected | OK in 2 ms, then off | Electrical Shock, `no current (phase open, …), phase A` |
+| No motor | OK in 2 ms, then off | Electrical Shock, `no current (phase open, …), phase A` |
+| Coil A between U and V (check 27) | OK in 2 ms, then off | Electrical Shock, `current in the other phase (phase on the wrong legs), phase A`, 0.1 s after the start of the test |
+| The two coils swapped, common wire on W | OK in 2 ms | Passes (the motor turns the other way: no encoder to see it); 5 of 5 with the rotor a full step away |
+| Correct wiring, rotor a full step away | OK in 2 ms | Passes, 15 of 15 |
+| Correct wiring: Goal Position 2 ms after Torque Enable, then the ros2_control loop at 100 Hz for 3 s | OK in 2 ms | The move runs after the test; 300 cycles, no failed Sync Read |

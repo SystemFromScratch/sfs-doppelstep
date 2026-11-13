@@ -4,12 +4,12 @@
 
 config SFS_CMD_TIMEOUT_MS
 	int "Time a command waits for its result [ms]"
-	default 150
+	default 50
 	help
 	  After it the host gets Result Fail. A command already in the queue may
-	  still execute later; the log records the timeout. Longer than the
-	  self-test of the first Torque Enable (at most 100 ms,
-	  CONFIG_SSTEP_MOTOR_SELFTEST).
+	  still execute later; the log records the timeout. Torque Enable does not
+	  wait for the self-test (CONFIG_SSTEP_MOTOR_SELFTEST): the motor driver
+	  ends it in the slow loop.
 
 config SFS_STATUS_PERIOD_MS
 	int "Period of the status publication [ms]"

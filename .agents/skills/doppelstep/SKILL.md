@@ -22,7 +22,7 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
   `native_sim/native/64` (the same application as a Linux program, simulated
   motor always on, section 7). Planned next family: TI MSPM0 (`docs/porting.md`).
 - Libraries (west projects, no `zephyr/module.yml` of their own):
-  Stepper-C (`modules/lib/stepper-c`, v1.3.0: `sample_window_ticks`, `i_slew_ma_per_ms`, `sstep_selftest()`, `SSTEP_ERR_VBUS`),
+  Stepper-C (`modules/lib/stepper-c`, v1.4.0: `sample_window_ticks`, `i_slew_ma_per_ms`, `sstep_selftest()`, `SSTEP_ERR_VBUS`),
   DYNAMIXEL-X430 emulator (`modules/lib/dynamixel-x430`, pinned **commit** of
   main until its first release), DXL2-C (`modules/lib/dxl2-c`, the tag `x430.cmake` expects),
   Stepper-Lab (`modules/lib/stepper-lab`, follows **main** during development, pin it to a
@@ -169,8 +169,10 @@ west build -b native_sim/native/64 -s app -d build-native                       
   is `sstep_selftest()` of Stepper-C (`CONFIG_SSTEP_MOTOR_SELFTEST` selects `CONFIG_SSTEP_SELFTEST`
   = `SSTEP_CFG_SELFTEST`); while it runs, the fast callback adds up iU + iV + iW (the W shunt,
   which Stepper-C does not see) and fails it with `SSTEP_MOTOR_FAULT_SELFTEST`. The bus voltage
-  check of the enable is `SSTEP_ERR_VBUS` → `-ERANGE`. Keep
-  `CONFIG_SFS_CMD_TIMEOUT_MS` above its 100 ms bound. The simulated-motor board build leaves the
+  check of the enable is `SSTEP_ERR_VBUS` → `-ERANGE`. `stepper_enable()` does not wait
+  for the self-test (DynamixelSDK waits only about 34 ms for Torque Enable):
+  `sstep_motor_process()` ends it, enables Stepper-C and runs the motion command that came
+  meanwhile (`queued_op`); keep it that way, an XM430 answers at once. The simulated-motor board build leaves the
   comparators, the offset window and the self-test out (`app/sim.overlay`, Kconfig default).
 - FPU: `CONFIG_FPU_SHARING=y`, `control_task` has `K_FP_REGS` under that option.
 - `fast_cycles_max` (DWT cycle counter, `power_stage_get_stats`) measures the fast-loop
@@ -267,7 +269,7 @@ west build -b native_sim/native/64 -s app -d build-native                       
 - The fast loop stays within its budget: simulated motor on the board 37 µs of 50 µs during a
   move (`fast loop max`, `overruns` 0). The overrun check (`POWER_STAGE_TRIP_OVERRUN`) and the
   IWDG supervisor (`app/src/supervisor.c`, fed only while both tasks run) stay in place.
-- The simulated-motor image with MCUboot has only 748 B of flash left (86 964 / 87 712 B): watch the `FLASH:` line.
+- The simulated-motor image with MCUboot has 3 612 B of flash left (84 100 / 87 712 B, with `CONFIG_SSTEP_STALL=n`): watch the `FLASH:` line. The `SSTEP_CFG_*` options reach Stepper-C through the `COMPILE_DEFINITIONS` variable of `sstep.cmake` (`modules/stepper-c/CMakeLists.txt`).
 - A user-visible change has a line under `## [Unreleased]` in `CHANGELOG.md`.
 
 ## 11. Release

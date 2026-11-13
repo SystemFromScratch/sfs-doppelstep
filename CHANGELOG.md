@@ -11,10 +11,12 @@ All notable changes to Doppelstep are listed here. The format follows
 ## [0.2.0] - 2026-11-13
 
 The real-motor build drives a motor. Checked on the B-G431B-ESC1 with a 17HS19-2004S1 at
-12 V: the self-test, all 20 GUI test scenarios in three runs, the hardware comparators and two
-minutes of moves at 1.5 A. The bridge and the motor are protected in layers, from comparators
-into the timer break input to a self-test before the first Torque Enable. Motor control is
-Stepper-C 1.3.0.
+12 V and 24 V: all 20 GUI test scenarios in three runs, the hardware comparators, two minutes
+of moves at 1.5 A, and the self-test against no supply, an open coil, no motor, a coil on the
+wrong legs and swapped coils. The bridge and the motor are protected in layers, from
+comparators into the timer break input to a self-test before the first Torque Enable. Torque
+Enable is answered at once, as on an XM430. Motor control is Stepper-C 1.4.0. The tests on the
+board and their results are in the [test record](docs/test-record.md).
 
 ### Added
 
@@ -34,13 +36,17 @@ Stepper-C 1.3.0.
   - Self-test of the bridge and the motor at the first Torque Enable
     (`CONFIG_SSTEP_MOTOR_SELFTEST`, `selftest-current-milliamp` 600 mA): `sstep_selftest()` of
     Stepper-C gives each coil the test current at a slowly rising voltage, and the motor driver
-    adds up the three leg currents meanwhile. An open coil, a short, a wrong current sign, a coil
-    on the wrong legs, a broken current sensor or a leaking switch refuses the torque with
-    Electrical Shock (`SSTEP_MOTOR_FAULT_SELFTEST`) and a log message that names the cause. Off
+    adds up the three leg currents meanwhile (a broken sensor: above a quarter of the test
+    current for 2 ms in a row; one disturbed sample does not count). An open coil, a short, a wrong current sign, a coil
+    on the wrong legs, a broken current sensor or a leaking switch turns the torque off again
+    with Electrical Shock (`SSTEP_MOTOR_FAULT_SELFTEST`) and a log message that names the
+    cause. Torque Enable is answered at once, as on an XM430: `stepper_enable()` starts the
+    test, the slow loop ends it and runs a Goal Position written meanwhile (DynamixelSDK waits
+    only about 34 ms for the status packet; 2 ms on the board at 24 V). Off
     in the simulated-motor build on the board (flash, `CONFIG_SSTEP_SELFTEST` =
     `SSTEP_CFG_SELFTEST`), on in `native_sim`.
   - `i_aux` (current of the shared leg) in `struct power_stage_sample`.
-- **Sampling window and current slew** (Stepper-C 1.3.0): `sample-window-ns` of
+- **Sampling window and current slew** (Stepper-C 1.3): `sample-window-ns` of
   the power stage node (2400 ns on the B-G431B-ESC1) keeps every leg on its low-side switch
   around the samples; `current-slew-ma-per-ms` of the motor node (30) lets the current rise
   after Torque Enable. Found at the first run with the motor: Torque Enable at 1 A and 1.5 A
@@ -80,10 +86,11 @@ Stepper-C 1.3.0.
 ### Fixed
 
 - **The Stepper-C options of Kconfig reached the library only by chance:**
-  `modules/stepper-c/CMakeLists.txt` built the `SSTEP_CFG_*` definitions, but `sstep.cmake`
-  never applied them, so the library always had its defaults. These equalled the Kconfig
-  defaults until `CONFIG_SSTEP_SELFTEST` came; the definitions are now set on the library and
-  on its users (the size of `struct sstep` depends on them).
+  `modules/stepper-c/CMakeLists.txt` built them in `SSTEP_COMPILE_DEFINITIONS`, but
+  `sstep.cmake` applies the variable `COMPILE_DEFINITIONS`, so the library always had its
+  defaults. These equalled the Kconfig defaults until `CONFIG_SSTEP_SELFTEST` came. The glue
+  now sets `COMPILE_DEFINITIONS`, which `sstep.cmake` puts on the library with its public
+  scope, so the driver that holds the instance sees the same `SSTEP_STATE_BYTES`.
 - **Firmware update over the bus failed** (GUI). Three causes, each confirmed on the board:
   smpclient was imported after the DYNAMIXEL Reboot, which took about 0.8 s on Windows, longer
   than the 500 ms in which MCUboot waits for SMP; MCUboot answers the echo with rc 8 (echo not
@@ -112,10 +119,13 @@ Stepper-C 1.3.0.
   sample moved by an ADC step (29 mA), and the sensor offset drift showed 30 to 60 mA with no
   current flowing.
 
-- `CONFIG_SFS_CMD_TIMEOUT_MS` is 150 ms (was 50), longer than the self-test of Torque Enable.
-- Stepper-C v1.3.0 (was v1.2.0): the self-test, the bus voltage check of the enable
+- Stepper-C v1.4.0 (was v1.2.0): the self-test, the bus voltage check of the enable
   (`SSTEP_ERR_VBUS` → `-ERANGE`), the trip of the shared leg, the sampling window and the current
-  slew come from the library.
+  slew come from the library. 1.4.0 waits for the rotor to come to rest in every check of
+  the self-test: 1.3.0 reported a coil on the wrong legs once on the board, with the rotor a
+  full step away at 24 V. `CONFIG_SSTEP_STALL=n` (`SSTEP_CFG_STALL`, new in 1.4.0) removes the
+  unused stall detection: the real-motor image is 77 420 B (was 80 268 B), the
+  simulated-motor image 84 100 B with 3 612 B left.
 - Torque Enable below `vbus-min-mv` is refused at once; before, it was accepted and the
   undervoltage trip latched a fault.
 
@@ -140,9 +150,9 @@ Stepper-C 1.3.0.
 - **Dead time not measured on the board:** 1200 ns comes from the ngspice sweep. The motor ran
   at 12 V and 1.5 A without a fault or a hot switch, but confirm the value with an
   oscilloscope before higher voltages ([bring-up step 1](docs/hardware.md#bring-up-checklist)).
-- **Hardware checklist not complete:** the self-test with a coil on the wrong legs (check 27),
-  the current ripple and the vibration at rest (checks 15, 16), the NTC against a thermometer
-  and the fast-loop time of the real-motor build are open
+- **Hardware checklist not complete:** the current ripple and the vibration at rest (checks
+  15, 16), the NTC against a thermometer and the fast-loop time of the real-motor build are
+  open
   ([hardware checklist](docs/hardware-checklist.md)).
 - Once, in the first run of the GUI scenarios with the motor, Torque Enable was refused in the
   Bus Watchdog scenario; it did not happen in the 13 runs after it, and the RTT log lost the

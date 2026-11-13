@@ -52,9 +52,9 @@ Measured with the CI build of this version:
 | | |
 | --- | --- |
 | Board | B-G431B-ESC1: STM32G431CB, Cortex-M4F, 170 MHz, 128 KiB flash, 32 KiB RAM |
-| Application | 79 568 B flash of the 87 712 B slot (simulated motor: 86 964 B) |
+| Application | 77 420 B flash of the 87 712 B slot (simulated motor: 84 100 B) |
 | Bootloader | MCUboot, 37 148 B flash |
-| Tests per CI run | 110: 73 ztest cases, 29 SIL and integration tests, 8 fixed-point motion tests (plus 45 host tests of the GUI) |
+| Tests per CI run | 114: 77 ztest cases, 29 SIL and integration tests, 8 fixed-point motion tests (plus 45 host tests of the GUI) |
 
 ## Why it is worth a look
 
@@ -62,7 +62,7 @@ Measured with the CI build of this version:
 | --- | --- |
 | **Drop-in for the host** | The host sees an XM430-W350, not a stepper. An integration test drives the firmware with the official DynamixelSDK, the library under the ROS 2 driver, in the control loop of ros2_control: Sync Read and Sync Write at 100 Hz. [DYNAMIXEL emulation](https://systemfromscratch.github.io/sfs-doppelstep/dynamixel/) |
 | **Real-time motor control** | Closed-loop microstepping current control in a 20 kHz zero-latency interrupt; a fault switches the outputs off inside that interrupt. [Architecture](https://systemfromscratch.github.io/sfs-doppelstep/architecture/) |
-| **Tested before hardware** | The same firmware runs on a PC with the motor model of Stepper-Lab and power stage values from ngspice: 110 automated tests on every CI run. [Simulated motor](https://systemfromscratch.github.io/sfs-doppelstep/simulation/) |
+| **Tested before hardware** | The same firmware runs on a PC with the motor model of Stepper-Lab and power stage values from ngspice: 114 automated tests on every CI run. [Simulated motor](https://systemfromscratch.github.io/sfs-doppelstep/simulation/) |
 | **Real Zephyr engineering** | Own driver class for the power stage, the motor behind Zephyr's `stepper` / `stepper_ctrl` APIs, an out-of-tree board, devicetree bindings, layer rules enforced in CI. [Porting to a new MCU family](https://systemfromscratch.github.io/sfs-doppelstep/porting/) |
 | **Field update over the servo bus** | MCUboot serial recovery with an RSA-2048 signature; the bench GUI verifies the uploaded image by its hash. [Firmware update](https://systemfromscratch.github.io/sfs-doppelstep/firmware-update/) |
 | **Reproducible anywhere** | Pinned versions, a Docker image published for CI and GitHub Codespaces, a Dev Container, and the same VS Code tasks on Windows and Linux. [Development environment](https://systemfromscratch.github.io/sfs-doppelstep/development/) |
@@ -70,7 +70,7 @@ Measured with the CI build of this version:
 ## Project status
 
 Doppelstep **0.2.0** drives a real motor: checked on the B-G431B-ESC1 with a 17HS19-2004S1 at
-12 V. Before that, every change runs on the PC against the simulated motor. Changes per release are in
+12 V and 24 V. Before that, every change runs on the PC against the simulated motor. Changes per release are in
 [CHANGELOG.md](CHANGELOG.md); the open items are listed in
 [Status and known limits](https://systemfromscratch.github.io/sfs-doppelstep/overview/#status-and-known-limits).
 
@@ -83,8 +83,9 @@ Doppelstep **0.2.0** drives a real motor: checked on the B-G431B-ESC1 with a 17H
 - [x] Dead time of the power stage: 1200 ns, from an ngspice sweep with the MB1419 gate circuit
 - [ ] Dead time measured on the board with an oscilloscope ([bring-up step 1](https://systemfromscratch.github.io/sfs-doppelstep/hardware/#bring-up-checklist))
 - [x] Checked on the board with the simulated motor: all 20 GUI test scenarios, fast loop 37 µs of 50 µs, watchdog, firmware update over the bus
-- [x] Checked with a real motor (17HS19-2004S1, 12 V): self-test, all 20 GUI test scenarios in three runs, hardware comparators, 2 minutes of moves at 1.5 A
-- [ ] Rest of the [hardware checklist](https://systemfromscratch.github.io/sfs-doppelstep/hardware-checklist/) with the motor: coil on the wrong legs (check 27), current ripple and vibration at rest (checks 15, 16)
+- [x] Checked with a real motor (17HS19-2004S1, 12 V and 24 V): all 20 GUI test scenarios in three runs, hardware comparators, 2 minutes of moves at 1.5 A
+- [x] Self-test on the board: no supply, open coil, no motor, coil on the wrong legs, swapped coils ([test record](https://systemfromscratch.github.io/sfs-doppelstep/test-record/))
+- [ ] Rest of the [hardware checklist](https://systemfromscratch.github.io/sfs-doppelstep/hardware-checklist/) with the motor: current ripple and vibration at rest (checks 15, 16)
 - [ ] Lost steps reported (the motor has no encoder)
 - [x] Temperature sensor (power stage NTC) and overheating trip
 - [ ] Single-wire TTL bus shared with real DYNAMIXEL servos

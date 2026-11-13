@@ -91,7 +91,7 @@ a current limit, and the RTT log open.
 | # | Check | Expected |
 |---|---|---|
 | 24 | USB only, no supply: Torque Enable | Result Fail; Hardware Error Status 0x01 (Input Voltage); log `enable refused: VBUS … mV outside 10000..28000 mV`; nothing energised |
-| 25 | Supply 12 V (200 mA limit), no motor: Torque Enable | Result Fail; Hardware Error Status 0x10; log `selftest: no current (phase open, …), phase A`. Reboot clears it |
+| 25 | Supply 12 V (200 mA limit), no motor: Torque Enable | Accepted at once, then Torque Enable reads 0 again within 0.5 s; Hardware Error Status 0x10; log `selftest: no current (phase open, …), phase A`. Reboot clears it |
 | 26 | Motor connected, 12 V (1 A limit): Torque Enable | Accepted; log `selftest passed`; the shaft moves by at most one full step and back. Supply current during the test well under 1 A |
 | 27 | One coil swapped onto U and V (A+ on U, A− on V): Torque Enable | Result Fail; log `selftest: current in the other phase (phase on the wrong legs)`. Wire it back |
 | 28 | Build with `hw-trip-vbus-mv = <11000>`, supply 12 V | Right after the start: Hardware Error Status 0x01 without a Torque Enable, Torque Enable refused. Restore 30000 |

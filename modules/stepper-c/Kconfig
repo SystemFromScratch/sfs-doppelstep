@@ -66,6 +66,14 @@ config SSTEP_SELFTEST
 	  SSTEP_CFG_SELFTEST: sstep_selftest(). About 1.1 KB of flash and 40 B
 	  per instance on Cortex-M4. Selected by SSTEP_MOTOR_SELFTEST.
 
+config SSTEP_STALL
+	bool "Sensorless stall detection"
+	default y
+	help
+	  SSTEP_CFG_STALL (Stepper-C 1.4): the back-EMF observer and the stall
+	  decision. About 2.2 KB of flash and 80 B per instance on Cortex-M4.
+	  Without it sstep_init() refuses stall_time_ms > 0.
+
 config SSTEP_OPTIMIZE_SPEED
 	bool "Build the library with -O2"
 	help

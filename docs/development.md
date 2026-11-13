@@ -17,7 +17,7 @@ and the documentation tooling.
 
 ```text
 doppelstep/                             west manifest repository and Zephyr module
-├── west.yml                            Zephyr v4.5.0, Stepper-C v1.3.0, X430 emulator (commit), DXL2-C v1.0.0,
+├── west.yml                            Zephyr v4.5.0, Stepper-C v1.4.0, X430 emulator (commit), DXL2-C v1.0.0,
 │                                       Stepper-Lab and sfs-stepper-power-spice (commits)
 ├── zephyr/module.yml                   the repository is a Zephyr module: board, bindings, drivers
 ├── CMakeLists.txt, Kconfig             build modules/ and drivers/

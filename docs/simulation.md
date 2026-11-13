@@ -115,7 +115,7 @@ currents, and the longest fast-loop callback in cycles and µs.
 
 ### Flash budget
 
-The simulated-motor image with MCUboot has 748 B left in the 86 KiB application slot (86 964 of 87 712 B); it therefore leaves out the self-test (`CONFIG_SSTEP_SELFTEST=n`, which also removes its code from Stepper-C), the hardware comparators and the offset window ([Protection](protection.md)).
+The simulated-motor image with MCUboot has 3 612 B left in the 86 KiB application slot (84 100 of 87 712 B; the stall detection of Stepper-C is compiled out, `CONFIG_SSTEP_STALL=n`); it leaves out the self-test (`CONFIG_SSTEP_SELFTEST=n`, which also removes its code from Stepper-C), the hardware comparators and the offset window ([Protection](protection.md)).
 It ran out once, when the fast-loop overrun check and the watchdog came in
 ([Architecture](architecture.md)); printf without floating point (`CONFIG_CBPRINTF_FP_SUPPORT=n`
 in `app/prj.conf`, no log prints a float) gave back about 4.8 KiB. Check the `FLASH:` line of

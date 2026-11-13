@@ -68,10 +68,11 @@ input_voltage_v, torque_enable, moving, hardware_error_status, realtime_tick_ms,
 
 !!! note "Torque Enable refused"
     The firmware answers Torque Enable with Result Fail while a fault is latched (Hardware Error
-    Status not 0; a Reboot clears it), after a failed self-test of the bridge and the motor
-    (Electrical Shock, the cause in the RTT log), with the supply outside 10..28 V (Input
-    Voltage Error), and in a build with `dead-time-ns` = 0, where it never enables the gate
-    drivers ([Protection](../protection.md)). The GUI names these causes when it happens.
+    Status not 0; a Reboot clears it), with the supply outside 10..28 V (Input Voltage Error),
+    and in a build with `dead-time-ns` = 0, where it never enables the gate drivers. A failed
+    self-test of the bridge and the motor turns the torque off again right after Torque Enable
+    (Electrical Shock, the cause in the RTT log), as a shutdown error of an XM430 does
+    ([Protection](../protection.md)). The GUI names these causes when it happens.
 
 !!! warning "No encoder"
     Present Position is the commanded open-loop position. The GUI cannot see lost steps: watch the
