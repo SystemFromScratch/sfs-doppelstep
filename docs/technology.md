@@ -115,7 +115,7 @@ How the three repositories work together: [Simulated motor](simulation.md).
 |---|---|---|
 | **ztest** and **Twister** | Zephyr v4.5.0 | 73 test cases in 6 configurations: unit conversions, queues, the watchdog supervisor, the power stage API, the motor driver on a fake power stage (with and without the self-test of Stepper-C) |
 | **pytest** (+ pytest-timeout) | 9.0.2 (2.4.0) | 29 SIL and integration tests against the `native_sim` firmware over Protocol 2.0, plus 8 motion tests on the fixed-point backend |
-| **DynamixelSDK** | 4.1.0 | The official ROBOTIS library under ROS 2 `dynamixel_hardware_interface`: the integration tests run the ros2_control loop with it |
+| **DynamixelSDK** | 4.1.0 | The official ROBOTIS library under ROS 2 `dynamixel_hardware_interface`: the integration tests run the control loop of ros2_control with it (Sync Read and Sync Write at 100 Hz) |
 | **Layer check** | `scripts/check-layers.sh` | Enforces the architecture rules: no register access outside the backends, no floating point above them, no DYNAMIXEL code in the motor driver |
 | **GitHub Actions** | `.github/workflows/ci.yml` | Runs `scripts/ci.sh` on every push to `main` and every pull request: layer check, three pristine builds, all tests |
 | **GitHub Container Registry** | `ghcr.io/systemfromscratch/sfs-doppelstep-env` | The environment image with the toolchain and the west workspace, tagged by the hash of the files it is made from |

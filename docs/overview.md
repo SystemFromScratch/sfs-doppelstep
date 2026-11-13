@@ -3,8 +3,9 @@
 Doppelstep is open-source firmware that makes an ordinary stepper motor behave like a smart
 servo. It runs on a small motor-control board from STMicroelectronics, the
 **B-G431B-ESC1**, drives a two-phase stepper motor with precise current control, and answers
-on its serial bus exactly like a **DYNAMIXEL XM430-W350** servo. Software written for that
-servo, such as the ROS 2 driver of the OpenMANIPULATOR-X robot arm, works with it unchanged.
+on its serial bus as a **DYNAMIXEL XM430-W350** servo in position, extended position and
+velocity mode. Software written for that servo, such as the ROS 2 driver of the
+OpenMANIPULATOR-X robot arm, drives it without changes in these modes.
 
 This page explains the idea in plain words, who the project is for, what it does and does
 not do, and the terms used in the rest of the documentation.
@@ -24,8 +25,8 @@ Doppelstep is that electronics' firmware. It does two jobs at once:
 | **Speak like the servo** | It receives and answers DYNAMIXEL Protocol 2.0 messages and keeps the same table of settings and readings (the *Control Table*) that a real XM430-W350 keeps |
 | **Drive the motor** | It turns each command into a smooth motion profile and controls the two coil currents 20 000 times per second, in steps 16 times finer than the motor's own 200 steps per revolution |
 
-The controller on the other end of the cable cannot tell the difference. That is where the
-name comes from: Doppelstep is the *double* (German *Doppelgänger*) of a servo
+In these modes, the controller on the other end of the cable works as with the real servo.
+That is where the name comes from: Doppelstep is the *double* (German *Doppelgänger*) of a servo
 ([Naming](NAMING.md)).
 
 ## The chain, from the robot controller to the motor
@@ -46,7 +47,7 @@ name comes from: Doppelstep is the *double* (German *Doppelgänger*) of a servo
 
 | You are… | Doppelstep gives you |
 |---|---|
-| A robotics developer using ROS 2 | A low-cost joint that your existing DYNAMIXEL software already knows how to drive |
+| A robotics developer using ROS 2 | A joint built from a stepper motor and an evaluation board, which your existing DYNAMIXEL software already knows how to drive |
 | An embedded engineer | A complete, documented Zephyr RTOS firmware to study or build on: drivers, devicetree, threads, bootloader, tests |
 | A team evaluating a supplier | A real product, not a demo: measured figures, tests on every change, honest limits |
 | A student or maker | A project you can run on your PC in minutes, without any hardware, and then on an off-the-shelf evaluation board |

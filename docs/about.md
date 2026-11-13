@@ -7,8 +7,8 @@
 </div>
 
 Doppelstep is designed, written and maintained by **Anton Vynohradov** and published by
-**SystemFromScratch®**: firmware and embedded Linux for connected products, secure,
-MISRA-compliant and ready for the EU Cyber Resilience Act.
+**SystemFromScratch®**: secure embedded systems and compliance-ready engineering, from
+concept to certification-ready product.
 
 ## Author
 
@@ -17,10 +17,11 @@ MISRA-compliant and ready for the EU Cyber Resilience Act.
 **Anton Vynohradov** · [ORCID 0009-0005-6965-0911](https://orcid.org/0009-0005-6965-0911)
 { .sfs-author__name }
 
-Embedded Systems Engineer · Founder of SystemFromScratch®
+Embedded Systems Engineer · Secure Product Architect · Founder of SystemFromScratch®
 { .sfs-author__role }
 
-*Zephyr, Embedded Linux, MISRA, CRA.*
+*Embedded systems built from scratch — from bare metal to Linux, from first schematic to
+certification.*
 
 </div>
 
@@ -37,18 +38,19 @@ development environment, the bench GUI and this documentation.
 
 ## SystemFromScratch®
 
-SystemFromScratch® is one partner for the whole software stack of an embedded product:
-firmware, operating systems, security and regulation, with specialist hardware engineers
-joining when a project needs them.
+SystemFromScratch® builds every layer of a connected product: secure embedded systems and
+compliance-ready engineering, from concept to certification-ready product. Anton leads the
+engineering; specialist partner engineers join for hardware design.
 
 | Service | What it covers |
 | --- | --- |
-| Embedded software development | Bare-metal, RTOS and Linux application firmware in C/C++, including OTA, built for performance, reliability and long-term maintainability |
+| Hardware design with partner engineers | Schematics and boards through trusted partners, with the firmware side from the first day |
+| Hardware bring-up & integration | First boot, validation and production of new hardware, including motor-control platforms |
 | BSP & device drivers | Board support packages, bootloaders and low-level drivers for MCUs, SoCs, FPGAs and custom hardware, including Zephyr drivers and Linux kernel work |
 | RTOS & Embedded Linux | Porting, configuration, integration and reproducible builds for Zephyr, FreeRTOS and Embedded Linux (Yocto, Buildroot) |
-| Hardware bring-up & integration | The firmware side of first boot, validation and production, including motor-control platforms; hardware design through trusted partners |
-| Cybersecurity & CRA readiness | Secure boot, firmware integrity, threat modelling and a secure development lifecycle for the EU Cyber Resilience Act |
-| Compliance & consulting | MISRA C/C++, static analysis, code and architecture reviews, compliance roadmaps |
+| Embedded software development | Bare-metal, RTOS and Linux application firmware in C/C++, including OTA, built for reliability and long-term maintainability |
+| System integration | Firmware, host software, protocols and tests brought together into one working product |
+| Cybersecurity, CRA & compliance | Secure boot, signed updates, threat modelling, MISRA C/C++ and static analysis, and a roadmap to the EU Cyber Resilience Act |
 
 Doppelstep is one of the open-source projects of the SystemFromScratch® portfolio: public
 engineering work that can be inspected line by line. It shows several of these services in
@@ -67,7 +69,7 @@ documented, and every number in this documentation can be re-measured from the s
 
 | Channel | Address |
 | --- | --- |
-| Website | [systemfromscratch.github.io](https://systemfromscratch.github.io/) |
+| Website | [systemfromscratch.com](https://systemfromscratch.com/) |
 | E-mail | [contact@systemfromscratch.com](mailto:contact@systemfromscratch.com) |
 | GitHub | [github.com/AntonVynohradov](https://github.com/AntonVynohradov) |
 | GitHub organization | [github.com/SystemFromScratch](https://github.com/SystemFromScratch) |
@@ -77,7 +79,7 @@ documented, and every number in this documentation can be re-measured from the s
 
 Building a connected product, bringing up new hardware, or preparing for the Cyber
 Resilience Act? Get in touch through
-[systemfromscratch.github.io](https://systemfromscratch.github.io/) or by e-mail.
+[systemfromscratch.com](https://systemfromscratch.com/) or by e-mail.
 
 ## Support and feedback
 
@@ -88,7 +90,7 @@ Resilience Act? Get in touch through
 - **Contributions:** follow the [architecture rules](architecture.md#four-rules); the layer
   check and the tests must pass ([Tests and CI](testing.md)).
 - **Commercial support, integration and custom development:** contact SystemFromScratch®
-  through [systemfromscratch.github.io](https://systemfromscratch.github.io/).
+  through [systemfromscratch.com](https://systemfromscratch.com/).
 
 ## Trademarks and acknowledgements
 

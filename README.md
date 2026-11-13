@@ -6,7 +6,7 @@
 <h1 align="center">Doppelstep</h1>
 
 <p align="center">
-  <b>Your stepper, seen as a smart servo: Zephyr RTOS firmware that turns a stepper motor and an STM32 board into a DYNAMIXEL XM430-W350.</b><br>
+  <b>Your stepper, seen as a smart servo: Zephyr RTOS firmware that turns a stepper motor and an STM32 board into a joint that answers as a DYNAMIXEL XM430-W350.</b><br>
   Zephyr RTOS 4.5 · DYNAMIXEL Protocol 2.0 · 20 kHz current control · MCUboot · Tested on a PC
 </p>
 
@@ -30,9 +30,10 @@
 
 Doppelstep is open-source Zephyr RTOS firmware for the STMicroelectronics **B-G431B-ESC1**
 motor-control board. It drives a two-phase stepper motor with closed-loop microstepping
-current control and answers on the bus as a **DYNAMIXEL XM430-W350** (model 1020). ROS 2
-`dynamixel_hardware_interface`, DynamixelSDK and DYNAMIXEL Wizard talk to it unchanged, for
-example as a joint of an OpenMANIPULATOR-X robot arm. The same firmware runs on a PC with a
+current control and answers on the bus as a **DYNAMIXEL XM430-W350** (model 1020) in
+position, extended position and velocity mode. Software written for the servo, such as the
+DynamixelSDK under the ROS 2 `dynamixel_hardware_interface` of an OpenMANIPULATOR-X robot arm,
+drives it without changes. The same firmware runs on a PC with a
 physical model of the motor, so protocol, motion and protection are tested on every change
 before they reach the hardware.
 
@@ -59,7 +60,7 @@ Measured with the CI build of this version:
 
 | | |
 | --- | --- |
-| **Drop-in for the host** | The host sees an XM430-W350, not a stepper. An integration test runs the ros2_control loop with the official DynamixelSDK at 100 Hz against the firmware. [DYNAMIXEL emulation](https://systemfromscratch.github.io/sfs-doppelstep/dynamixel/) |
+| **Drop-in for the host** | The host sees an XM430-W350, not a stepper. An integration test drives the firmware with the official DynamixelSDK, the library under the ROS 2 driver, in the control loop of ros2_control: Sync Read and Sync Write at 100 Hz. [DYNAMIXEL emulation](https://systemfromscratch.github.io/sfs-doppelstep/dynamixel/) |
 | **Real-time motor control** | Closed-loop microstepping current control in a 20 kHz zero-latency interrupt; a fault switches the outputs off inside that interrupt. [Architecture](https://systemfromscratch.github.io/sfs-doppelstep/architecture/) |
 | **Tested before hardware** | The same firmware runs on a PC with the motor model of Stepper-Lab and power stage values from ngspice: 110 automated tests on every CI run. [Simulated motor](https://systemfromscratch.github.io/sfs-doppelstep/simulation/) |
 | **Real Zephyr engineering** | Own driver class for the power stage, the motor behind Zephyr's `stepper` / `stepper_ctrl` APIs, an out-of-tree board, devicetree bindings, layer rules enforced in CI. [Porting to a new MCU family](https://systemfromscratch.github.io/sfs-doppelstep/porting/) |
@@ -174,10 +175,10 @@ python tools/docs/diagrams.py                 # regenerate the diagrams
 
 ## Author
 
-**Anton Vynohradov** — Embedded Systems Engineer, founder of SystemFromScratch®: firmware and
-embedded Linux for connected products, secure, MISRA-compliant and ready for the EU Cyber
-Resilience Act.
-[systemfromscratch.github.io](https://systemfromscratch.github.io/) ·
+**Anton Vynohradov** — Embedded Systems Engineer, Secure Product Architect, founder of
+SystemFromScratch®: secure embedded systems and compliance-ready engineering, from concept to
+certification-ready product.
+[systemfromscratch.com](https://systemfromscratch.com/) ·
 [GitHub](https://github.com/AntonVynohradov) ·
 [LinkedIn](https://www.linkedin.com/in/vynohradov) ·
 [ORCID](https://orcid.org/0009-0005-6965-0911) ·

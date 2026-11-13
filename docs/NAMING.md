@@ -6,12 +6,13 @@
 
 The project started as **sfs-stepper-driver**: the internal SystemFromScratch
 name for a Zephyr RTOS firmware on the STMicroelectronics B-G431B-ESC1. It
-drives a low-cost two-phase stepper motor with
+drives a two-phase stepper motor with
 [Stepper-C](https://github.com/AntonVynohradov/Stepper-C) and answers on the
 bus as a DYNAMIXEL XM430-W350, through the
 [DYNAMIXEL X430 Control Table Emulator](https://github.com/AntonVynohradov/DYNAMIXEL-X430-Control-Table-Emulator).
-The host — ROS 2 `dynamixel_hardware_interface`, DynamixelSDK, DYNAMIXEL
-Wizard — cannot tell the difference.
+In position, extended position and velocity mode the host — ROS 2
+`dynamixel_hardware_interface`, DynamixelSDK, DYNAMIXEL Wizard — works with it as with
+the servo.
 
 `sfs-stepper-driver` says what the code is. It does not say why anyone would
 want it, and it reads like one more stepper driver among hundreds. An
