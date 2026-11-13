@@ -82,6 +82,7 @@ sum stayed at 2 to 4 counts against the limit of 5.
 | Self-test reported a coil on the wrong legs with the coils swapped, rotor a full step away | Stepper-C 1.3.0 judged one sample while the rotor still moved | Stepper-C 1.4.0: every check waits for the rotor to come to rest |
 | Leg-sum check failed once in 15 tests | One disturbed sample passed an 8-period filter | The check counts only a sum above the limit for 2 ms in a row |
 | The Stepper-C options of Kconfig did not reach the library | Wrong CMake variable in the glue | `COMPILE_DEFINITIONS` of `sstep.cmake` |
+| SIL load-angle test failed now and then, in CI and once in the release pipeline (45 instead of 50 ± 4 deg) | It took one log sample: the log gives the lag in whole microsteps (5.6 deg), and the rotor of the model vibrates by a fraction of one at rest; it also waited in host time, which a loaded host stretches | The test averages the samples of a window in the time of the firmware |
 
 ## Open
 

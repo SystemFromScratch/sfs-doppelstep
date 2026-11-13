@@ -37,14 +37,22 @@ def test_load_angle_follows_the_torque_equation(firmware_factory):
                bus.read(DXL_ID, dxl2.PRESENT_POSITION) == START_POSITION + 1024, 3.0,
                what="move end")
 
-    s = fw.next_sample()                                    # run current, at rest
-    assert s.lag == pytest.approx(load_angle(torque, RUN_A), abs=4)
-    # Hold current 500 ms after the move. Wait in the time of the firmware, not of the
-    # host: a loaded host runs native_sim slower than real time.
-    at_rest = s.t
-    while (s := fw.next_sample()).t < at_rest + 0.8:
-        pass
-    assert s.lag == pytest.approx(load_angle(torque, HOLD_A), abs=4)
+    # The model log gives the lag in whole microsteps (5.6 deg el each), and the rotor
+    # vibrates by a fraction of a microstep at rest: a single sample can be one microstep
+    # off. Average the samples of a window, in the time of the firmware, not of the host
+    # (a loaded host runs native_sim slower than real time).
+    def mean_lag(t_from, t_to):
+        lags = []
+        while (s := fw.next_sample()).t < t_to:
+            if s.t >= t_from:
+                lags.append(s.lag)
+        return sum(lags) / len(lags), s
+
+    at_rest = fw.next_sample().t                            # run current, at rest
+    lag, _ = mean_lag(at_rest, at_rest + 0.35)
+    assert lag == pytest.approx(load_angle(torque, RUN_A), abs=4)
+    lag, s = mean_lag(at_rest + 0.8, at_rest + 1.3)         # hold current 500 ms after
+    assert lag == pytest.approx(load_angle(torque, HOLD_A), abs=4)
     assert s.cmd == pulses_to_usteps(1024)
     assert abs(s.rotor - s.cmd) < 16, "steps lost"          # 16 microsteps = 1 full step
 
