@@ -401,10 +401,15 @@ ZTEST(motor, test_set_current_is_limited_to_the_node_values)
 {
 	struct sstep_motor_status st;
 
+	/* Run current up to rated-current-milliamp (2000), above run-current (1500) */
 	zassert_ok(sstep_motor_set_current(motor, 5000U, 5000U));
 	st = status();
-	zassert_equal(st.i_run_ma, 1500U);
+	zassert_equal(st.i_run_ma, 2000U);
 	zassert_equal(st.i_hold_ma, 500U);
+
+	zassert_ok(sstep_motor_set_current(motor, 1800U, 500U));
+	st = status();
+	zassert_equal(st.i_run_ma, 1800U);
 
 	zassert_ok(sstep_motor_set_current(motor, 300U, 500U));
 	st = status();

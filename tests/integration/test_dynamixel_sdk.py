@@ -24,7 +24,7 @@ LEN_PRESENT = 10
 def sdk(fw):
     port = PortHandler(fw.pty)
     assert port.openPort()
-    assert port.setBaudRate(1000000)
+    assert port.setBaudRate(57600)
     yield port, PacketHandler(2.0)
     port.closePort()
 

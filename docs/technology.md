@@ -86,7 +86,7 @@ Build options used here (`modules/stepper-c/Kconfig`):
 
 | Item | Detail |
 |---|---|
-| Version | a pinned commit of `main` until its first release (`west.yml`) |
+| Version | v1.0.0 (`west.yml`): application overrides of the model (`CONFIG_X430_MODEL_OVERRIDES`); persistent blocks with a header and CRC, read and written in parts (`nvm_read` / `nvm_write` hooks) |
 | Source | [github.com/AntonVynohradov/DYNAMIXEL-X430-Control-Table-Emulator](https://github.com/AntonVynohradov/DYNAMIXEL-X430-Control-Table-Emulator), SystemFromScratch® |
 | Role | The complete Control Table of an XM430-W350 (model 1020): access rules, ranges and limits, the EEPROM lock, Indirect Addresses, Sync/Bulk and Fast Sync/Bulk Read, Bus Watchdog, Reboot and Factory Reset |
 | Why | The servo's behaviour is far more than reading and writing registers. A dedicated, separately tested emulator keeps that behaviour exact, and keeps DYNAMIXEL details out of the motor code |
@@ -115,7 +115,7 @@ How the three repositories work together: [Simulated motor](simulation.md).
 | Component | Version | Role |
 |---|---|---|
 | **ztest** and **Twister** | Zephyr v4.5.0 | 77 test cases in 6 configurations: unit conversions, queues, the watchdog supervisor, the power stage API, the motor driver on a fake power stage (with and without the self-test of Stepper-C) |
-| **pytest** (+ pytest-timeout) | 9.0.2 (2.4.0) | 29 SIL and integration tests against the `native_sim` firmware over Protocol 2.0, plus 8 motion tests on the fixed-point backend |
+| **pytest** (+ pytest-timeout) | 9.0.2 (2.4.0) | 32 SIL and integration tests against the `native_sim` firmware over Protocol 2.0, plus 10 motion tests on the fixed-point backend |
 | **DynamixelSDK** | 4.1.0 | The official ROBOTIS library under ROS 2 `dynamixel_hardware_interface`: the integration tests run the control loop of ros2_control with it (Sync Read and Sync Write at 100 Hz) |
 | **Layer check** | `scripts/check-layers.sh` | Enforces the architecture rules: no register access outside the backends, no floating point above them, no DYNAMIXEL code in the motor driver |
 | **GitHub Actions** | `.github/workflows/ci.yml` | Runs `scripts/ci.sh` on every push to `main` and every pull request: layer check, three pristine builds, all tests |

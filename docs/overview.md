@@ -33,7 +33,7 @@ That is where the name comes from: Doppelstep is the *double* (German *Doppelgä
 
 | Stage | What happens | Where in the documentation |
 |---|---|---|
-| Host PC | ROS 2, DynamixelSDK or DYNAMIXEL Wizard sends Protocol 2.0 packets at 1 Mbps | [DYNAMIXEL emulation](dynamixel.md) |
+| Host PC | ROS 2, DynamixelSDK or DYNAMIXEL Wizard sends Protocol 2.0 packets at 57600 bps (factory value, as an XM430) or the rate set in Baud Rate | [DYNAMIXEL emulation](dynamixel.md) |
 | Serial bus | USART2 of the board (for now through the USB port of the on-board debugger) | [Hardware and bring-up](hardware.md) |
 | Servo emulator | Checks every packet and every register access as the real servo does | [Architecture](architecture.md) |
 | Application | Converts servo units into motor commands and back, in separate threads for the bus and for control | [Architecture](architecture.md#a-command-from-the-bus-to-the-motor) |
@@ -73,12 +73,12 @@ Measured on this version with the CI build (`scripts/ci.sh`), unless noted.
 |---|---|
 | Microcontroller | STM32G431CB: Arm Cortex-M4F, 170 MHz, 128 KiB flash, 32 KiB RAM |
 | RTOS | Zephyr RTOS v4.5.0, with sysbuild and MCUboot |
-| Application size | 77 420 B flash of the 87 712 B slot; with the simulated motor 84 100 B |
+| Application size | 77 352 B flash of the 87 712 B slot, 20 828 B of 32 KiB RAM; with the simulated motor 84 020 B |
 | Bootloader size | MCUboot, 37 148 B flash of its 38 KiB partition |
 | Control rates | Current loop 20 kHz (PWM rate), motion loop 1 kHz, bus status every 10 ms |
 | Motor resolution | 3200 microsteps per revolution (200 steps × 16) |
-| Bus | DYNAMIXEL Protocol 2.0, 1 Mbps (factory value), XM430-W350, model number 1020 |
-| Automated tests | 77 ztest cases in 6 configurations, 29 SIL and integration tests, 8 motion tests on the fixed-point backend: 114 per CI run, plus 45 host tests of the GUI |
+| Bus | DYNAMIXEL Protocol 2.0, 57600 bps (factory value, as an XM430) up to 4.5 Mbps, XM430-W350, model number 1020 |
+| Automated tests | 115 ztest cases in 7 configurations, 32 SIL and integration tests, 10 motion tests on the fixed-point backend: 157 per CI run, plus 45 host tests of the GUI |
 | Toolchain | Zephyr SDK 1.0.1 in a pinned Docker image |
 | License | Apache License 2.0 |
 
@@ -91,6 +91,10 @@ wherever they matter:
   gate circuit of schematic MB1419. It is not yet confirmed with an oscilloscope on the board
   ([bring-up step 1](hardware.md#bring-up-checklist)). The effective dead time, the loss it
   causes, is measured: 1.05 µs at 24 V and 1.4 µs at 12 V ([Measurements with MCUViewer](measurements.md)).
+- **PWM Limit and the controller gains are not applied.** PWM Limit (36) and the Velocity PI /
+  Position PID / Feedforward gains (76–90) are stored as on an XM430 but have no effect: the
+  motor runs in current drive, and without an encoder there is no measured velocity or
+  position to close these loops on ([Differences from a real XM430-W350](dynamixel.md#differences-from-a-real-xm430-w350)).
 - **Lost steps are not reported.** A load above the holding torque makes the motor lose
   synchronism silently. A test documents this as an expected failure
   ([Tests](testing.md#expected-failure-lost-synchronism)).

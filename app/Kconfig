@@ -31,7 +31,10 @@ config SFS_COMM_THREAD_PRIORITY
 
 config SFS_COMM_THREAD_STACK_SIZE
 	int "Communication task stack size"
-	default 2560
+	default 3584
+	help
+	  The status answer puts two buffers of CONFIG_X430_DXL2_MAX_PACKET_SIZE
+	  on this stack (parameters and the encoded packet, DXL2-C link).
 
 endmenu
 

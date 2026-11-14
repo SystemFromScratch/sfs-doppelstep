@@ -8,7 +8,7 @@
 <rect x="20" y="140" width="960" height="480" rx="14" fill="#FFFFFF" stroke="#1E5AA8" stroke-width="2"/>
 <text x="300" y="166" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="16" font-weight="bold" fill="#1E5AA8" text-anchor="start">Firmware on Zephyr RTOS v4.5.0</text>
 <line x1="155" y1="90" x2="155" y2="188" stroke="#0B2545" stroke-width="1.6" marker-end="url(#arrow)"/>
-<text x="167" y="120" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="start">DYNAMIXEL Protocol 2.0, 1 Mbps, UART</text>
+<text x="167" y="120" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#0B2545" text-anchor="start">DYNAMIXEL Protocol 2.0, 57600 bps, UART</text>
 <text x="960" y="166" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="12" font-weight="normal" fill="#5A6472" text-anchor="end">application (app/) in blue · drivers (drivers/) in teal</text>
 <rect x="40" y="190" width="230" height="104" rx="10" fill="#E6F4F5" stroke="#0F8B9A" stroke-width="1.5"/>
 <text x="155.0" y="214.5" font-family="Inter, 'Segoe UI', 'DejaVu Sans', Arial, sans-serif" font-size="15" font-weight="bold" fill="#0F8B9A" text-anchor="middle">X430 servo driver</text>

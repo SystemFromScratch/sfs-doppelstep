@@ -13,7 +13,7 @@
 
 #include <errno.h>
 
-#include <zephyr/app_version.h>
+#include <doppelstep_version.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
@@ -40,19 +40,45 @@ static const struct device *const motor_ctrl = DEVICE_DT_GET(DT_CHILD(MOTOR_NODE
 static const struct device *const servo = DEVICE_DT_GET(DT_CHOSEN(sfs_servo));
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
-/* STATUS LED: slow blink = outputs off, on = outputs on, fast blink = fault
- * or startup error. The same loop checks the tasks every CONFIG_SFS_WATCHDOG_CHECK_MS
- * and feeds the watchdog (supervisor.h).
+/* STATUS LED, as the LED of an XM430: the LED register (65) switches it on and off,
+ * and an alarm makes it blink fast whatever the register says: a fault of the motor,
+ * a bit in Hardware Error Status (70) or a startup error. The same loop checks the
+ * tasks every CONFIG_SFS_WATCHDOG_CHECK_MS and feeds the watchdog (supervisor.h).
  */
+#define LED_ALARM_PERIOD_MS 100
+
+static bool led_alarm(void)
+{
+	struct sstep_motor_status status;
+	int32_t hw_error;
+
+	status.state = SSTEP_MOTOR_DISABLED;
+	(void)app_status_get(&status);
+
+	x430_servo_lock(servo);
+	hw_error = x430_servo_reg_get(servo, X430_ADDR_HARDWARE_ERROR_STATUS);
+	x430_servo_unlock(servo);
+
+	return (status.state == SSTEP_MOTOR_FAULT) || (hw_error != 0);
+}
+
+static bool led_register(void)
+{
+	int32_t value;
+
+	x430_servo_lock(servo);
+	value = x430_servo_reg_get(servo, X430_ADDR_LED);
+	x430_servo_unlock(servo);
+
+	return value != 0;
+}
+
 static void status_led_loop(bool startup_failed)
 {
 	bool on = false;
 	int32_t since_toggle_ms = 0;
 
 	for (;;) {
-		struct sstep_motor_status status;
-		int32_t period_ms;
-
 		k_msleep(CONFIG_SFS_WATCHDOG_CHECK_MS);
 		if (startup_failed) {
 			/* The comm task may never have started, so no command can come
@@ -65,30 +91,19 @@ static void status_led_loop(bool startup_failed)
 		(void)supervisor_poll();
 		since_toggle_ms += CONFIG_SFS_WATCHDOG_CHECK_MS;
 
-		if (startup_failed) {
-			period_ms = 100;
-		} else {
-			status.state = SSTEP_MOTOR_DISABLED;
-			(void)app_status_get(&status);
-			switch (status.state) {
-			case SSTEP_MOTOR_FAULT:
-				period_ms = 100;
-				break;
-			case SSTEP_MOTOR_HOLDING:
-			case SSTEP_MOTOR_MOVING:
-				period_ms = 0;
-				break;
-			default:
-				period_ms = 500;
-				break;
+		/* Without a successful startup the servo may not be connected:
+		 * its registers are not read.
+		 */
+		if (startup_failed || led_alarm()) {
+			if (since_toggle_ms >= LED_ALARM_PERIOD_MS) {
+				since_toggle_ms = 0;
+				on = !on;
 			}
-		}
-
-		if ((period_ms == 0) || (since_toggle_ms >= period_ms)) {
+		} else {
 			since_toggle_ms = 0;
-			on = (period_ms == 0) ? true : !on;
-			(void)gpio_pin_set_dt(&led, on ? 1 : 0);
+			on = led_register();
 		}
+		(void)gpio_pin_set_dt(&led, on ? 1 : 0);
 	}
 }
 
@@ -140,7 +155,7 @@ int main(void)
 {
 	int ret;
 
-	LOG_INF("Doppelstep %s on %s", APP_VERSION_STRING, CONFIG_BOARD_TARGET);
+	LOG_INF("Doppelstep %s on %s", DOPPELSTEP_VERSION_STRING, CONFIG_BOARD_TARGET);
 
 	if (gpio_is_ready_dt(&led)) {
 		(void)gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);

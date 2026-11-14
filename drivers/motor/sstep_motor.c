@@ -113,6 +113,19 @@ struct sstep_motor_data {
 	/* Filtered current amplitude [mA * 16], see sstep_motor_get_status() */
 	uint32_t i_amp_q4;
 
+	/* Compare values written last (fast loop), read by sstep_motor_get_status() for
+	 * the duty amplitude. 16-bit stores: a reader may mix two periods, which only
+	 * moves the averaged display value.
+	 */
+	volatile uint16_t pwm_cmp[POWER_STAGE_LEGS_MAX];
+	/* Legs of the two phases: phase voltage = leg hi - leg lo */
+	uint8_t leg_a_hi;
+	uint8_t leg_a_lo;
+	uint8_t leg_b_hi;
+	uint8_t leg_b_lo;
+	/* Filtered duty amplitude [0.1 % * 16] */
+	uint32_t pwm_q4;
+
 	uint32_t speed;
 	uint32_t accel;
 	uint32_t decel;
@@ -190,8 +203,11 @@ static int hal_pwm_write(void *context, const uint16_t compare[SSTEP_LEGS_MAX])
 {
 	const struct device *dev = context;
 	const struct sstep_motor_config *cfg = dev->config;
-	const struct sstep_motor_data *data = dev->data;
+	struct sstep_motor_data *data = dev->data;
 
+	for (uint8_t k = 0U; k < MIN(data->stage_info.legs, (uint8_t)POWER_STAGE_LEGS_MAX); k++) {
+		data->pwm_cmp[k] = compare[k];
+	}
 #if defined(CONFIG_SSTEP_MOTOR_MCUVIEWER)
 	if (data->mcuv_owner) {
 		sstep_mcuv_compare(compare, data->stage_info.legs);
@@ -354,10 +370,21 @@ int sstep_motor_get_status(const struct device *dev, struct sstep_motor_status *
 	 * amplitude is averaged over 8 calls (8 ms at the 1 ms status period). With the
 	 * outputs off no current flows, whatever the offset drift of the sensors says.
 	 */
+	/* Duty amplitude of the two phases, averaged the same way (Present PWM) */
+	const int32_t period = (int32_t)MAX(data->stage_info.pwm_period_ticks, 1U);
+	const int32_t da = (int32_t)data->pwm_cmp[data->leg_a_hi] -
+			   (int32_t)data->pwm_cmp[data->leg_a_lo];
+	const int32_t db = (int32_t)data->pwm_cmp[data->leg_b_hi] -
+			   (int32_t)data->pwm_cmp[data->leg_b_lo];
+	const uint32_t duty = isqrt_u32((uint32_t)((da * da) + (db * db)));
+	const uint32_t pwm = MIN((duty * 1000U) / (uint32_t)period, 1000U);
+
 	if ((st.state == SSTEP_STATE_DISABLED) || (st.state == SSTEP_STATE_FAULT)) {
 		data->i_amp_q4 = 0U;
+		data->pwm_q4 = 0U;
 	} else {
 		data->i_amp_q4 = data->i_amp_q4 - (data->i_amp_q4 / 8U) + ((amp * 16U) / 8U);
+		data->pwm_q4 = data->pwm_q4 - (data->pwm_q4 / 8U) + ((pwm * 16U) / 8U);
 	}
 
 	*status = (struct sstep_motor_status){
@@ -370,6 +397,7 @@ int sstep_motor_get_status(const struct device *dev, struct sstep_motor_status *
 		.i_run_ma = data->i_run_ma,
 		.i_hold_ma = data->i_hold_ma,
 		.vbus_mv = st.vbus_mv,
+		.pwm_permille = (uint16_t)MIN((data->pwm_q4 + 8U) / 16U, 1000U),
 	};
 	return 0;
 }
@@ -378,7 +406,10 @@ int sstep_motor_set_current(const struct device *dev, uint32_t run_ma, uint32_t 
 {
 	const struct sstep_motor_config *cfg = dev->config;
 	struct sstep_motor_data *data = dev->data;
-	const uint32_t run = MIN(run_ma, cfg->i_run_ma);
+	/* Up to the rated current of the motor: the run-current-milliamp of the node is
+	 * the run current at startup, a host may raise it (Current Limit of the servo).
+	 */
+	const uint32_t run = MIN(run_ma, cfg->motor.i_rated_ma);
 	const uint32_t hold = MIN(MIN(hold_ma, cfg->i_hold_ma), run);
 	int rc;
 
@@ -904,6 +935,14 @@ static int sstep_motor_init(const struct device *dev)
 		LOG_ERR("sstep_init: %d", ret);
 		return to_errno(ret);
 	}
+
+	/* Stepper-C: shared leg A = U - W, B = V - W; full bridge A = 0 - 1, B = 2 - 3 */
+	const bool shared = (data->stage_info.topology == POWER_STAGE_SHARED_LEG);
+
+	data->leg_a_hi = 0U;
+	data->leg_a_lo = shared ? 2U : 1U;
+	data->leg_b_hi = shared ? 1U : 2U;
+	data->leg_b_lo = shared ? 2U : 3U;
 
 	data->stage = cfg->stage;
 	data->speed = cfg->v_max;

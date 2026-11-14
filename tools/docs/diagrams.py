@@ -192,7 +192,7 @@ def architecture() -> None:
     s.text(300, 166, "Firmware on Zephyr RTOS v4.5.0", size=16, weight="bold", fill=BLUE,
            anchor="start")
     arrow(s, 155, 90, 155, 188, color=NAVY)
-    s.text(167, 120, "DYNAMIXEL Protocol 2.0, 1 Mbps, UART", size=12, fill=NAVY,
+    s.text(167, 120, "DYNAMIXEL Protocol 2.0, 57600 bps, UART", size=12, fill=NAVY,
            anchor="start")
     s.text(960, 166, "application (app/) in blue · drivers (drivers/) in teal", size=12,
            fill=GREY, anchor="end")
@@ -404,7 +404,7 @@ def motor_wiring() -> None:
     s.line(390, 536, 390, 590, color=ORANGE, width=2.2)
     s.text(400, 574, "DC supply with", size=12, fill=ORANGE, anchor="start")
     s.text(400, 590, "a current limit", size=12, fill=ORANGE, anchor="start")
-    box(s, 40, 460, 190, 76, "ST-LINK/V2-1", ["USB: VCP = USART2", "PB3 TX / PB4 RX, 1 Mbps",
+    box(s, 40, 460, 190, 76, "ST-LINK/V2-1", ["USB: VCP = USART2", "PB3 TX / PB4 RX, 57600 bps",
                                                ], fill=SOFT_GREEN, stroke=GREEN, color=GREEN,
         size=14)
     s.line(135, 536, 135, 590, color=GREEN, width=2.2)

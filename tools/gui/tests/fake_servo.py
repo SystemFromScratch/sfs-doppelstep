@@ -17,7 +17,7 @@ class FakeServo:
         struct.pack_into("<H", self.table, 0, model)
         self.table[6] = firmware
         self.table[7] = dxl_id
-        self.table[8] = 3
+        self.table[8] = r.FACTORY_BAUD_CODE
         self.table[11] = 3
         struct.pack_into("<i", self.table, 132, 2048)
         self.torque_fails = torque_fails
@@ -104,7 +104,7 @@ class FakeServo:
             self._status(0)
             self.id = 1
             self.table[7] = 1
-            self.table[8] = 3
+            self.table[8] = r.FACTORY_BAUD_CODE
             self.table[10] = 0
             self.table[11] = 3
         else:

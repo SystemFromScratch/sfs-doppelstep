@@ -96,7 +96,7 @@ log names the model file and its main values.
 | Aspect | A: on the board | B: on the PC (`native_sim`) |
 |---|---|---|
 | Hardware | B-G431B-ESC1, no motor needed | none |
-| Timing | real: 20 kHz interrupt, UART 1 Mbps | simulated, kept to real time |
+| Timing | real: 20 kHz interrupt, UART at the Baud Rate (57600 bps factory) | simulated, kept to real time |
 | Bus | ST-LINK VCP (COM port) | pseudoterminal, or TCP 5555 from Docker |
 | Debugging | J-Link / OpenOCD, RTT | gdb on `zephyr.exe`, logs on stdout |
 | Use it for | interrupt load, priorities, final check | protocol and motion logic, ROS 2 integration, CI |
@@ -115,7 +115,7 @@ currents, and the longest fast-loop callback in cycles and µs.
 
 ### Flash budget
 
-The simulated-motor image with MCUboot has 3 612 B left in the 86 KiB application slot (84 100 of 87 712 B; the stall detection of Stepper-C is compiled out, `CONFIG_SSTEP_STALL=n`); it leaves out the self-test (`CONFIG_SSTEP_SELFTEST=n`, which also removes its code from Stepper-C), the hardware comparators and the offset window ([Protection](protection.md)).
+The simulated-motor image with MCUboot has 3 692 B left in the 86 KiB application slot (84 020 of 87 712 B; the stall detection of Stepper-C is compiled out, `CONFIG_SSTEP_STALL=n`); it leaves out the self-test (`CONFIG_SSTEP_SELFTEST=n`, which also removes its code from Stepper-C), the hardware comparators and the offset window ([Protection](protection.md)).
 It ran out once, when the fast-loop overrun check and the watchdog came in
 ([Architecture](architecture.md)); printf without floating point (`CONFIG_CBPRINTF_FP_SUPPORT=n`
 in `app/prj.conf`, no log prints a float) gave back about 4.8 KiB. Check the `FLASH:` line of

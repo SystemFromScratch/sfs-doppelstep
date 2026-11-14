@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Doppelstep: overrides of the XM430-W350 Control Table, applied by the X430 emulator
+# after its model data (CONFIG_X430_MODEL_OVERRIDES in prj.conf, tools/x430_gen_model.py
+# --overrides). Ranges only: the factory values come from the devicetree
+# (doppelstep_config.h, scripts/gen_doppelstep_config.py).
+#
+# The board runs at 24 V; an XM430 accepts voltage limits of 9.5..16 V only.
+# 30.0 V is the hardware overvoltage trip of the B-G431B-ESC1
+# (hw-trip-vbus-mv of the power stage node): no limit above it makes sense.
+
+overrides:
+  Max Voltage Limit: {min: 95, max: 300}
+  Min Voltage Limit: {min: 95, max: 300}

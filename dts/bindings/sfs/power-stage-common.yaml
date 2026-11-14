@@ -3,6 +3,14 @@
 # Measurement scaling of a low-side shunt power stage, shared by the backends.
 
 properties:
+  temperature-limit-celsius:
+    type: int
+    default: 80
+    description: |
+      Highest power stage temperature [degC]: factory value of the Temperature Limit
+      register (31) of the emulated servo (above it Overheating Error switches the torque
+      off). Default 80 degC, the value of an XM430.
+
   pwm-frequency:
     type: int
     description: PWM frequency [Hz] (center-aligned).

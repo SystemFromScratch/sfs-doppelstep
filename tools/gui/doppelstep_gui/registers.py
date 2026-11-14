@@ -116,6 +116,7 @@ BY_NAME = {reg.name: reg for reg in TABLE}
 # Short names used by the rest of the GUI
 MODEL_NUMBER = BY_NAME["Model Number"]
 FIRMWARE_VERSION = BY_NAME["Firmware Version"]
+MODEL_INFORMATION = BY_NAME["Model Information"]
 ID = BY_NAME["ID"]
 BAUD_RATE = BY_NAME["Baud Rate"]
 DRIVE_MODE = BY_NAME["Drive Mode"]
@@ -140,6 +141,31 @@ TEMPERATURE_LIMIT = BY_NAME["Temperature Limit"]
 # Baud Rate (8) codes: drivers/x430/x430_servo.c (ROBOTIS e-Manual)
 BAUD_RATES = {0: 9600, 1: 57600, 2: 115200, 3: 1000000, 4: 2000000, 5: 3000000,
               6: 4000000, 7: 4500000}
+
+def doppelstep_version(model_information):
+    """Doppelstep version from Model Information (2), or None when it holds none.
+
+    Firmware Version (6) stays the one of the XM430; the firmware puts its own version,
+    from git at build time (cmake/doppelstep_version.cmake), into Model Information:
+    byte 0 patch, byte 1 minor, byte 2 major, byte 3 commits after the release tag
+    (bits 0..6) and bit 7 for uncommitted changes. "0.2.0", "0.2.0+3", "0.2.0+3-dirty".
+    """
+    if model_information is None or model_information == 0:
+        return None
+    patch = model_information & 0xFF
+    minor = (model_information >> 8) & 0xFF
+    major = (model_information >> 16) & 0xFF
+    commits = (model_information >> 24) & 0x7F
+    dirty = (model_information >> 31) & 1
+    text = f"{major}.{minor}.{patch}"
+    if commits or dirty:
+        text += f"+{commits}"
+    return text + ("-dirty" if dirty else "")
+
+
+# Factory Baud Rate of the firmware (factory-baud-code of the servo node), as an XM430
+FACTORY_BAUD_CODE = 1
+FACTORY_BAUD = BAUD_RATES[FACTORY_BAUD_CODE]
 
 # Operating Mode (11) values used by the tests (tests/sil/test_motion.py)
 OPERATING_MODES = {1: "velocity control", 3: "position control"}

@@ -2,6 +2,7 @@
 """DYNAMIXEL bus behaviour: bad packets, Bus Watchdog, Reboot, Factory Reset,
 Sync Read / Write."""
 
+import struct
 import time
 
 import pytest
@@ -83,6 +84,17 @@ def test_clear_multi_turn_during_a_move_is_rejected(bus):
     assert error.value.error == dxl2.ERR_RESULT_FAIL
     wait_until(lambda: bus.read(DXL_ID, dxl2.PRESENT_POSITION) == START_POSITION + 1024, 5.0,
                what="the move continues to its goal")
+
+
+def test_whole_control_table_in_one_read(bus):
+    # DYNAMIXEL Wizard 2.0 reads addresses 0..661 in one READ (662 bytes)
+    status = bus.transact(DXL_ID, dxl2.INST_READ, struct.pack("<HH", 0, 662))
+    assert len(status.params) == 662
+    assert struct.unpack_from("<H", status.params, dxl2.MODEL_NUMBER[0])[0] == 1020
+    assert status.params[dxl2.ID[0]] == DXL_ID
+    with pytest.raises(DxlError) as error:                  # past the end of the table
+        bus.transact(DXL_ID, dxl2.INST_READ, struct.pack("<HH", 0, 663))
+    assert error.value.error == dxl2.ERR_ACCESS
 
 
 def test_garbage_on_the_bus_does_not_stop_it(fw, bus):

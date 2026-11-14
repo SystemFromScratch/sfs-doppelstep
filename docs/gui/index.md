@@ -36,7 +36,7 @@ By hand:
 .\.venv\Scripts\python.exe tools\gui\doppelstep_gui.py --port COM5
 ```
 
-Options: `--port` (preselected port), `--baud` (bps, default 1000000), `--id` (default 1).
+Options: `--port` (preselected port), `--baud` (bps, default 57600, the factory Baud Rate), `--id` (default 1).
 
 ## Connecting
 
@@ -86,7 +86,7 @@ second** repeats the read. Double-click a writable register, or select it and pr
 selected …**, to write a new value. EEPROM registers (addresses below 64) are locked while the
 torque is on, as on the real servo.
 
-![The Control Table tab after Read all: the EEPROM area with the factory values (ID 1, Baud Rate 3 = 1 Mbps, Operating Mode 3)](../assets/images/gui/gui-control-table.png)
+![The Control Table tab after Read all: the EEPROM area (here ID 1, Baud Rate 3 = 1 Mbps, Operating Mode 3; the factory Baud Rate is 1 = 57600 bps)](../assets/images/gui/gui-control-table.png)
 
 ## Test scenarios
 
@@ -94,7 +94,7 @@ Each scenario repeats one SIL test with the same writes, waits and limits, on th
 of native_sim. A check that needs the log of the motor model (rotor position, lag, model currents)
 cannot run on the board and is left out; the scenario lists it under "Not checked on the board".
 
-The suite expects the factory EEPROM: connect to **ID 1 at 1 000 000 bps**. Every scenario starts
+The suite expects the factory EEPROM: connect to **ID 1 at 57 600 bps**. Every scenario starts
 with a DYNAMIXEL Reboot (the MCU resets, like a fresh native_sim process for every SIL test) and
 ends with the torque off. Scenarios that change the EEPROM put the factory values back. Before the
 run the GUI asks for confirmation when the motor turns or the EEPROM changes.

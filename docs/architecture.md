@@ -68,7 +68,7 @@ faults) is the extension on the parent node.
 | Interrupt of the backend | Highest (on the STM32: zero-latency ADC1_2 interrupt) | PWM rate, 20 kHz | Currents and VBUS, shared-leg trip, fast loop `sstep_fast_loop()`, immediate shutdown on a fault | Kernel calls |
 | `control_task` | −2, cooperative | 1 kHz, absolute schedule | Slow loop `sstep_motor_process()`, commands, publication of the status | Waiting on an outgoing queue |
 | `comm_task` | 2 | On receive, and every 10 ms | `x430_servo_process()`, `joint_bridge`, live registers | Calling the motor driver |
-| `main` | 0 | — | Startup, then the STATUS LED | Sending commands |
+| `main` | 0 | — | Startup, then the STATUS LED (LED register, fast blink on an alarm) | Sending commands |
 
 Every call into the motor driver comes from `control_task`, so the driver needs no lock for its
 status. With `CONFIG_ASSERT` the driver checks this.

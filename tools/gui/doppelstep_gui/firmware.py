@@ -19,6 +19,7 @@ import time
 from dataclasses import dataclass, field
 
 from .device import is_doppelstep
+from . import registers as r
 from .registers import XM430_W350_MODEL
 
 # MCUboot of the board: fixed 1 Mbps, SMP line buffers 128 bytes x 8
@@ -146,7 +147,7 @@ class FirmwareUpdater:
         self.log = log
         self.progress = progress
         self.bus = None                  # DYNAMIXEL bus opened again after the update
-        self.identity = None             # (model, firmware version) of the application
+        self.identity = None             # (model, firmware, Doppelstep version) of the application
         self.result = UpdateResult(path, image.version, image.sha256.hex(), image.size)
 
     def _step(self, name, ok, detail, t0):
@@ -258,11 +259,16 @@ class FirmwareUpdater:
                        f"ID {self.dxl_id} did not answer within {APP_START_TIMEOUT} s after "
                        "the reset", t0)
         self.bus = bus
-        self.identity = (model, firmware)
+        try:
+            version = r.doppelstep_version(bus.read(self.dxl_id, r.MODEL_INFORMATION))
+        except Exception:  # noqa: BLE001  (identity only: the update itself passed)
+            version = None
+        self.identity = (model, firmware, version)
         self._step("Application", is_doppelstep(model),
                    f"answered after {waited:.2f} s: model {model}"
                    + ("" if is_doppelstep(model) else f", expected {XM430_W350_MODEL}")
-                   + f", firmware {firmware}", t0)
+                   + f", firmware {firmware}"
+                   + (f", Doppelstep {version}" if version else ""), t0)
 
 
 def _images_text(images):

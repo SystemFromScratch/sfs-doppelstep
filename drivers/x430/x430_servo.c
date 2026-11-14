@@ -24,6 +24,7 @@
 #include <zephyr/sys/ring_buffer.h>
 
 #include <doppelstep/drivers/x430_servo.h>
+#include <doppelstep_version.h>
 
 #include "x430_nvm.h"
 
@@ -69,6 +70,7 @@ struct x430_servo_data {
 	} factory[MAX(CONFIG_SFS_DXL_FACTORY_VALUES_MAX, 1)];
 	uint8_t factory_count;
 	bool factory_values_pending; /* first start or Factory Reset */
+	bool factory_write;          /* apply_factory_values() runs (write callback) */
 	bool reset_pending;        /* Reboot: reset the MCU after the answer */
 	int64_t next_poll;
 };
@@ -106,6 +108,16 @@ static int bus_write(void *context, const uint8_t *bytes, size_t length)
 	return 0;
 }
 
+/* Let the last bytes of a status packet leave at @p baud: with fifo-enable,
+ * uart_poll_out() returns as soon as the 8-byte TX FIFO has room, so up to
+ * 9 characters (FIFO and shift register) may still be on their way. Ten
+ * characters of 10 bits.
+ */
+static void wait_tx_drained(uint32_t baud)
+{
+	k_busy_wait((100000000U / MAX(baud, 1U)) + 1U);
+}
+
 static int uart_set_baud(const struct device *dev, uint8_t code)
 {
 	const struct x430_servo_config *cfg = dev->config;
@@ -122,6 +134,10 @@ static int uart_set_baud(const struct device *dev, uint8_t code)
 		return 0;
 	}
 	if ((ret == 0) && (uart_cfg.baudrate != baud_bps[code])) {
+		/* X430_EVENT_BAUD_RATE comes right after the status packet of the
+		 * write: uart_configure() disables the USART, which would cut it.
+		 */
+		wait_tx_drained(uart_cfg.baudrate);
 		uart_cfg.baudrate = baud_bps[code];
 		ret = uart_configure(cfg->uart, &uart_cfg);
 	}
@@ -157,6 +173,17 @@ static void port_delay_us(void *context, uint32_t us)
 {
 	ARG_UNUSED(context);
 	k_busy_wait(us);
+}
+
+/* Value of a register; 0 when the address starts no register (the emulator
+ * reports it, which a valid X430_ADDR_* never does).
+ */
+static int32_t reg_value(const struct x430_device *device, uint16_t address)
+{
+	int32_t value = 0;
+
+	(void)x430_device_get(device, address, &value);
+	return value;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -211,24 +238,31 @@ static uint8_t hook_event(struct x430_device *device, enum x430_event event, voi
 
 	switch (event) {
 	case X430_EVENT_BAUD_RATE:
-		data->baud = (uint8_t)x430_device_get(&data->device, X430_ADDR_BAUD_RATE);
+		data->baud = (uint8_t)reg_value(&data->device, X430_ADDR_BAUD_RATE);
 		(void)uart_set_baud(dev, data->baud);
 		break;
 
 	case X430_EVENT_FACTORY_RESET:
-		data->baud = (uint8_t)x430_device_get(&data->device, X430_ADDR_BAUD_RATE);
+		data->baud = (uint8_t)reg_value(&data->device, X430_ADDR_BAUD_RATE);
 		/* Baud Rate went back to the X430 factory value: use this firmware's
-		 * factory value instead (in process(), after the answer).
+		 * factory value instead (in process(), after the answer). When the
+		 * two are the same, switch the UART here: the library sends no
+		 * X430_EVENT_BAUD_RATE for a Factory Reset, and its status packet has
+		 * already been sent (uart_set_baud() lets it leave first).
 		 */
-		if ((data->baud != previous_baud) && (data->baud != cfg->factory_baud_code)) {
-			data->factory_baud_pending = true;
+		if (data->baud != previous_baud) {
+			if (data->baud != cfg->factory_baud_code) {
+				data->factory_baud_pending = true;
+			} else {
+				(void)uart_set_baud(dev, data->baud);
+			}
 		}
 		/* The EEPROM went back to the X430 factory values: this firmware's too */
 		data->factory_values_pending = data->factory_count > 0U;
 		break;
 
 	case X430_EVENT_REBOOT:
-		data->baud = (uint8_t)x430_device_get(&data->device, X430_ADDR_BAUD_RATE);
+		data->baud = (uint8_t)reg_value(&data->device, X430_ADDR_BAUD_RATE);
 		/* MCUboot: a real reset opens its serial recovery window (in
 		 * process(), after the answer).
 		 */
@@ -238,7 +272,7 @@ static uint8_t hook_event(struct x430_device *device, enum x430_event event, voi
 		break;
 
 	case X430_EVENT_BACKUP_RESTORED:
-		data->baud = (uint8_t)x430_device_get(&data->device, X430_ADDR_BAUD_RATE);
+		data->baud = (uint8_t)reg_value(&data->device, X430_ADDR_BAUD_RATE);
 		break;
 
 	default:
@@ -247,12 +281,12 @@ static uint8_t hook_event(struct x430_device *device, enum x430_event event, voi
 	return status;
 }
 
-static int hook_nvm_load(struct x430_device *device, enum x430_nvm_slot slot, uint8_t *bytes,
-			 uint16_t size, void *user_data)
+static int hook_nvm_read(struct x430_device *device, enum x430_nvm_slot slot, uint16_t offset,
+			 uint8_t *bytes, uint16_t length, void *user_data)
 {
 	const struct device *dev = user_data;
 	struct x430_servo_data *data = dev->data;
-	const int ret = x430_nvm_load(&data->nvm, (uint8_t)slot, bytes, size);
+	const int ret = x430_nvm_read(&data->nvm, (uint8_t)slot, offset, bytes, length);
 
 	ARG_UNUSED(device);
 
@@ -262,28 +296,29 @@ static int hook_nvm_load(struct x430_device *device, enum x430_nvm_slot slot, ui
 	return ret;
 }
 
-static int hook_nvm_store(struct x430_device *device, enum x430_nvm_slot slot,
-			  const uint8_t *bytes, uint16_t size, void *user_data)
+static int hook_nvm_write(struct x430_device *device, enum x430_nvm_slot slot, uint16_t offset,
+			  const uint8_t *bytes, uint16_t length, void *user_data)
 {
 	const struct device *dev = user_data;
 	struct x430_servo_data *data = dev->data;
 
 	ARG_UNUSED(device);
 
-	if ((data->cb != NULL) && (data->cb->nvm_allowed != NULL) &&
+	/* Asked once per block, at its first part: a refused block is not written at all */
+	if ((offset == 0U) && (data->cb != NULL) && (data->cb->nvm_allowed != NULL) &&
 	    !data->cb->nvm_allowed(dev, data->cb_data)) {
 		LOG_WRN("NVM write refused by the application");
 		return -EBUSY;
 	}
-	return x430_nvm_store(&data->nvm, (uint8_t)slot, bytes, size);
+	return x430_nvm_write(&data->nvm, (uint8_t)slot, offset, bytes, length);
 }
 
 static const struct x430_hooks hooks = {
 	.write = hook_write,
 	.read = hook_read,
 	.event = hook_event,
-	.nvm_load = hook_nvm_load,
-	.nvm_store = hook_nvm_store,
+	.nvm_read = hook_nvm_read,
+	.nvm_write = hook_nvm_write,
 };
 
 /* Write this firmware's factory Baud Rate through the normal write path
@@ -294,8 +329,9 @@ static void apply_factory_baud(const struct device *dev)
 	const struct x430_servo_config *cfg = dev->config;
 	struct x430_servo_data *data = dev->data;
 	const uint8_t code = cfg->factory_baud_code;
-	const uint8_t rc = x430_device_write(&data->device, X430_ADDR_BAUD_RATE, 1U, &code, 0U);
+	uint8_t rc = DXL2_ERR_NONE;
 
+	(void)x430_device_write(&data->device, X430_ADDR_BAUD_RATE, 1U, &code, 0U, &rc);
 	if (rc != DXL2_ERR_NONE) {
 		LOG_ERR("factory Baud Rate %u: error 0x%02x", code, rc);
 	}
@@ -309,6 +345,7 @@ static void apply_factory_values(const struct device *dev)
 {
 	struct x430_servo_data *data = dev->data;
 
+	data->factory_write = true;
 	for (uint8_t k = 0U; k < data->factory_count; k++) {
 		uint8_t bytes[4];
 		uint32_t v = (uint32_t)data->factory[k].value;
@@ -317,16 +354,25 @@ static void apply_factory_values(const struct device *dev)
 			bytes[i] = (uint8_t)(v & 0xFFU);
 			v >>= 8;
 		}
-		const uint8_t rc = x430_device_write(&data->device, data->factory[k].address,
-						     data->factory[k].size, bytes, 0U);
+		uint8_t rc = DXL2_ERR_NONE;
 
+		(void)x430_device_write(&data->device, data->factory[k].address,
+					data->factory[k].size, bytes, 0U, &rc);
 		if (rc != DXL2_ERR_NONE) {
 			LOG_ERR("factory value %d at %u: error 0x%02x", data->factory[k].value,
 				data->factory[k].address, rc);
 		}
 	}
 	x430_device_flush_events(&data->device);
+	data->factory_write = false;
 	data->factory_values_pending = false;
+}
+
+bool x430_servo_factory_write(const struct device *dev)
+{
+	const struct x430_servo_data *data = dev->data;
+
+	return data->factory_write;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -374,11 +420,12 @@ int x430_servo_start(const struct device *dev, const struct x430_servo_callbacks
 	}
 	uart_irq_rx_enable(cfg->uart);
 
+	uint8_t id = 0U;
+
+	(void)x430_device_id(&data->device, &id);
 	/* The tests wait for this line: the bus is ready when it appears */
-	LOG_INF("DYNAMIXEL %s: ID %u, model %u, %s", CONFIG_X430_MODEL_NAME,
-		x430_device_id(&data->device),
-		(unsigned int)x430_device_get(&data->device, X430_ADDR_MODEL_NUMBER),
-		cfg->uart->name);
+	LOG_INF("DYNAMIXEL %s: ID %u, model %u, %s", CONFIG_X430_MODEL_NAME, id,
+		(unsigned int)reg_value(&data->device, X430_ADDR_MODEL_NUMBER), cfg->uart->name);
 	return 0;
 }
 
@@ -395,7 +442,7 @@ static void reset_after_answer(const struct device *dev)
 								   : baud_bps[0];
 
 	LOG_INF("Reboot: MCU reset");
-	k_busy_wait((100000000U / baud) + 1U); /* 10 characters of 10 bits */
+	wait_tx_drained(baud);
 	sys_reboot(SYS_REBOOT_COLD);
 }
 #endif /* CONFIG_SFS_DXL_REBOOT_RESETS_MCU */
@@ -461,7 +508,7 @@ int32_t x430_servo_reg_get(const struct device *dev, uint16_t address)
 {
 	const struct x430_servo_data *data = dev->data;
 
-	return x430_device_get(&data->device, address);
+	return reg_value(&data->device, address);
 }
 
 int x430_servo_reg_set(const struct device *dev, uint16_t address, int32_t value)
@@ -475,7 +522,7 @@ void x430_servo_raise_hw_error(const struct device *dev, uint8_t bits)
 {
 	struct x430_servo_data *data = dev->data;
 
-	x430_device_raise_hardware_error(&data->device, bits);
+	(void)x430_device_raise_hardware_error(&data->device, bits);
 }
 
 static int x430_servo_init(const struct device *dev)
@@ -489,6 +536,11 @@ static int x430_servo_init(const struct device *dev)
 	};
 	const struct x430_device_config dev_cfg = {
 		.id = cfg->factory_id,
+		/* Firmware Version (6) stays the XM430's, which the hosts know
+		 * (DYNAMIXEL Wizard compares it with the ROBOTIS firmware): the
+		 * Doppelstep version is in Model Information (2).
+		 */
+		.model_information = DOPPELSTEP_MODEL_INFORMATION,
 		.hooks = &hooks,
 		.user_data = (void *)dev,
 	};
@@ -523,10 +575,10 @@ static int x430_servo_init(const struct device *dev)
 	}
 
 	x430_bus_lock(&data->bus);
-	data->baud = (uint8_t)x430_device_get(&data->device, X430_ADDR_BAUD_RATE);
+	data->baud = (uint8_t)reg_value(&data->device, X430_ADDR_BAUD_RATE);
 	if (data->eeprom_missing && (data->baud != cfg->factory_baud_code)) {
 		apply_factory_baud(dev); /* first start: this firmware's factory baud rate */
-		data->baud = (uint8_t)x430_device_get(&data->device, X430_ADDR_BAUD_RATE);
+		data->baud = (uint8_t)reg_value(&data->device, X430_ADDR_BAUD_RATE);
 	}
 	(void)uart_set_baud(dev, data->baud);
 	x430_bus_unlock(&data->bus);

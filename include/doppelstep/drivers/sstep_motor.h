@@ -55,6 +55,9 @@ struct sstep_motor_status {
 	uint32_t i_run_ma;       /**< Active run current [mA]. */
 	uint32_t i_hold_ma;      /**< Active hold current [mA]. */
 	uint32_t vbus_mv;        /**< Measured bus voltage [mV]. */
+	uint16_t pwm_permille;   /**< Amplitude of the commanded phase duty vector,
+				  *   root of dA^2 + dB^2 [0.1 % of VBUS], 0..1000, averaged
+				  *   like i_amplitude_ma; 0 with the outputs off. */
 };
 
 /** Slow loop: trajectory, hold current, delivery of the events. @p dev is the parent node. */
@@ -63,7 +66,8 @@ int sstep_motor_process(const struct device *dev);
 /** Status of the last periods. @p dev is the parent node. */
 int sstep_motor_get_status(const struct device *dev, struct sstep_motor_status *status);
 
-/** Change run and hold currents [mA]; limited to the values of the node, hold to run. */
+/** Change run and hold currents [mA]: run up to rated-current-milliamp, hold up to
+ *  hold-current-milliamp of the node and to run. */
 int sstep_motor_set_current(const struct device *dev, uint32_t run_ma, uint32_t hold_ma);
 
 /** Clear the faults; the driver goes to disabled. */

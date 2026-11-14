@@ -49,6 +49,13 @@ struct x430_servo_callbacks {
 int x430_servo_set_factory_value(const struct device *dev, uint16_t address, uint8_t size,
 				 int32_t value);
 
+/**
+ * true while the factory values of x430_servo_set_factory_value() are being written
+ * (first start, Factory Reset): the write callback tells them from a host write. Bus
+ * lock held (inside the write callback).
+ */
+bool x430_servo_factory_write(const struct device *dev);
+
 /** Install the callbacks and start receiving. Nothing reaches a callback before this. */
 int x430_servo_start(const struct device *dev, const struct x430_servo_callbacks *callbacks,
 		     void *user_data);

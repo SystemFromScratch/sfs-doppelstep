@@ -7,7 +7,7 @@ board.
 | Path | You need | You get |
 |---|---|---|
 | [1. On your PC](#1-on-your-pc-no-hardware) | Docker and Git, or a GitHub account (Codespaces) | The firmware as a Linux program with a simulated motor; the tests; a bus you can talk to |
-| [2. On the board, simulated motor](#2-on-the-board-simulated-motor) | B-G431B-ESC1 and a USB cable | The real timing (20 kHz interrupt, 1 Mbps UART) with the motor model; the power stage stays off |
+| [2. On the board, simulated motor](#2-on-the-board-simulated-motor) | B-G431B-ESC1 and a USB cable | The real timing (20 kHz interrupt, UART) with the motor model; the power stage stays off |
 | [3. On the board, real motor](#3-on-the-board-real-motor) | Also a two-phase stepper motor and a DC supply (firmware limits 10–28 V, nominal 24 V) | The real thing, after the bring-up checklist |
 
 ## Get the source
@@ -85,7 +85,7 @@ On Windows, run `west` in the container (`docker compose run --rm zephyr …`), 
 Code tasks **Zephyr: Pristine Build (simulated motor)** and **Zephyr: Flash (OpenOCD,
 ST-LINK)**, which use the OpenOCD installed on Windows for flashing.
 
-The board now answers on the ST-LINK Virtual COM Port at 1 Mbps as an XM430-W350 with ID 1.
+The board now answers on the ST-LINK Virtual COM Port at 57600 bps (the factory rate of an XM430) as an XM430-W350 with ID 1.
 Try it with DYNAMIXEL Wizard, the [GUI](gui/index.md), or on Linux with the smoke test
 (`python3 tools/sim/dxl_smoke_test.py /dev/ttyACM0`). The log, with the rotor
 position of the model, comes over RTT: `west rtt -d build -r openocd`.

@@ -67,6 +67,8 @@
 		 * (B25/50 3380 K; B25/85 fits the 80 degC Temperature Limit).
 		 */
 		temperature-channel = <5>;
+		/* Factory Temperature Limit (31): 80 degC, as before (XM430 value) */
+		temperature-limit-celsius = <80>;
 		ntc-r25-ohm = <10000>;
 		ntc-beta = <3435>;
 		ntc-bottom-ohm = <4700>;
@@ -136,9 +138,12 @@
 	};
 };
 
-/* DYNAMIXEL Protocol 2.0 bus: ST-LINK VCP for now, 1 Mbps as OpenMANIPULATOR-X */
+/* DYNAMIXEL Protocol 2.0 bus: ST-LINK VCP for now. 57600 bps until the Baud Rate
+ * register is applied at startup: factory-baud-code 1 = 57600 bps, as an XM430.
+ * MCUboot keeps 1 Mbps (app/sysbuild/mcuboot.overlay).
+ */
 &usart2 {
-	current-speed = <1000000>;
+	current-speed = <57600>;
 	fifo-enable;
 
 	servo: dxl-servo {

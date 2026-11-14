@@ -69,6 +69,15 @@ ZTEST(joint, test_current)
 	zassert_equal(joint_current_from_dxl(1U), 3U);
 }
 
+ZTEST(joint, test_pwm)
+{
+	zassert_equal(joint_pwm_to_dxl(0U, 0), 0);
+	zassert_equal(joint_pwm_to_dxl(1000U, 5), 885);
+	zassert_equal(joint_pwm_to_dxl(1000U, -5), -885);
+	zassert_equal(joint_pwm_to_dxl(500U, 0), 443);          /* 442.5 rounded */
+	zassert_equal(joint_pwm_to_dxl(2000U, 1), 885);         /* limited to 100 % */
+}
+
 ZTEST(joint, test_gear)
 {
 	const struct joint_cfg geared = {

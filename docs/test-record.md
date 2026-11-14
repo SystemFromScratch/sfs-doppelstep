@@ -1,10 +1,31 @@
 # Test record
 
-What was tested for release 0.2.0, on the PC and on the board, and with which result. The
+What was tested for the releases, on the PC and on the board, and with which result. The
 procedures are in [Tests and CI](testing.md) and the [hardware checklist](hardware-checklist.md);
-this page records the outcome.
+this page records the outcome. Release 0.3.0 first, then the record of 0.2.0.
 
-## Setup
+## Release 0.3.0
+
+Board, motor and log as in the [setup](#setup) below, supply 24 V with 2 A; host at the factory
+57600 bps. DYNAMIXEL-X430 emulator v1.0.0, Stepper-C 1.4.0.
+
+| Test | Result |
+|---|---|
+| `scripts/ci.sh` | Pass: real motor 77 352 B flash, 20 828 B RAM; simulated motor 84 020 B; MCUboot 37 148 B; ztest 115 of 115 in 7 configurations; SIL and integration 32 passed, 1 expected failure (lost synchronism); fixed-point motion 10 of 10; GUI host tests 45 |
+| First start after 0.2.0 | The EEPROM blocks of 0.2.0 are deleted, the board starts with the factory values: 57600 bps, Current Limit 743, Velocity Limit 1023, voltage limits 28 / 10 V, Temperature Limit 80 °C |
+| EEPROM in NVS | Return Delay Time, Homing Offset and Operating Mode written over the bus survive an MCU reset; Factory Reset 0x02 restores the factory values and keeps ID and Baud Rate |
+| Baud Rate changes | 57600 → 115200 → 1 Mbps → 9600 → 57600: every write answered at the old rate, then the board answers at the new one |
+| DYNAMIXEL Wizard 2.0 (v2.16.4.7) | Scan at 57600 bps, Dashboard in position, extended position and velocity mode, LED, Limit Settings, Control Table, Baud Rate change: no TIME OUT, no error ([screenshots](dynamixel.md#dynamixel-wizard-20)) |
+| GUI test scenarios | 20 of 20 pass from the factory EEPROM (one run with Operating Mode 1 left in the EEPROM fails `boot-eeprom`, as the suite expects the factory values); no `<err>` or `<wrn>` in the RTT log |
+| Firmware update over the bus (GUI) | All 8 steps pass: Reboot at 57600 bps, MCUboot answers after 0.10 s, upload of 77 688 B, hash in slot 0 = file, application answers after 0.87 s |
+
+Not explained: once, before these runs, the GUI reported Electrical Shock Error at Torque
+Enable. The RTT buffer had been full, so the reason was lost; with the log read continuously it
+did not happen again in the runs above (40 scenarios, many Torque Enables).
+
+## Release 0.2.0
+
+### Setup
 
 | Item | Value |
 |---|---|
@@ -14,7 +35,7 @@ this page records the outcome.
 | Host | Windows PC, ST-LINK Virtual COM Port at 1 Mbps, DynamixelSDK 4.1.0 (the library under the ROS 2 `dynamixel_hardware_interface`) and the bench GUI |
 | Log | RTT through the ST-LINK |
 
-## PC tests (CI of the release)
+### PC tests (CI of the release)
 
 `scripts/ci.sh` in the environment image, with Stepper-C 1.4.0:
 
@@ -27,7 +48,7 @@ this page records the outcome.
 | Motion tests on the fixed-point backend | 8 of 8 |
 | GUI host tests | 44 pass, 1 skipped |
 
-## On the board with the motor, 12 V
+### On the board with the motor, 12 V
 
 Development firmware before the release (Stepper-C from `main` with the sampling window and
 the current slew; the self-test of the motor driver itself, which Stepper-C 1.3 took over).
@@ -45,11 +66,11 @@ the current slew; the self-test of the motor driver itself, which Stepper-C 1.3 
 | Hardware overcurrent comparators, DAC level swept with the debugger, outputs off | Switch at DAC code 159 (U, V) and 161 (W); with the 10 A level the break acts at about 9.9 A (U, V) and 8.9 A (W) |
 | 2 minutes of moves at 46 rpm and 1.5 A (123 moves) | No fault, VBUS at least 11.9 V, bridge 39 → 48 °C |
 
-## On the board with the motor, 24 V
+### On the board with the motor, 24 V
 
 Release firmware 0.2.0 with Stepper-C 1.4.0, 2 A current limit.
 
-### Protection scenarios
+#### Protection scenarios
 
 | Scenario | Torque Enable | Result |
 |---|---|---|
@@ -62,7 +83,7 @@ Release firmware 0.2.0 with Stepper-C 1.4.0, 2 A current limit.
 The leg-sum check of the motor driver (iU + iV + iW = 0) did not fail in the scenarios: the
 sum stayed at 2 to 4 counts against the limit of 5.
 
-### Normal operation
+#### Normal operation
 
 | Test | Result |
 |---|---|
@@ -72,7 +93,7 @@ sum stayed at 2 to 4 counts against the limit of 5.
 | ros2_control loop: Sync Read and Sync Write at 100 Hz for 3 s, sine goal | 300 cycles, no failed Sync Read, tracking error at most 11 pulses |
 | Moves of ±90° at 1.5 A | Reached; Hardware Error 0, VBUS 24.0 V, 41 °C |
 
-## On the board with the motor, MCUViewer bench build, 24 V and 12 V
+### On the board with the motor, MCUViewer bench build, 24 V and 12 V
 
 After the release: the bench build with `CONFIG_SSTEP_MOTOR_MCUVIEWER`, read with MCUViewer
 1.4 and `tools/mcuviewer/mcuv.py` through the on-board ST-LINK. Procedure and plots in
@@ -87,7 +108,7 @@ After the release: the bench build with `CONFIG_SSTEP_MOTOR_MCUVIEWER`, read wit
 | Effective dead time, two slow moves at 1.5 A | 24 V: 1.05 µs (set 1.2 µs), 0.50 V per leg. 12 V: 1.4 µs (1.25 and 1.51 µs per move), 0.34 V per leg. At each voltage the same above 250 mA |
 | Phase circuit resistance from the same fit | 2.79 Ω at 24 V, 2.74 Ω at 12 V, more than the 1.6 Ω of the motor data: open |
 
-## Problems found by these tests
+### Problems found by these tests
 
 | Found | Cause | Fixed in |
 |---|---|---|
@@ -99,7 +120,7 @@ After the release: the bench build with `CONFIG_SSTEP_MOTOR_MCUVIEWER`, read wit
 | The Stepper-C options of Kconfig did not reach the library | Wrong CMake variable in the glue | `COMPILE_DEFINITIONS` of `sstep.cmake` |
 | SIL load-angle test failed now and then, in CI and once in the release pipeline (45 instead of 50 ± 4 deg) | It took one log sample: the log gives the lag in whole microsteps (5.6 deg), and the rotor of the model vibrates by a fraction of one at rest; it also waited in host time, which a loaded host stretches | The test averages the samples of a window in the time of the firmware |
 
-## Open
+### Open
 
 - **Vibration and noise at rest** (check 16): listening to the motor at several rotor
   positions. The current ripple of check 15 is measured: below the resolution of the ADC.

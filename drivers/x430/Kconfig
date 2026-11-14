@@ -21,7 +21,7 @@ config SFS_DXL_RX_BUFFER_SIZE
 
 config SFS_DXL_FACTORY_VALUES_MAX
 	int "Factory values the application can set (x430_servo_set_factory_value)"
-	default 4
+	default 8
 	range 0 16
 	help
 	  Registers whose X430 factory value this firmware replaces, for example

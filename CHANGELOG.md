@@ -8,7 +8,17 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-14
+
 ### Added
+
+- **Firmware version from git**: `cmake/doppelstep_version.cmake` runs `git describe` at every
+  build (app/VERSION without git or tag, with a warning when the two differ) and generates
+  `doppelstep_version.h` with `configure_file()`. The boot log shows it (`Doppelstep
+  0.2.0+3.gabc1234-dirty`), Model Information (2) reports it (byte 0 patch, 1 minor, 2 major,
+  3 commits after the tag, bit 31 uncommitted changes), and the GUI decodes it after Connect,
+  in the reports and after a firmware update. Firmware Version (6) stays 52 (XM430).
+  SIL test `test_model_information_is_the_build_version`.
 
 - **Measurements with MCUViewer** ([Measurements with MCUViewer](docs/measurements.md)):
   `CONFIG_SSTEP_MOTOR_MCUVIEWER`, off by default, publishes the measured phase currents,
@@ -25,6 +35,81 @@ All notable changes to Doppelstep are listed here. The format follows
   of the ADC (about 31 mA rms noise, the same with the torque off; no toggle at 125 Hz).
   The effective dead time is 1.05 µs at 24 V and 1.4 µs at 12 V (set 1.2 µs). Open: the
   fit gives 2.75 Ω for the phase circuit at both voltages instead of 1.6 Ω.
+
+### Changed
+
+- **DYNAMIXEL-X430 emulator v1.0.0** (was a pinned commit of `main`): smaller RAM, flash and
+  stack (the application needs 20 828 B of RAM, 1.4 KiB less, with the larger packet buffer).
+  The driver `drivers/x430/` follows its API: functions return `X430_OK` or `X430_ERR_*` and
+  give values through pointers; the persistent blocks are read and written in parts
+  (`nvm_read` / `nvm_write`), which `x430_nvm.c` collects into one NVS item per block.
+- **Factory values from the devicetree, shown in `doppelstep_config.h`**:
+  `scripts/gen_doppelstep_config.py` generates the header at CMake configure time
+  (`build/app/doppelstep/`) with every factory value of the EEPROM area, its source and
+  range, and the driver data (bus voltage limits and trips, currents, velocity, gear). The
+  firmware writes the values from the devicetree: Temperature Limit 80 °C (new property
+  `temperature-limit-celsius` of the power stage), Max / Min Voltage Limit 28 / 10 V
+  (`vbus-max-mv` / `vbus-min-mv`, was 16 / 9.5 V), Current Limit 743 = 2000 mA
+  (`rated-current-milliamp`, was 557 = 1500 mA), Velocity Limit 1023. DYNAMIXEL Wizard no
+  longer warns about the 24 V supply. The voltage limit registers accept 9.5–30 V
+  (`app/x430_overrides.yaml`, `CONFIG_X430_MODEL_OVERRIDES` of the DYNAMIXEL-X430 emulator
+  v1.0.0). A board with an EEPROM area stored by 0.3.0 keeps it until a Factory Reset.
+- **Current Limit raises the run current up to the rated current** (2000 mA, was capped at
+  `run-current-milliamp`): the run current is still 1500 mA at startup and after a Factory
+  Reset (`x430_servo_factory_write()`). `sstep_motor_set_current()` limits the run current
+  to `rated-current-milliamp`. `CONFIG_SFS_DXL_FACTORY_VALUES_MAX` defaults to 8. SIL test
+  `test_current_limit_raises_the_run_current_up_to_the_rated_current`.
+- **Factory baud rate 57600 bps, as a real XM430-W350** (was 1 Mbps): `factory-baud-code`
+  defaults to 1, USART2 starts at 57600 bps, and DYNAMIXEL Wizard finds the board with its
+  default scan. The GUI connects at 57600 bps by default (`--baud`, `FACTORY_BAUD` in
+  `registers.py`) and its test scenarios expect it. For OpenMANIPULATOR-X write Baud Rate 3
+  (1 Mbps) once, or set `factory-baud-code = <3>`. MCUboot serial recovery stays at a fixed
+  1 Mbps. A board with a stored EEPROM block keeps its Baud Rate until a Factory Reset.
+- **STATUS LED follows the LED register (65)**, as the LED of an XM430: 1 on, 0 off, so
+  the host (DYNAMIXEL Wizard, the GUI) switches it. An alarm (Hardware Error Status not 0,
+  motor fault, startup error) still makes it blink fast. The slow blink with the outputs
+  off and the steady light with the torque on are gone: Torque Enable (64) shows that state.
+
+### Fixed
+
+- **A write of Baud Rate (8) got no answer**: the bus switched to the new rate while the
+  last bytes of the status packet were still in the 8-byte TX FIFO of USART2, and
+  `uart_configure()` cut them, so DYNAMIXEL Wizard saw a time-out and lost the device. The
+  driver now waits ten character times at the old rate before it reconfigures the UART
+  (`wait_tx_drained()`, shared with the Reboot reset).
+- **Present PWM (124) stayed 0**: it is now the amplitude of the commanded phase duty
+  vector (from the compare values of the fast loop), averaged over 8 ms, 885 = 100 %, with
+  the sign of Present Velocity. New field `pwm_permille` of `struct sstep_motor_status`,
+  `joint_pwm_to_dxl()`, ztest `test_pwm` and SIL test `test_present_pwm_follows_the_drive`.
+- **DYNAMIXEL Wizard 2.0 showed TIME OUT** after a successful scan: its Dashboard reads
+  the whole Control Table (addresses 0–661) in one READ of 662 bytes, and the DXL2-C
+  packet buffer of 256 bytes allowed 245 bytes at most (Data Length Error).
+  `CONFIG_X430_DXL2_MAX_PACKET_SIZE=768` answers READs of up to 757 bytes; the comm task
+  stack grows to 3584 bytes for the two packet buffers on it. SIL test
+  `test_whole_control_table_in_one_read`
+  ([DYNAMIXEL emulation](docs/dynamixel.md#dynamixel-wizard-20)).
+
+### Upgrading from 0.2.0
+
+- **The stored EEPROM area of 0.2.0 is not taken over.** The emulator v1.0.0 stores its
+  blocks with a header and a CRC; the firmware keeps them under new NVS ids and deletes the
+  old items at the first start. The board then starts with the factory values of 0.3.0 once:
+  ID 1, 57600 bps, the new limits. Write ID, Baud Rate and other settings again if they were
+  changed.
+- **The factory baud rate is now 57600 bps** (was 1 Mbps). Hosts that start from the factory
+  values (ROS 2 descriptions, scripts) use 57600 bps, or write Baud Rate 3 once for 1 Mbps.
+  MCUboot serial recovery stays at 1 Mbps.
+- The STATUS LED follows the LED register: after startup it is off, not blinking.
+
+### Known limits
+
+- PWM Limit (36) and the gains of the Velocity PI / Position PID controllers (76–90) are
+  stored but not applied: current drive without an encoder. A duty limit in Stepper-C is
+  planned; the gains wait for an encoder.
+- Lost steps are not reported (the motor has no encoder).
+- The dead time of 1200 ns is measured as 1.05 µs effective at 24 V
+  ([test record](docs/test-record.md)); the gate voltages are not yet checked with an
+  oscilloscope.
 
 ## [0.2.0] - 2026-11-13
 
@@ -241,6 +326,7 @@ outputs off (see *Known limits*).
 - The X430 emulator, Stepper-Lab and sfs-stepper-power-spice have no releases yet: `west.yml`
   pins them to the tested commits.
 
-[Unreleased]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/SystemFromScratch/sfs-doppelstep/releases/tag/v0.1.0

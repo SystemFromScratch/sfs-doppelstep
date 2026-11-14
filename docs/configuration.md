@@ -34,10 +34,10 @@ The values for the 17HS19-2004S1 motor and the B-G431B-ESC1, from
 |---|---|---|
 | `phase-resistance-milliohm` | 1600 | Coil resistance (datasheet) |
 | `phase-inductance-microhenry` | 3000 | Coil inductance (datasheet) |
-| `rated-current-milliamp` | 2000 | Rated phase current (datasheet) |
+| `rated-current-milliamp` | 2000 | Rated phase current (datasheet): highest run current a host can set (Current Limit), factory Current Limit |
 | `back-emf-uv-s-per-rad` | 208600 | Back-EMF constant |
 | `full-steps-per-rev` | 200 | Full steps per revolution |
-| `vbus-nominal-mv`, `vbus-min-mv`, `vbus-max-mv` | 24000, 10000, 28000 | Supply voltage: nominal and trip limits; Torque Enable outside them is refused |
+| `vbus-nominal-mv`, `vbus-min-mv`, `vbus-max-mv` | 24000, 10000, 28000 | Supply voltage: nominal and trip limits; Torque Enable outside them is refused. Factory Min / Max Voltage Limit |
 | `trip-current-milliamp` | 3500 | Overcurrent trip |
 | `aux-trip` | set | The stage checks every leg at the trip current in its interrupt, also the shared leg W and in voltage drive |
 | `current-slew-ma-per-ms` | 30 | Largest change of the current amplitude: after Torque Enable the current rises from 0 (1.5 A in 50 ms), and between run and hold current; 0 = at once |
@@ -45,7 +45,7 @@ The values for the 17HS19-2004S1 motor and the B-G431B-ESC1, from
 | `slow-loop-hz` | 1000 | Motion loop rate; the PWM rate must be an integer multiple |
 | `microsteps` | 16 | Microsteps per full step |
 | `current-bandwidth-hz` | 1000 | Bandwidth of the current controller |
-| `run-current-milliamp`, `hold-current-milliamp` | 1500, 500 | Current while moving and at rest |
+| `run-current-milliamp`, `hold-current-milliamp` | 1500, 500 | Current while moving and at rest; the run current at startup and after Factory Reset (a host write of Current Limit changes it up to `rated-current-milliamp`) |
 | `hold-delay-ms` | 500 | Time at rest before the hold current applies |
 | `max-velocity`, `max-acceleration` | 16000, 64000 | Upper limits of every motion profile |
 
@@ -57,6 +57,7 @@ The values for the 17HS19-2004S1 motor and the B-G431B-ESC1, from
 | `sample-window-ns` | 2400 | Time around the top of the counter every leg spends on its low-side switch, for the shunt samples: 408 of 4250 ticks. Stepper-C keeps the compare values below the period minus this time and lowers its voltage limit by 9.6 % ([Hardware](hardware.md#sampling-window)) |
 | `dead-time-ns` | 1200 | Dead time of the half-bridges, from the ngspice sweep with the MB1419 gate circuit. 0 means "not set" and the outputs are refused. Check it on the board before the first motor run ([bring-up](hardware.md#bring-up-checklist)) |
 | `vbus-divider` | 18000, 169000 | VBUS divider resistors, Ω |
+| `temperature-limit-celsius` | 80 | Factory Temperature Limit (31) of the servo [°C]; above it Overheating Error switches the torque off |
 | `temperature-channel`, `ntc-r25-ohm`, `ntc-beta`, `ntc-bottom-ohm` | 5, 10000, 3435, 4700 | Power stage NTC: ADC channel, R25 [Ω], B constant [K], resistor to ground [Ω] (TDK NTCG103JF103FT1, schematic MB1419) |
 | `current-sense-invert` | not set | Inverts the current measurement, if bring-up step 3 requires it |
 | `hw-trip-current-milliamp` | 10000 | Hardware short-circuit trip: comparators on the OPAMP inputs, TIM1 break ([Protection](protection.md#hardware-trips)); none = off |
@@ -71,10 +72,28 @@ resulting full scale are in [Hardware and bring-up](hardware.md#current-and-volt
 | Property | Default | Meaning |
 |---|---|---|
 | `factory-id` | 1 | DYNAMIXEL ID while no EEPROM is stored and after Factory Reset |
-| `factory-baud-code` | 3 (1 Mbps) | Baud Rate register value, same conditions |
+| `factory-baud-code` | 1 (57600 bps, as an XM430) | Baud Rate register value, same conditions |
 | `start-position` | 2048 | Present Position at power-on (no encoder) |
 | `gear-motor-revs`, `gear-joint-revs` | 1, 1 | Gear ratio between motor and joint |
 | `storage` | `&storage_partition` | Flash partition of the EEPROM area (NVS) |
+
+## Factory values of the Control Table
+
+The factory values of the emulated XM430-W350 come from this devicetree. At CMake configure time
+`scripts/gen_doppelstep_config.py` writes them into `doppelstep_config.h` in the build directory
+(`build/app/doppelstep/`): every EEPROM register with its value, its source and its range,
+and the driver data they come from. Read it there; edit the devicetree.
+
+| Register | Devicetree property |
+|---|---|
+| ID (7), Baud Rate (8) | `factory-id`, `factory-baud-code` of the servo node |
+| Temperature Limit (31) | `temperature-limit-celsius` of the power stage node |
+| Max / Min Voltage Limit (32, 34) | `vbus-max-mv` / `vbus-min-mv` of the motor node, in 0.1 V |
+| Current Limit (38) | `rated-current-milliamp` of the motor node, in 2.69 mA |
+| Velocity Limit (44) | `max-velocity` of the motor node at the joint (gear of the servo node), at most 1023 |
+
+The ranges of the registers are those of the XM430 except the voltage limits (9.5–30 V,
+`app/x430_overrides.yaml`, `CONFIG_X430_MODEL_OVERRIDES` in `app/prj.conf`).
 
 ## Variants of the build
 

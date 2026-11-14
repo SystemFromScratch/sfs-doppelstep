@@ -63,7 +63,7 @@
 
 &uart1 {
 	status = "okay";
-	current-speed = <1000000>;
+	current-speed = <57600>;
 
 	servo: dxl-servo {
 		compatible = "sfs,x430-servo";

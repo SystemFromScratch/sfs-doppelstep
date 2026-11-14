@@ -7,7 +7,7 @@ through MCUboot serial recovery. Manual: [docs/gui/index.md](../../docs/gui/inde
 
 | Item | Contract |
 |---|---|
-| Entry point | `tools/gui/doppelstep_gui.py [--port COM5] [--baud 1000000] [--id 1]` |
+| Entry point | `tools/gui/doppelstep_gui.py [--port COM5] [--baud 57600] [--id 1]` |
 | Start from | any directory (own files are resolved relative to `__file__`) |
 | Target | the board only; no simulator mode |
 | Dependencies | Python 3.11+, Tkinter, root `requirements.txt` (`pyserial`, `matplotlib`, `smpmgr` → `smpclient`) |

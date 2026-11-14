@@ -106,7 +106,7 @@ of stepping it: 1.5 A in 50 ms, so the supply sees no current step.
 ## The DYNAMIXEL bus
 
 The bus is **USART2** (PB3 TX, PB4 RX), for now through the ST-LINK Virtual COM Port of the
-debugger, at 1 Mbps. A DYNAMIXEL X430-T has no direction pin either: for a TTL half-duplex
+debugger, at 57600 bps from the factory (the Baud Rate register, up to 4.5 Mbps). A DYNAMIXEL X430-T has no direction pin either: for a TTL half-duplex
 bus later, USART2 can run in single-wire mode (`single-wire;` on `&usart2`, TX pin only).
 Because USART2 carries the bus, the console and the log use SEGGER RTT through the debug
 probe.

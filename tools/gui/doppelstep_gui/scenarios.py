@@ -176,6 +176,9 @@ def boot_ping(ctx):
     model, firmware = ctx.bus.ping(DXL_ID)
     ctx.expect("Model Number", model, "1020 (XM430-W350)", model == 1020)
     ctx.expect("Firmware Version", firmware, "> 0", firmware > 0)
+    version = r.doppelstep_version(ctx.read(r.MODEL_INFORMATION))
+    ctx.info("Doppelstep version", version or "none (Model Information 0)",
+             "Model Information (2): the version of the build, from git")
 
 
 def boot_live_registers(ctx):
@@ -191,7 +194,8 @@ def boot_live_registers(ctx):
 
 
 def boot_factory_eeprom(ctx):
-    for reg, value, text in ((r.ID, 1, "1"), (r.BAUD_RATE, 3, "3 (1 Mbps)"),
+    for reg, value, text in ((r.ID, 1, "1"), (r.BAUD_RATE, r.FACTORY_BAUD_CODE,
+                                               f"{r.FACTORY_BAUD_CODE} ({r.FACTORY_BAUD} bps)"),
                              (r.OPERATING_MODE, 3, "3 (position control)")):
         measured = ctx.read(reg)
         ctx.expect(reg.name, measured, text, measured == value)
@@ -446,7 +450,7 @@ SCENARIOS = [
     S("boot-live", "Live registers at rest",
       "tests/sil/test_boot.py::test_live_registers_at_rest", boot_live_registers,
       board_note="Present Input Voltage is the bench supply: recorded, not checked"),
-    S("boot-eeprom", "Factory EEPROM (ID 1, 1 Mbps, position control)",
+    S("boot-eeprom", "Factory EEPROM (ID 1, 57600 bps, position control)",
       "tests/sil/test_boot.py::test_factory_eeprom", boot_factory_eeprom),
     S("bus-crc", "Bad CRC and other IDs get no answer",
       "tests/sil/test_bus.py::test_bad_crc_and_other_ids_get_no_answer",

@@ -23,8 +23,9 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
   motor always on, section 7). Planned next family: TI MSPM0 (`docs/porting.md`).
 - Libraries (west projects, no `zephyr/module.yml` of their own):
   Stepper-C (`modules/lib/stepper-c`, v1.4.0: `sample_window_ticks`, `i_slew_ma_per_ms`, `sstep_selftest()`, `SSTEP_ERR_VBUS`),
-  DYNAMIXEL-X430 emulator (`modules/lib/dynamixel-x430`, pinned **commit** of
-  main until its first release), DXL2-C (`modules/lib/dxl2-c`, the tag `x430.cmake` expects),
+  DYNAMIXEL-X430 emulator (`modules/lib/dynamixel-x430`, v1.0.0: functions return
+  `X430_OK`/`X430_ERR_*` with values through pointers, NVM hooks `nvm_read`/`nvm_write` in
+  parts at an offset, buffered as one NVS item in `drivers/x430/x430_nvm.c`), DXL2-C (`modules/lib/dxl2-c`, the tag `x430.cmake` expects),
   Stepper-Lab (`modules/lib/stepper-lab`, follows **main** during development, pin it to a
   commit or tag before a release: plant model
   `sil/c/sstep_plant.c` and `params/*.json` of the simulated motor) and
@@ -133,7 +134,7 @@ west build -b native_sim/native/64 -s app -d build-native                       
   the user from an ngspice sweep with the MB1419 rev C gate circuit (L6387ED at 10 V,
   33 Ω gate resistors, 1 Ω + 10 nF snubber; clean from 900 ns, ×1.3 margin). Not yet
   measured on the board. Never lower it without a VGS measurement from the user.
-- USART2 PB3/PB4 = ST-LINK VCP = DYNAMIXEL bus (1 Mbps). Console and logs use RTT.
+- USART2 PB3/PB4 = ST-LINK VCP = DYNAMIXEL bus (factory 57600 bps as an XM430; MCUboot fixed at 1 Mbps). Console and logs use RTT.
 - Flash: code partition 124 KiB, `storage_partition` 4 KiB (2 pages) for NVS.
 
 ## 6. Architecture (do not break)
@@ -234,8 +235,12 @@ west build -b native_sim/native/64 -s app -d build-native                       
 - Supported Operating Modes: 1, 3, 4. Others are refused with Data Range Error.
 - Present Position = commanded position + `start-position` (2048) + Homing Offset;
   there is no encoder.
-- Firmware factory values: `factory-id`, `factory-baud-code` (3 = 1 Mbps) of the servo node, applied
+- Firmware factory values: `factory-id`, `factory-baud-code` (1 = 57600 bps, as an XM430) of the servo node, applied
   through `x430_device_write()` (validated and stored), never by patching NVM blocks.
+- The devicetree is the only source of the other factory values: `scripts/gen_doppelstep_config.py`
+  generates `doppelstep_config.h` (build dir) at configure time; `joint_bridge.c` writes the
+  `_FROM_DT` ones (Temperature, Max/Min Voltage, Current = rated current, Velocity Limit). Never
+  hand-edit the header. Voltage limit ranges widened by `app/x430_overrides.yaml`.
 - NVM writes are refused while the power stage is enabled (`nvm_allowed` callback).
 
 ## 9. Change procedure

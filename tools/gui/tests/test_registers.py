@@ -33,3 +33,10 @@ def test_hw_error_text():
     assert r.hw_error_text(0x11) == "Input Voltage Error, Electrical Shock Error"
     assert r.hw_error_text(0x04) == "Overheating Error"
     assert r.hw_error_text(0x08) == "bits 0x08"
+
+
+def test_doppelstep_version():
+    assert r.doppelstep_version(0) is None                       # no version (older firmware)
+    assert r.doppelstep_version(0x00000200) == "0.2.0"           # on the tag v0.2.0
+    assert r.doppelstep_version(0x03010203) == "1.2.3+3"         # 3 commits later
+    assert r.doppelstep_version(0x80000200) == "0.2.0+0-dirty"   # uncommitted changes

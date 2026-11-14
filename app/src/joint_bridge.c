@@ -17,6 +17,7 @@
 
 #include <doppelstep/drivers/power_stage.h>
 #include <doppelstep/drivers/x430_servo.h>
+#include <doppelstep_config.h>
 #include <zephyr/logging/log.h>
 
 #include "app_msg.h"
@@ -29,9 +30,6 @@
 #define ACCEL_MAX DT_PROP(MOTOR_NODE, max_acceleration)
 #define I_HOLD_MA DT_PROP(MOTOR_NODE, hold_current_milliamp)
 #define I_RUN_MA  DT_PROP(MOTOR_NODE, run_current_milliamp)
-
-/* Largest Velocity Limit of the X430 model (models/x430_family.yaml of the emulator) */
-#define DXL_VELOCITY_LIMIT_MAX 1023
 
 static const struct device *servo;
 static const struct device *const stage = DEVICE_DT_GET(DT_PHANDLE(MOTOR_NODE, power_stage));
@@ -151,6 +149,8 @@ static void refresh_live(void)
 			      joint_current_to_dxl((int32_t)st->i_amplitude_ma));
 	(void)x430_servo_reg_set(servo, X430_ADDR_PRESENT_INPUT_VOLTAGE,
 			      (int32_t)((st->vbus_mv + 50U) / 100U));
+	(void)x430_servo_reg_set(servo, X430_ADDR_PRESENT_PWM,
+				 joint_pwm_to_dxl(st->pwm_permille, velocity));
 	(void)x430_servo_reg_set(servo, X430_ADDR_MOVING, moving ? 1 : 0);
 
 	if (moving) {
@@ -289,8 +289,15 @@ static uint8_t on_write(const struct device *dev, uint16_t address, uint8_t size
 		return DXL2_ERR_NONE;
 
 	case X430_ADDR_CURRENT_LIMIT:
+		/* A host write sets the run current (up to the rated current of the motor);
+		 * the factory value (Factory Reset) brings back the run current of the
+		 * startup, run-current-milliamp.
+		 */
 		return to_status(app_call(APP_CMD_SET_CURRENT, 0,
-					    joint_current_from_dxl((uint32_t)value), I_HOLD_MA));
+					    x430_servo_factory_write(servo)
+						    ? I_RUN_MA
+						    : joint_current_from_dxl((uint32_t)value),
+					    I_HOLD_MA));
 
 	case X430_ADDR_GOAL_POSITION:
 		return goal_position(value);
@@ -378,26 +385,28 @@ static const struct x430_servo_callbacks callbacks = {
 
 /* ------------------------------------------------------------------------ */
 
-/* Factory values of the real motor in place of those of an XM430 (docs/dynamixel.md):
- * Current Limit = run current, Velocity Limit = largest motor velocity at the joint,
- * both rounded down so that the register never shows more than the motor gets.
+/* Factory values of this board and motor in place of those of an XM430
+ * (docs/dynamixel.md). doppelstep_config.h is generated from the devicetree
+ * (scripts/gen_doppelstep_config.py): Temperature Limit of the power stage, voltage
+ * limits = bus voltage trips, Current Limit = rated current, Velocity Limit = largest
+ * motor velocity at the joint, rounded so that a register never shows more than the
+ * motor gets. ID and Baud Rate: factory-id and factory-baud-code of the servo node.
  */
+#define FACTORY(reg, addr, size)                                                                   	COND_CODE_1(DOPPELSTEP_FACTORY_##reg##_FROM_DT,                                           		    ((void)x430_servo_set_factory_value(servo, addr, size,                       							 DOPPELSTEP_FACTORY_##reg)),             		    ())
+
 static void set_factory_values(void)
 {
-	static const struct joint_regs normal = {0};
-	int32_t current = joint_current_to_dxl(I_RUN_MA);
-	int32_t velocity = joint_velocity_to_dxl(&jcfg, &normal, V_MAX);
-
-	if (joint_current_from_dxl((uint32_t)current) > I_RUN_MA) {
-		current--;
-	}
-	if (joint_speed_from_dxl(&jcfg, (uint32_t)velocity) > V_MAX) {
-		velocity--;
-	}
-	velocity = MIN(velocity, DXL_VELOCITY_LIMIT_MAX);
-	(void)x430_servo_set_factory_value(servo, X430_ADDR_CURRENT_LIMIT, 2U, current);
-	(void)x430_servo_set_factory_value(servo, X430_ADDR_VELOCITY_LIMIT, 4U, velocity);
+	FACTORY(TEMPERATURE_LIMIT, X430_ADDR_TEMPERATURE_LIMIT, 1U);
+	FACTORY(MAX_VOLTAGE_LIMIT, X430_ADDR_MAX_VOLTAGE_LIMIT, 2U);
+	FACTORY(MIN_VOLTAGE_LIMIT, X430_ADDR_MIN_VOLTAGE_LIMIT, 2U);
+	FACTORY(CURRENT_LIMIT, X430_ADDR_CURRENT_LIMIT, 2U);
+	FACTORY(VELOCITY_LIMIT, X430_ADDR_VELOCITY_LIMIT, 4U);
 }
+
+/* The generated values and the devicetree the firmware runs with are the same build */
+BUILD_ASSERT(DOPPELSTEP_RATED_CURRENT_MA == DT_PROP(MOTOR_NODE, rated_current_milliamp));
+BUILD_ASSERT(DOPPELSTEP_RUN_CURRENT_MA == I_RUN_MA);
+BUILD_ASSERT(DOPPELSTEP_MAX_VELOCITY == V_MAX);
 
 int joint_bridge_init(const struct device *dev)
 {

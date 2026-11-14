@@ -27,7 +27,7 @@ BAUD_CHOICES = [f"{bps:,} bps (Baud Rate {code})".replace(",", " ")
 
 
 class App(tk.Tk):
-    def __init__(self, port=None, baud=1000000, dxl_id=1):
+    def __init__(self, port=None, baud=r.FACTORY_BAUD, dxl_id=1):
         super().__init__()
         self.title("Doppelstep — test bench and firmware update")
         self.geometry("1280x820")
@@ -38,6 +38,7 @@ class App(tk.Tk):
         self.poller = None
         self.model = None
         self.firmware_version = None
+        self.doppelstep_version = None
         self.busy = None                    # name of the running long task, or None
         self.last_update = None             # firmware.UpdateResult of this session
         self.sample_listeners = []
@@ -131,7 +132,7 @@ class App(tk.Tk):
 
         ttk.Label(bar, text="Baud rate").pack(side=tk.LEFT, padx=(14, 4))
         codes = {bps: code for code, bps in r.BAUD_RATES.items()}
-        self.baud_var = tk.StringVar(value=BAUD_CHOICES[codes.get(baud, 3)])
+        self.baud_var = tk.StringVar(value=BAUD_CHOICES[codes.get(baud, r.FACTORY_BAUD_CODE)])
         ttk.Combobox(bar, textvariable=self.baud_var, values=BAUD_CHOICES, state="readonly",
                      width=26).pack(side=tk.LEFT)
 
@@ -186,6 +187,7 @@ class App(tk.Tk):
                 return
             try:
                 model, firmware = bus.ping(dxl_id)
+                version = r.doppelstep_version(bus.read(dxl_id, r.MODEL_INFORMATION))
             except Exception as exc:  # noqa: BLE001
                 bus.close()
                 self.post(self._connect_failed,
@@ -194,7 +196,7 @@ class App(tk.Tk):
                           "DYNAMIXEL: if the application does not start, use the Firmware "
                           "update tab without connecting.", None)
                 return
-            self.post(self.attach_bus, bus, model, firmware)
+            self.post(self.attach_bus, bus, model, firmware, version)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -207,6 +209,8 @@ class App(tk.Tk):
             "Model Number": self.model if self.model is not None else "not connected",
             "Firmware Version": (self.firmware_version if self.firmware_version is not None
                                  else "not connected"),
+            "Doppelstep version": (self.doppelstep_version or "unknown (no Model Information)")
+            if self.model is not None else "not connected",
         }
 
     def _connect_failed(self, message, _unused):
@@ -214,14 +218,17 @@ class App(tk.Tk):
         self.log(message.split("\n")[0])
         messagebox.showerror("Doppelstep", message)
 
-    def attach_bus(self, bus, model, firmware):
+    def attach_bus(self, bus, model, firmware, version=None):
         """Use an open bus (after Connect or after a firmware update)."""
         self.bus = bus
         self.model, self.firmware_version = model, firmware
+        self.doppelstep_version = version
         self.connect_button.configure(state="normal")
         self._set_connected(True)
         text = f"model {model}" + (" (XM430-W350)" if is_doppelstep(model) else
                                    " — not an XM430-W350") + f", firmware {firmware}"
+        if version is not None:
+            text += f", Doppelstep {version}"
         self.log(f"Connected: ID {self.dxl_id}, {text}")
         if not is_doppelstep(model):
             messagebox.showwarning("Doppelstep", f"The device reports {text}.")
@@ -338,6 +345,6 @@ class App(tk.Tk):
         self.destroy()
 
 
-def main(port=None, baud=1000000, dxl_id=1):
+def main(port=None, baud=r.FACTORY_BAUD, dxl_id=1):
     app = App(port, baud, dxl_id)
     app.mainloop()

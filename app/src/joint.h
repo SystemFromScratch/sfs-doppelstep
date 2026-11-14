@@ -60,6 +60,12 @@ uint32_t joint_accel_from_dxl(const struct joint_cfg *cfg, uint32_t dxl_accel);
 /** Phase current amplitude [mA] to Present Current [2.69 mA]. */
 int32_t joint_current_to_dxl(int32_t milliamps);
 
+/**
+ * Duty amplitude [0.1 %] to Present PWM [0.113 %]: 885 is 100 % (PWM Limit of the
+ * XM430). The sign follows Present Velocity @p dxl_velocity, 0 counts as positive.
+ */
+int32_t joint_pwm_to_dxl(uint32_t permille, int32_t dxl_velocity);
+
 /** Current Limit [2.69 mA] to [mA]. */
 uint32_t joint_current_from_dxl(uint32_t dxl_current);
 

@@ -122,6 +122,14 @@ int32_t joint_current_to_dxl(int32_t milliamps)
 	return clamp_i32(div_round((int64_t)milliamps * CUR_DEN, CUR_NUM));
 }
 
+int32_t joint_pwm_to_dxl(uint32_t permille, int32_t dxl_velocity)
+{
+	const uint32_t duty = (permille < 1000U) ? permille : 1000U;
+	const int32_t pwm = clamp_i32(div_round((int64_t)duty * 885, 1000));
+
+	return (dxl_velocity < 0) ? -pwm : pwm;
+}
+
 uint32_t joint_current_from_dxl(uint32_t dxl_current)
 {
 	return clamp_u32((uint64_t)div_round((int64_t)dxl_current * CUR_NUM, CUR_DEN), 0U,

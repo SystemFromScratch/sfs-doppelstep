@@ -12,7 +12,7 @@
 #       ├── debug/segger           RTT (log backend over the debug probe)
 #       └── lib/
 #           ├── stepper-c          Stepper-C            (pinned release)
-#           ├── dynamixel-x430     X430 emulator        (pinned commit)
+#           ├── dynamixel-x430     X430 emulator        (pinned release)
 #           ├── dxl2-c             DXL2-C, used by the X430 emulator (offline build)
 #           ├── stepper-lab        motor model (sil/c/sstep_plant.c) and its parameters
 #           │                      (params/*.json) for the simulated motor (pinned
@@ -59,18 +59,17 @@ manifest:
       revision: v1.4.0
       path: modules/lib/stepper-c
 
-    # No release yet: pinned to the commit of main this firmware is tested
-    # with, so every build of a Doppelstep release uses the same code. Move it
-    # to the release tag once there is one (and keep dxl2-c at the tag that
-    # release expects).
+    # Release v1.0.0: application overrides of the model
+    # (CONFIG_X430_MODEL_OVERRIDES, app/x430_overrides.yaml). Keep dxl2-c at
+    # the tag this release expects.
     - name: dynamixel-x430
       remote: antonvynohradov
       repo-path: DYNAMIXEL-X430-Control-Table-Emulator
-      revision: cd12fbb1870f844b213ea0df72a902c4f3022122
+      revision: v1.0.0
       path: modules/lib/dynamixel-x430
 
-    # Must match X430_DXL2_GIT_TAG of x430.cmake (v1.0.0 on the emulator's
-    # main as of this commit). The X430 module glue warns on a mismatch.
+    # Must match X430_DXL2_GIT_TAG of x430.cmake (v1.0.0 in the emulator's
+    # release v1.0.0). The X430 module glue warns on a mismatch.
     - name: dxl2-c
       remote: antonvynohradov
       repo-path: DXL2-C

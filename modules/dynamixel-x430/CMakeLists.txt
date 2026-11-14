@@ -29,6 +29,12 @@ if(CONFIG_SFS_DYNAMIXEL_X430)
   set(X430_MODEL "${CONFIG_X430_MODEL_NAME}" CACHE STRING "Emulated model" FORCE)
   set(X430_DXL2_MAX_PACKET_SIZE "${CONFIG_X430_DXL2_MAX_PACKET_SIZE}" CACHE STRING
       "DXL2_MAX_PACKET_SIZE" FORCE)
+  # CONFIG_X430_MODEL_OVERRIDES: relative paths are relative to the application
+  set(x430_overrides "${CONFIG_X430_MODEL_OVERRIDES}")
+  if(NOT x430_overrides STREQUAL "" AND NOT IS_ABSOLUTE "${x430_overrides}")
+    set(x430_overrides "${APPLICATION_SOURCE_DIR}/${x430_overrides}")
+  endif()
+  set(X430_MODEL_OVERRIDES "${x430_overrides}" CACHE FILEPATH "Model overrides" FORCE)
   set(FETCHCONTENT_SOURCE_DIR_DXL2 "${DXL2_SOURCE_DIR}" CACHE PATH "DXL2-C west project" FORCE)
 
   # The DXL2-C revision of west.yml should be the one x430.cmake expects.

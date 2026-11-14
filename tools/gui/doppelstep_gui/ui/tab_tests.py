@@ -8,6 +8,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import filedialog, messagebox, ttk
 
+from .. import registers as r
 from .. import report, scenarios
 from . import style
 
@@ -74,7 +75,7 @@ class TestsTab(ttk.Frame):
         self.summary.pack(anchor="w", pady=(4, 0))
         ttk.Label(frame, text="Every scenario starts with a DYNAMIXEL Reboot (the MCU resets) "
                               "and ends with the torque off. The suite expects the factory "
-                              "EEPROM: ID 1 at 1 Mbps.", style="Muted.TLabel",
+                              f"EEPROM: ID 1 at {r.FACTORY_BAUD} bps.", style="Muted.TLabel",
                   wraplength=520).pack(anchor="w", pady=(4, 0))
         return frame
 
@@ -173,10 +174,10 @@ class TestsTab(ttk.Frame):
         if not chosen:
             messagebox.showinfo("Doppelstep", "Select at least one scenario.")
             return
-        if self.app.dxl_id != scenarios.DXL_ID or self.app.baudrate != 1000000:
+        if self.app.dxl_id != scenarios.DXL_ID or self.app.baudrate != r.FACTORY_BAUD:
             messagebox.showwarning(
                 "Doppelstep", "The scenarios repeat the SIL tests, which start from the factory "
-                "EEPROM: connect to ID 1 at 1 000 000 bps.")
+                f"EEPROM: connect to ID 1 at {r.FACTORY_BAUD} bps.")
             return
         warnings = []
         if any(s.moves for s in chosen):

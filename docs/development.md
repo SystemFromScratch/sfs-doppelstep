@@ -17,7 +17,7 @@ and the documentation tooling.
 
 ```text
 doppelstep/                             west manifest repository and Zephyr module
-├── west.yml                            Zephyr v4.5.0, Stepper-C v1.4.0, X430 emulator (commit), DXL2-C v1.0.0,
+├── west.yml                            Zephyr v4.5.0, Stepper-C v1.4.0, X430 emulator v1.0.0, DXL2-C v1.0.0,
 │                                       Stepper-Lab and sfs-stepper-power-spice (commits)
 ├── zephyr/module.yml                   the repository is a Zephyr module: board, bindings, drivers
 ├── CMakeLists.txt, Kconfig             build modules/ and drivers/
@@ -259,9 +259,25 @@ GitHub Actions**.
 
 A release is a `vX.Y.Z` tag on `main`. The version follows
 [Semantic Versioning](https://semver.org/) and lives in two places that must agree: the tag
-and `app/VERSION`, which Zephyr turns into `APP_VERSION_STRING` (logged at boot) and into the
-version of the signed image that MCUboot checks. The release workflow refuses a tag that does
-not match.
+and `app/VERSION`, which Zephyr turns into the version of the signed image that MCUboot
+checks. The release workflow refuses a tag that does not match.
+
+The firmware takes its version from git at every build: `cmake/doppelstep_version.cmake` runs
+`git describe --tags --long --dirty` and writes `doppelstep_version.h` into the build directory
+(`build/app/doppelstep/`, `build-tests/doppelstep/`) with `configure_file()`. Without git or
+without a tag it takes `app/VERSION`, and it warns when the last tag and `app/VERSION` differ.
+The boot log shows the version string, and the bus reports it in Model Information (2):
+
+| Build | Boot log | Model Information (2) |
+|---|---|---|
+| On the tag `v0.2.0` | `Doppelstep 0.2.0` | `0x00000200` |
+| 3 commits after the tag | `Doppelstep 0.2.0+3.gabc1234` | `0x03000200` |
+| With uncommitted changes | `… -dirty` | bit 31 set |
+
+Byte 0 is the patch, byte 1 the minor and byte 2 the major version; byte 3 counts the commits
+after the tag (at most 127) and bit 7 of it marks uncommitted changes. Firmware Version (6) stays
+52, the firmware of the XM430 whose Control Table the emulator follows: DYNAMIXEL Wizard compares
+it with the ROBOTIS firmware. The GUI shows the decoded version after Connect.
 
 1. Set `app/VERSION` to the new version and move the entries of `## [Unreleased]` in
    `CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD`; update the compare links at its end.
