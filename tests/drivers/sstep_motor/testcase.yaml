@@ -14,3 +14,6 @@ tests:
   doppelstep.drivers.sstep_motor.mcuviewer:
     extra_configs:
       - CONFIG_SSTEP_MOTOR_MCUVIEWER=y
+  doppelstep.drivers.sstep_motor.deadtime:
+    extra_args:
+      - EXTRA_DTC_OVERLAY_FILE=deadtime.overlay

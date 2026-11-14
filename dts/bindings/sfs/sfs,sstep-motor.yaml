@@ -77,6 +77,23 @@ properties:
       Current of the self-test before the first enable (CONFIG_SSTEP_MOTOR_SELFTEST)
       [mA]; 0 = 30 % of rated-current-milliamp.
 
+  dead-time-comp-ns:
+    type: int
+    default: 0
+    description: |
+      Dead-time compensation (Stepper-C dead_time_comp_ns) [ns]: effective dead time
+      whose loss Vbus * f_pwm * t per leg Stepper-C adds to the voltage request,
+      against the current reference. 0 = off. Measured on the board, not the timer
+      setting (docs/measurements.md): ESC1 1050 ns for 1200 ns set, at 24 V.
+
+  dead-time-comp-band-milliamp:
+    type: int
+    default: 0
+    description: |
+      Current band of the dead-time compensation (Stepper-C dead_time_comp_band_ma)
+      [mA]: the term rises linearly over 0 .. band of the current reference. Required
+      (> 0) when dead-time-comp-ns is set.
+
   voltage-drive:
     type: boolean
     description: |

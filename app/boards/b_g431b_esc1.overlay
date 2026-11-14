@@ -118,6 +118,11 @@
 		/* Self-test before the first Torque Enable: 30 % of the rated current */
 		selftest-current-milliamp = <600>;
 		aux-trip;
+		/* Dead-time compensation: the effective dead time measured on this board at
+		 * 24 V (docs/measurements.md), not the 1200 ns of the timer
+		 */
+		dead-time-comp-ns = <1050>;
+		dead-time-comp-band-milliamp = <250>;
 
 		slow-loop-hz = <1000>;
 		microsteps = <16>;

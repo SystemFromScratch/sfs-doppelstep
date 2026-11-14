@@ -276,3 +276,40 @@ proportional to the bus voltage alone; a straight line through both points gives
 split is only a first estimate. A likely cause is the switching edge itself: the snubber of
 each leg (1 Ω + 10 nF) and Coss have to be charged by the phase current within the dead
 time, which takes C × Vbus / I, about 240 ns at 1 A and 24 V.
+
+### Dead-time compensation
+
+From these measurements, Stepper-C 1.5.0 adds the loss as a feed-forward
+(`dead-time-comp-ns = <1050>`, `dead-time-comp-band-milliamp = <250>` on the motor node of
+the board; [Stepper-C: dead-time compensation](https://antonvynohradov.github.io/Stepper-C/motor-control/#dead-time-compensation)).
+The bridge still loses the same voltage, so in current drive the commanded voltage over the
+current, and the loop in the XY plot, stay as they were: a compensated capture at 24 V
+gives the same fit (Vd 499 mV, R 2.79 Ω). What changes is who supplies the loss: the
+feed-forward instead of the PI controller, which otherwise catches up after a current
+error at every zero crossing. The recorded voltage is the sum of both, so these captures
+cannot show the split.
+
+The direct check is the voltage drive, which has no controller to make up for anything.
+Two bench builds differ only in the compensation; the motor holds 0.5 A (reference) in
+phase A at a full step, 12 V:
+
+| Voltage drive, 12 V, hold | Without compensation | With compensation |
+|---|---|---|
+| Commanded voltage, phase A | 798 mV | 1303 mV: +505 mV = 2 · Vbus · f · 1050 ns |
+| Commanded voltage, phase B (reference 0 A) | 0 mV | 253 mV: the loss of the shared leg W |
+| Current, phase A | 174 mA | 256 mA (+47 %) |
+
+- The firmware adds the term exactly as configured, and it reaches the coil: the current
+  rises by 82 mA for 505 mV more.
+- The current stays below the 0.5 A reference because the voltage drive uses the
+  configured 1.6 Ω while the phase circuit has about 2.75 Ω.
+- At these small currents the loss is smaller than the 0.34 V per leg of the moves: from
+  the voltage balance with R = 2.75 Ω about 0.16 V per leg at 174 mA and 0.30 V at
+  256 mA. The loss grows with the current up to a few hundred mA, as in the loss tables
+  above. The band of 250 mA follows this only roughly.
+- In current drive the current error at the zero crossings, which the compensation
+  removes, is below the resolution of the captures: −16.5 ± 10 mA without, −20.2 ± 9.3 mA
+  with (mean deviation from a fitted sine within 300 mA of zero). On the motor model of
+  Stepper-C it drops from 16 to 3 mA with a band equal to the model's 50 mA transition,
+  and to 13 mA with 250 mA.
+- The current at rest is unchanged (30.8 and 33.2 mA rms at 24 V).

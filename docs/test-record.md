@@ -107,6 +107,7 @@ After the release: the bench build with `CONFIG_SSTEP_MOTOR_MCUVIEWER`, read wit
 | Current at rest at 12 V, full step | The same as at 24 V: 499.2 mA, 30.6 mA rms |
 | Effective dead time, two slow moves at 1.5 A | 24 V: 1.05 µs (set 1.2 µs), 0.50 V per leg. 12 V: 1.4 µs (1.25 and 1.51 µs per move), 0.34 V per leg. At each voltage the same above 250 mA |
 | Phase circuit resistance from the same fit | 2.79 Ω at 24 V, 2.74 Ω at 12 V, more than the 1.6 Ω of the motor data: open |
+| Dead-time compensation, Stepper-C 1.5.0, 1050 ns, 250 mA | Voltage drive, 12 V, 0.5 A reference: commanded voltage of phase A 798 → 1303 mV (+2 Vd), of phase B 0 → 253 mV (+Vd), current of phase A 174 → 256 mA. Current drive, 24 V: commanded voltage over current and current at rest unchanged, current shape at the zero crossings below the resolution |
 
 ### Problems found by these tests
 

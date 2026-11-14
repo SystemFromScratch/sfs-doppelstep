@@ -1,0 +1,73 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Scenario .deadtime: two motors in voltage drive on their own fake stages, one with the
+ * dead-time compensation of the ESC1 (1050 ns, 250 mA) and one without. The test compares
+ * their compare values (src/deadtime.c).
+ */
+
+/ {
+	stage_vd: fake-stage-vd {
+		compatible = "sfs,fake-power-stage";
+	};
+
+	stage_vd_comp: fake-stage-vd-comp {
+		compatible = "sfs,fake-power-stage";
+	};
+
+	motor_vd: motor-vd {
+		compatible = "sfs,sstep-motor";
+		power-stage = <&stage_vd>;
+		phase-resistance-milliohm = <1600>;
+		phase-inductance-microhenry = <3000>;
+		rated-current-milliamp = <2000>;
+		back-emf-uv-s-per-rad = <208600>;
+		full-steps-per-rev = <200>;
+		vbus-nominal-mv = <24000>;
+		vbus-min-mv = <10000>;
+		vbus-max-mv = <28000>;
+		trip-current-milliamp = <3500>;
+		voltage-drive;
+		slow-loop-hz = <1000>;
+		microsteps = <16>;
+		current-bandwidth-hz = <1000>;
+		run-current-milliamp = <1500>;
+		hold-current-milliamp = <1500>;
+		hold-delay-ms = <500>;
+		max-velocity = <16000>;
+		max-acceleration = <64000>;
+
+		motor_vd_drv: driver {
+			compatible = "sfs,sstep-stepper-driver";
+		};
+	};
+
+	motor_vd_comp: motor-vd-comp {
+		compatible = "sfs,sstep-motor";
+		power-stage = <&stage_vd_comp>;
+		phase-resistance-milliohm = <1600>;
+		phase-inductance-microhenry = <3000>;
+		rated-current-milliamp = <2000>;
+		back-emf-uv-s-per-rad = <208600>;
+		full-steps-per-rev = <200>;
+		vbus-nominal-mv = <24000>;
+		vbus-min-mv = <10000>;
+		vbus-max-mv = <28000>;
+		trip-current-milliamp = <3500>;
+		voltage-drive;
+		slow-loop-hz = <1000>;
+		microsteps = <16>;
+		current-bandwidth-hz = <1000>;
+		run-current-milliamp = <1500>;
+		hold-current-milliamp = <1500>;
+		hold-delay-ms = <500>;
+		max-velocity = <16000>;
+		max-acceleration = <64000>;
+		dead-time-comp-ns = <1050>;
+		dead-time-comp-band-milliamp = <250>;
+
+		motor_vd_comp_drv: driver {
+			compatible = "sfs,sstep-stepper-driver";
+		};
+	};
+};

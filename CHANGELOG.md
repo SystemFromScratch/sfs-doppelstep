@@ -8,6 +8,23 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Stepper-C v1.5.0 (was v1.4.0): dead-time compensation (`dead_time_comp_ns`,
+  `dead_time_comp_band_ma` of `struct sstep_stage_cfg`); the instance is 8 B larger on
+  Cortex-M4.
+
+### Added
+
+- **Dead-time compensation** (Stepper-C v1.5.0): motor properties `dead-time-comp-ns` and `dead-time-comp-band-milliamp`;
+  the B-G431B-ESC1 uses 1050 ns and 250 mA, the effective dead time measured with the
+  MCUViewer bench build at 24 V. `native_sim` keeps it off. ztest scenario
+  `doppelstep.drivers.sstep_motor.deadtime`: the term reaches the compare values
+  (+178 ticks on phase A, +89 on phase B at 1.5 A). Checked on the board in voltage drive
+  at 12 V, 0.5 A reference: the commanded voltage of phase A rises by 505 mV and that of
+  phase B by 253 mV as configured, the current of phase A from 174 to 256 mA
+  ([Measurements](docs/measurements.md#dead-time-compensation)).
+
 ## [0.3.0] - 2026-11-14
 
 ### Added

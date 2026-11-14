@@ -22,7 +22,7 @@ description: Development and maintenance rules for Doppelstep, the Zephyr RTOS 4
   `native_sim/native/64` (the same application as a Linux program, simulated
   motor always on, section 7). Planned next family: TI MSPM0 (`docs/porting.md`).
 - Libraries (west projects, no `zephyr/module.yml` of their own):
-  Stepper-C (`modules/lib/stepper-c`, v1.4.0: `sample_window_ticks`, `i_slew_ma_per_ms`, `sstep_selftest()`, `SSTEP_ERR_VBUS`),
+  Stepper-C (`modules/lib/stepper-c`, v1.5.0: `sample_window_ticks`, `i_slew_ma_per_ms`, `sstep_selftest()`, `SSTEP_ERR_VBUS`, `dead_time_comp_ns`),
   DYNAMIXEL-X430 emulator (`modules/lib/dynamixel-x430`, v1.0.0: functions return
   `X430_OK`/`X430_ERR_*` with values through pointers, NVM hooks `nvm_read`/`nvm_write` in
   parts at an offset, buffered as one NVS item in `drivers/x430/x430_nvm.c`), DXL2-C (`modules/lib/dxl2-c`, the tag `x430.cmake` expects),

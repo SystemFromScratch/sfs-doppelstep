@@ -42,6 +42,8 @@ The values for the 17HS19-2004S1 motor and the B-G431B-ESC1, from
 | `aux-trip` | set | The stage checks every leg at the trip current in its interrupt, also the shared leg W and in voltage drive |
 | `current-slew-ma-per-ms` | 30 | Largest change of the current amplitude: after Torque Enable the current rises from 0 (1.5 A in 50 ms), and between run and hold current; 0 = at once |
 | `selftest-current-milliamp` | 600 | Current of the self-test before the first Torque Enable; 0 = 30 % of the rated current |
+| `dead-time-comp-ns` | 1050 | Dead-time compensation of Stepper-C: the effective dead time whose voltage loss is added to the request; 0 = off. Measured on the board ([Measurements with MCUViewer](measurements.md#effective-dead-time)), not the 1200 ns of the timer |
+| `dead-time-comp-band-milliamp` | 250 | Current band of the compensation: the term rises linearly over 0 to 250 mA of the current reference |
 | `slow-loop-hz` | 1000 | Motion loop rate; the PWM rate must be an integer multiple |
 | `microsteps` | 16 | Microsteps per full step |
 | `current-bandwidth-hz` | 1000 | Bandwidth of the current controller |

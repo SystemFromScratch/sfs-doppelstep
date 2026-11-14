@@ -75,6 +75,8 @@ struct sstep_motor_config {
 	uint32_t accel_max;
 	uint32_t i_selftest_ma;
 	uint32_t i_slew_ma_per_ms;
+	uint32_t dead_time_comp_ns;
+	uint32_t dead_time_comp_band_ma;
 };
 
 struct sstep_motor_data {
@@ -878,6 +880,8 @@ static int build_config(const struct device *dev, struct sstep_config *out)
 			.pwm_period_ticks = ps->pwm_period_ticks,
 			.pwm_freq_hz = ps->pwm_freq_hz,
 			.dead_time_ns = ps->dead_time_ns,
+			.dead_time_comp_ns = cfg->dead_time_comp_ns,
+			.dead_time_comp_band_ma = cfg->dead_time_comp_band_ma,
 			.adc_i_zero = ps->adc_i_zero,
 			.adc_i_span = ps->adc_i_span,
 			.adc_vbus_mv_full = ps->adc_vbus_mv_full,
@@ -1005,6 +1009,8 @@ static int sstep_motor_init(const struct device *dev)
 		.v_max = DT_INST_PROP(n, max_velocity),                                            \
 		.accel_max = DT_INST_PROP(n, max_acceleration),                                    \
 		.i_slew_ma_per_ms = DT_INST_PROP(n, current_slew_ma_per_ms),                       \
+		.dead_time_comp_ns = DT_INST_PROP(n, dead_time_comp_ns),                           \
+		.dead_time_comp_band_ma = DT_INST_PROP(n, dead_time_comp_band_milliamp),           \
 		.i_selftest_ma = (DT_INST_PROP(n, selftest_current_milliamp) != 0)                 \
 					 ? DT_INST_PROP(n, selftest_current_milliamp)               \
 					 : DT_INST_PROP(n, rated_current_milliamp) * 3 / 10,        \

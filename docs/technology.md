@@ -12,7 +12,7 @@ the Python tools.
 |---|---|
 | Real-time operating system | **Zephyr RTOS v4.5.0**: drivers, devicetree, Kconfig, threads, sysbuild |
 | Bootloader | **MCUboot** with an RSA-2048 signature check and serial recovery |
-| Motor control | **Stepper-C** v1.4.0: closed-loop microstepping current control, the self-test of the bridge and the wiring |
+| Motor control | **Stepper-C** v1.5.0: closed-loop microstepping current control, the self-test of the bridge and the wiring, dead-time compensation |
 | Servo protocol | **DYNAMIXEL X430 Control Table Emulator** on **DXL2-C v1.0.0** (Protocol 2.0) |
 | Simulation | **Stepper-Lab** plant model, power stage values from **ngspice** (sfs-stepper-power-spice), Zephyr **native_sim** |
 | Hardware access | STM32Cube **LL drivers** (hal_stm32), **CMSIS 6**, **SEGGER RTT** |
@@ -65,7 +65,7 @@ Details: [Firmware update](firmware-update.md).
 
 | Item | Detail |
 |---|---|
-| Version | v1.4.0 (`west.yml`) |
+| Version | v1.5.0 (`west.yml`) |
 | Source | [github.com/AntonVynohradov/Stepper-C](https://github.com/AntonVynohradov/Stepper-C), SystemFromScratch® |
 | Role | Closed-loop microstepping current control of a two-phase stepper motor: the current controller (fast loop, 20 kHz), the motion profiles (slow loop, 1 kHz), current and voltage protection, the self-test before the first enable |
 | Why | A hardware-agnostic library in portable C, with no heap and no RTOS, that reaches the hardware only through callbacks. Doppelstep wraps it in a Zephyr driver instead of re-implementing control in the application |
