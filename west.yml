@@ -59,13 +59,14 @@ manifest:
       revision: v1.5.0
       path: modules/lib/stepper-c
 
-    # Release v1.0.0: application overrides of the model
+    # Release v1.1.0: several drives on one wire (Sync/Bulk Read take turns, Fast
+    # read of several buses stays silent); application overrides of the model
     # (CONFIG_X430_MODEL_OVERRIDES, app/x430_overrides.yaml). Keep dxl2-c at
     # the tag this release expects.
     - name: dynamixel-x430
       remote: antonvynohradov
       repo-path: DYNAMIXEL-X430-Control-Table-Emulator
-      revision: v1.0.0
+      revision: v1.1.0
       path: modules/lib/dynamixel-x430
 
     # Must match X430_DXL2_GIT_TAG of x430.cmake (v1.0.0 in the emulator's

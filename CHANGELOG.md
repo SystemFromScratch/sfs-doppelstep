@@ -10,12 +10,22 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ### Changed
 
+- DYNAMIXEL X430 emulator v1.1.0 (was v1.0.0): several drives on one bus. Sync Read and
+  Bulk Read take turns (a drive answers after the status packet of the ID before it, and
+  stays silent if it does not come within 100 ms); a Fast Sync/Bulk Read that lists other
+  IDs as well stays unanswered, so the ROS 2 hardware interface falls back to Sync Read.
+  The bus instance is 16 B larger (2,376 B on Cortex-M4 with one device). Checked with six `native_sim` drives on
+  one virtual bus behind the SmartManipulator-X Robot PC.
 - Stepper-C v1.5.0 (was v1.4.0): dead-time compensation (`dead_time_comp_ns`,
   `dead_time_comp_band_ma` of `struct sstep_stage_cfg`); the instance is 8 B larger on
   Cortex-M4.
 
 ### Added
 
+- **Single-wire DYNAMIXEL bus** (`app/single-wire.overlay`): USART2 in single-wire
+  half-duplex mode on PB3 (pad J3-2), open-drain, for several drives on one TTL bus like
+  X430-T servos. Built and checked in CI (`build-ci/esc1-single-wire`); not yet tested
+  on a board.
 - **Dead-time compensation** (Stepper-C v1.5.0): motor properties `dead-time-comp-ns` and `dead-time-comp-band-milliamp`;
   the B-G431B-ESC1 uses 1050 ns and 250 mA, the effective dead time measured with the
   MCUViewer bench build at 24 V. `native_sim` keeps it off. ztest scenario

@@ -118,6 +118,20 @@ in NVS. For a board that should start at 1 Mbps after every Factory Reset, set
 so over the Virtual COM Port the host sees one joint: set `factory-id` to the joint's ID (for
 example 11). Fast Sync/Bulk Read answers come only from the IDs of one emulator bus.
 
+### Several drives on one bus
+
+With the [single-wire build](hardware.md#the-dynamixel-bus) several Doppelstep drives share
+one bus, each with its own ID, like a chain of X430 servos (X430 emulator 1.1.0):
+
+- **Sync Read and Bulk Read take turns.** A drive answers only after it has received the
+  status packet of the ID listed just before it in the request (the first ID answers at
+  once), so the answers never collide. If that status does not come within 100 ms, or
+  the host sends its next instruction first, the drive stays silent.
+- **Fast Sync Read and Fast Bulk Read stay unanswered** when the request lists other IDs
+  as well: one drive cannot build the chained answer of several. The ROBOTIS ROS 2
+  hardware interface then falls back to Sync Read after 10 attempts. A request for the
+  drive's own ID alone is answered as before.
+
 The integration tests run this loop against the firmware with the official DynamixelSDK:
 Sync Read of current, velocity and position, Sync Write of the goal, at 100 Hz
 ([Tests](testing.md)).

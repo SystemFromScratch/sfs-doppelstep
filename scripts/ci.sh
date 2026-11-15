@@ -9,7 +9,8 @@
 #   1. dependencies between the layers (scripts/check-layers.sh), host-only tests
 #      of the GUI (tools/gui/tests: protocol, scenarios, update sequence)
 #   2. west workspace: init / update (scripts/west-init.sh)
-#   3. pristine builds without warnings: b_g431b_esc1 and b_g431b_esc1 + sim.overlay
+#   3. pristine builds without warnings: b_g431b_esc1, b_g431b_esc1 + sim.overlay and
+#      b_g431b_esc1 + single-wire.overlay (DYNAMIXEL bus on one wire)
 #      with sysbuild (MCUboot + signed application, then build_checks),
 #      native_sim (the test firmware)
 #   4. ztest suites with Twister (tests/app, tests/drivers) -> build-ci/twister
@@ -86,7 +87,7 @@ check() {
 
 # What the builds must contain (docs/firmware-update.md)
 build_checks() {
-    local esc1=build-ci/esc1 sim=build-ci/esc1-sim
+    local esc1=build-ci/esc1 sim=build-ci/esc1-sim wire=build-ci/esc1-single-wire
     echo "::group::build checks"
     check "MCUboot image" test -f "${esc1}/mcuboot/zephyr/zephyr.hex"
     check "signed application image" test -f "${esc1}/app/zephyr/zephyr.signed.bin"
@@ -109,6 +110,14 @@ build_checks() {
     check "sim.overlay not in MCUboot" \
         bash -c "test -f '${sim}/mcuboot/zephyr/zephyr.dts' &&
                  ! grep -q 'sfs,sim-power-stage' '${sim}/mcuboot/zephyr/zephyr.dts'"
+    check "single-wire.overlay: USART2 in single-wire mode in the application" \
+        grep -q 'single-wire;' "${wire}/app/zephyr/zephyr.dts"
+    check "single-wire.overlay: PB3 open-drain in the application" \
+        bash -c "grep -A3 'usart2_tx_pb3: usart2_tx_pb3' '${wire}/app/zephyr/zephyr.dts' |
+                 grep -q 'drive-open-drain;'"
+    check "single-wire.overlay not in MCUboot (serial recovery stays full duplex)" \
+        bash -c "test -f '${wire}/mcuboot/zephyr/zephyr.dts' &&
+                 ! grep -q 'single-wire;' '${wire}/mcuboot/zephyr/zephyr.dts'"
     check "DYNAMIXEL Reboot resets the MCU on the board" \
         grep -q '^CONFIG_SFS_DXL_REBOOT_RESETS_MCU=y$' "${esc1}/app/zephyr/.config"
     check "DYNAMIXEL Reboot stays emulated on native_sim" \
@@ -123,6 +132,8 @@ build_checks() {
 build esc1 --sysbuild -b b_g431b_esc1 -s app -d build-ci/esc1
 build esc1-sim --sysbuild -b b_g431b_esc1 -s app -d build-ci/esc1-sim \
     -- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay "${sim_args[@]}"
+build esc1-single-wire --sysbuild -b b_g431b_esc1 -s app -d build-ci/esc1-single-wire \
+    -- -DEXTRA_DTC_OVERLAY_FILE=single-wire.overlay
 build esc1-mcuviewer --sysbuild -b b_g431b_esc1 -s app -d build-ci/esc1-mcuviewer \
     -- -DEXTRA_CONF_FILE=mcuviewer.conf
 build native-tests -b native_sim/native/64 -s app -d build-tests \

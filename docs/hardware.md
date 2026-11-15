@@ -105,9 +105,25 @@ of stepping it: 1.5 A in 50 ms, so the supply sees no current step.
 
 ## The DYNAMIXEL bus
 
-The bus is **USART2** (PB3 TX, PB4 RX), for now through the ST-LINK Virtual COM Port of the
-debugger, at 57600 bps from the factory (the Baud Rate register, up to 4.5 Mbps). A DYNAMIXEL X430-T has no direction pin either: for a TTL half-duplex
-bus later, USART2 can run in single-wire mode (`single-wire;` on `&usart2`, TX pin only).
+The bus is **USART2** (PB3 TX, PB4 RX), at 57600 bps from the factory (the Baud Rate
+register, up to 4.5 Mbps). It runs in one of two ways:
+
+| Build | Link | Use |
+| --- | --- | --- |
+| Default | Full duplex through the ST-LINK Virtual COM Port of the debugger | One drive on the PC: bench, DYNAMIXEL Wizard, GUI |
+| `-DEXTRA_DTC_OVERLAY_FILE=single-wire.overlay` | One wire, TTL half-duplex like an X430-T: USART2 in single-wire mode on PB3 (pad J3-2), open-drain; PB4 unused | Several drives and the master on one bus |
+
+```bash
+west build -p always --sysbuild -b b_g431b_esc1 -s app -d build -- -DEXTRA_DTC_OVERLAY_FILE=single-wire.overlay
+```
+
+On the single wire every device only pulls the line low; the one pull-up of the bus is at
+the master. The drive receives the echo of its own bytes and ignores it. Several drives
+answer a Sync Read or Bulk Read one after the other, each after the status of the ID before
+it ([DYNAMIXEL emulation](dynamixel.md#several-drives-on-one-bus)). The ST-LINK Virtual COM
+Port shares PB3/PB4 through R23/R24: leave its USB unplugged on the bus. MCUboot keeps the
+full-duplex UART for serial recovery. The single-wire build is checked in CI (devicetree);
+it is not yet tested on a board.
 Because USART2 carries the bus, the console and the log use SEGGER RTT through the debug
 probe.
 

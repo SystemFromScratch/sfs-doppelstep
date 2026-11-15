@@ -1,0 +1,26 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * DYNAMIXEL bus on one wire (TTL half-duplex, like the X series): USART2 in
+ * single-wire mode on PB3 (pad J3-2), open-drain, for the shared bus of the arm.
+ *   west build --sysbuild -b b_g431b_esc1 -s app -- -DEXTRA_DTC_OVERLAY_FILE=single-wire.overlay
+ *
+ * Every device only pulls the line low; the single pull-up of the bus is at the
+ * master (the bus interface of the Robot PC). PB4 (J3-3) stays unused. The ST-LINK
+ * virtual COM port shares PB3/PB4 (R23/R24): leave its USB unplugged on the bus.
+ * The drive receives the echo of its own bytes; the X430 bus decodes it as a status
+ * packet and ignores it. MCUboot keeps the full-duplex UART (serial recovery over
+ * the ST-LINK virtual COM port). See docs/hardware.md, "The DYNAMIXEL bus".
+ */
+
+&usart2 {
+	single-wire;
+	pinctrl-0 = <&usart2_tx_pb3>;
+	pinctrl-names = "default";
+};
+
+&usart2_tx_pb3 {
+	/delete-property/ drive-push-pull;
+	drive-open-drain;
+	bias-pull-up;
+};
