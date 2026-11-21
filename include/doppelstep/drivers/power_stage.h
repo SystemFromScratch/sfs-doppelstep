@@ -94,6 +94,12 @@ struct power_stage_stats {
 #define POWER_STAGE_TRIP_HW_OC BIT(2)
 /** As POWER_STAGE_TRIP_HW_OC, for a bus voltage above the hardware level. */
 #define POWER_STAGE_TRIP_HW_OV BIT(3)
+/**
+ * The gate driver reported a fault of its own (DRV8412 FAULT: overcurrent or
+ * overtemperature shutdown, undervoltage of its supply) while the outputs were on. The
+ * backend has switched the outputs off; latched: they stay off until a reset.
+ */
+#define POWER_STAGE_TRIP_DRIVER BIT(4)
 /** @} */
 
 /**

@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Simulated shaft encoder: the angle of the rotor of a simulated power stage
+  (sfs,sim-power-stage), through the sensor API (SENSOR_CHAN_ROTATION in
+  degrees), as the MA730 on the full-bridge board gives it. Resolution: one
+  microstep of the model. The angle follows the rotor of the model, not the
+  coordinate of the motor driver.
+
+compatible: "sfs,sim-encoder"
+
+include: sensor-device.yaml
+
+properties:
+  stage:
+    type: phandle
+    required: true
+    description: Simulated power stage whose rotor the encoder sees.
+
+  mount-offset:
+    type: int
+    default: 0
+    description: |
+      Angle the encoder reads with the rotor at its start angle [1/65536
+      revolution]: the mounting of the magnet.

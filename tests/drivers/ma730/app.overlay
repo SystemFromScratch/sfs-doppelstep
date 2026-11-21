@@ -1,0 +1,30 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Two MA730 on an emulated SPI bus: one as mounted, one reversed with a zero offset.
+ */
+
+/ {
+	spi_emul: spi@bad00000 {
+		reg = <0xbad00000 0x100>;
+		compatible = "zephyr,spi-emul-controller";
+		clock-frequency = <10000000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		encoder: ma730@0 {
+			compatible = "sfs,ma730";
+			reg = <0>;
+			spi-max-frequency = <10000000>;
+		};
+
+		encoder_rev: ma730@1 {
+			compatible = "sfs,ma730";
+			reg = <1>;
+			spi-max-frequency = <10000000>;
+			reverse;
+			zero-offset = <1000>;
+		};
+	};
+};

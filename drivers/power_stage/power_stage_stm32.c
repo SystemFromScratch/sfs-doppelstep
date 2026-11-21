@@ -16,9 +16,11 @@
  * high side while CNT < CCRx), the only moment the low-side shunts carry the
  * phase currents. The end of the ADC1 injected sequence runs the fast loop.
  *
- * Optional hardware trips (hw-trip-current-milliamp, hw-trip-vbus-mv): COMP1/2/4
- * watch the OPAMP inputs against DAC3, COMP3 the bus divider against DAC1; they
- * drive the break inputs BRK and BRK2 of the timer, which clear MOE in hardware.
+ * Optional hardware trips (hw-trip-current-milliamp, hw-trip-vbus-mv): comparators
+ * of the Zephyr comparator driver watch the OPAMP inputs and the bus divider against
+ * DAC levels of the Zephyr DAC driver (the negative input of each comparator node
+ * names its DAC channel); they drive the break inputs BRK and BRK2 of the timer,
+ * which clear MOE in hardware. Timer, ADCs and break routing: stm32_pwm_adc.h.
  */
 
 #define DT_DRV_COMPAT sfs_stm32_shared_leg_power_stage
@@ -28,7 +30,6 @@
 
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
-#include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/clock_control/stm32_clock_control.h>
 #include <zephyr/drivers/opamp.h>
 #include <zephyr/drivers/pinctrl.h>
@@ -36,14 +37,12 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include <stm32_ll_adc.h>
-#include <stm32_ll_tim.h>
-
 #include <doppelstep/drivers/power_stage.h>
 
 #include "hw_trip.h"
 #include "ntc.h"
 #include "power_stage_scaling.h"
+#include "stm32_pwm_adc.h"
 
 LOG_MODULE_REGISTER(power_stage, CONFIG_POWER_STAGE_LOG_LEVEL);
 
@@ -93,20 +92,28 @@ BUILD_ASSERT(DT_NODE_HAS_PROP(PS_NODE, ntc_r25_ohm) && DT_NODE_HAS_PROP(PS_NODE,
 #define HAS_OFFSET_WINDOW DT_NODE_HAS_PROP(PS_NODE, current_offset_min_counts)
 BUILD_ASSERT(HAS_OFFSET_WINDOW == DT_NODE_HAS_PROP(PS_NODE, current_offset_max_counts),
 	     "current-offset-min-counts and current-offset-max-counts go together");
-#if HAS_HW_OC || HAS_HW_OV
-#include <stm32_ll_bus.h>
-#include <stm32_ll_comp.h>
-#include <stm32_ll_dac.h>
-/* fDTS / 16, N = 5 at 170 MHz: 0.47 us, longer than the switching spikes */
-#define BREAK_FILTER LL_TIM_BREAK_FILTER_FDIV16_N5
-#define BREAK2_FILTER LL_TIM_BREAK2_FILTER_FDIV16_N5
-#endif
-
+BUILD_ASSERT(HAS_HW_OC == DT_NODE_HAS_PROP(PS_NODE, hw_trip_current_comparators),
+	     "hw-trip-current-milliamp and hw-trip-current-comparators go together");
+BUILD_ASSERT(HAS_HW_OV == DT_NODE_HAS_PROP(PS_NODE, hw_trip_vbus_comparator),
+	     "hw-trip-vbus-mv and hw-trip-vbus-comparator go together");
 /* Fast-loop interrupt: end of the injected sequence of the master ADC. */
 #define ADC_IRQN DT_IRQN(ADCM_NODE)
 #define ADC_IRQ_PRIO 0
 
 PINCTRL_DT_DEFINE(PS_NODE);
+
+#if HAS_HW_OC
+BUILD_ASSERT(DT_PROP_LEN(PS_NODE, hw_trip_current_comparators) == 3,
+	     "three current comparators expected (U, V, W)");
+DT_FOREACH_PROP_ELEM(PS_NODE, hw_trip_current_comparators, STM32_PA_TRIP_COMP_OKAY)
+static const struct stm32_pa_trip_comp oc_comps[] = {
+	DT_FOREACH_PROP_ELEM_SEP(PS_NODE, hw_trip_current_comparators, STM32_PA_TRIP_COMP_BY_IDX, (,))};
+#endif
+#if HAS_HW_OV
+STM32_PA_TRIP_COMP_OKAY(PS_NODE, hw_trip_vbus_comparator, 0)
+static const struct stm32_pa_trip_comp ov_comp =
+	STM32_PA_TRIP_COMP_BY_IDX(PS_NODE, hw_trip_vbus_comparator, 0);
+#endif
 
 #define OPAMP_DEV(idx, _) DEVICE_DT_GET(DT_PHANDLE_BY_IDX(PS_NODE, opamps, idx))
 static const struct device *const opamps[] = {LISTIFY(3, OPAMP_DEV, (,))};
@@ -175,7 +182,7 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 			cal_sum_w += raw_w;
 			cal_remaining--;
 		} else if (fn != NULL) {
-			const uint32_t start = DWT->CYCCNT;
+			const uint32_t start = stm32_pa_cycles();
 			const struct power_stage_sample sample = {
 				.i_a = recentre(raw_u, offset_u),
 				.i_b = recentre(raw_v, offset_v),
@@ -212,7 +219,7 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 #endif
 
 			fn(&sample, trips, fast_ctx);
-			const uint32_t cycles = DWT->CYCCNT - start;
+			const uint32_t cycles = stm32_pa_cycles() - start;
 
 			if (cycles > fast_cycles_max) {
 				fast_cycles_max = cycles;
@@ -234,50 +241,6 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 }
 
 /* ------------------------------------------------------------------------ */
-
-/* TIMx_BDTR.DTG for a dead time of `ticks` timer clock periods (CKD = 1). */
-static uint32_t dead_time_dtg(uint32_t ticks)
-{
-	if (ticks <= 127U) {
-		return ticks;
-	}
-	if (ticks <= 2U * (64U + 63U)) {
-		return 0x80U | ((ticks + 1U) / 2U - 64U);
-	}
-	if (ticks <= 8U * (32U + 31U)) {
-		return 0xC0U | ((ticks + 7U) / 8U - 32U);
-	}
-	if (ticks <= 16U * (32U + 31U)) {
-		return 0xE0U | ((ticks + 15U) / 16U - 32U);
-	}
-	return 0xFFU;
-}
-
-static int clocks_on(void)
-{
-	const struct device *const clk = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE);
-	uint32_t rate = 0U;
-	int ret;
-
-	if (!device_is_ready(clk)) {
-		return -ENODEV;
-	}
-
-	ret = clock_control_on(clk, (clock_control_subsys_t)&tim_clk[0]);
-	if (ret == 0) {
-		ret = clock_control_on(clk, (clock_control_subsys_t)&adc_clk[0]);
-	}
-	if (ret == 0) {
-		/* Second clock cell of the timer: kernel clock (TIMPCLKx) */
-		ret = clock_control_get_rate(clk, (clock_control_subsys_t)&tim_clk[1], &rate);
-	}
-	if (ret != 0) {
-		LOG_ERR("clock setup failed (%d)", ret);
-		return ret;
-	}
-	info.timer_clock_hz = rate;
-	return 0;
-}
 
 static int opamps_init(void)
 {
@@ -303,9 +266,7 @@ static void timer_init(void)
 {
 	TIM_TypeDef *const tim = TIMx;
 	const uint32_t arr = info.timer_clock_hz / (2U * info.pwm_freq_hz);
-	const uint32_t dt_ticks =
-		(uint32_t)(((uint64_t)info.dead_time_ns * info.timer_clock_hz + 999999999U) /
-			   1000000000U);
+	const uint32_t dt_ticks = stm32_pa_ns_to_ticks(info.dead_time_ns, info.timer_clock_hz);
 	static const uint32_t legs[] = {LL_TIM_CHANNEL_CH1, LL_TIM_CHANNEL_CH2,
 					LL_TIM_CHANNEL_CH3};
 	static const uint32_t legs_n[] = {LL_TIM_CHANNEL_CH1N, LL_TIM_CHANNEL_CH2N,
@@ -316,49 +277,26 @@ static void timer_init(void)
 	 * side of the top of the counter
 	 */
 	info.sample_window_ticks = (uint16_t)MIN(
-		((uint64_t)DT_PROP(PS_NODE, sample_window_ns) * info.timer_clock_hz + 999999999U) /
-			1000000000U,
+		stm32_pa_ns_to_ticks(DT_PROP(PS_NODE, sample_window_ns), info.timer_clock_hz),
 		arr / 4U);
 
-	LL_TIM_DisableCounter(tim);
-	LL_TIM_DisableAllOutputs(tim);
-
-	LL_TIM_SetPrescaler(tim, 0U);
-	LL_TIM_SetCounterMode(tim, LL_TIM_COUNTERMODE_CENTER_UP);
-	LL_TIM_SetClockDivision(tim, LL_TIM_CLOCKDIVISION_DIV1);
-	LL_TIM_SetAutoReload(tim, arr);
-	LL_TIM_EnableARRPreload(tim);
-	LL_TIM_SetRepetitionCounter(tim, 0U);
-
+	stm32_pa_timer_base(tim, arr);
 	for (size_t i = 0; i < ARRAY_SIZE(legs); i++) {
-		LL_TIM_OC_SetMode(tim, legs[i], LL_TIM_OCMODE_PWM1);
-		LL_TIM_OC_ConfigOutput(tim, legs[i], LL_TIM_OCPOLARITY_HIGH | LL_TIM_OCIDLESTATE_LOW);
-		LL_TIM_OC_ConfigOutput(tim, legs_n[i],
-				       LL_TIM_OCPOLARITY_HIGH | LL_TIM_OCIDLESTATE_LOW);
-		LL_TIM_OC_EnablePreload(tim, legs[i]);
+		stm32_pa_timer_leg(tim, legs[i], legs_n[i], arr);
 	}
-	LL_TIM_OC_SetCompareCH1(tim, arr / 2U);
-	LL_TIM_OC_SetCompareCH2(tim, arr / 2U);
-	LL_TIM_OC_SetCompareCH3(tim, arr / 2U);
-
-	/* ADC trigger: OC4REF rising just before the top of the counter */
-	LL_TIM_OC_SetMode(tim, LL_TIM_CHANNEL_CH4, LL_TIM_OCMODE_PWM2);
-	LL_TIM_OC_SetCompareCH4(tim, arr - 1U);
-	LL_TIM_OC_EnablePreload(tim, LL_TIM_CHANNEL_CH4);
-	LL_TIM_SetTriggerOutput2(tim, LL_TIM_TRGO2_OC4);
+	(void)stm32_pa_timer_adc_trigger(tim, LL_TIM_CHANNEL_CH4, arr);
 
 	/* Off-state: with MOE = 0 the outputs go to their idle level (low), so
 	 * both switches of every leg are off (legs high impedance).
 	 */
 	LL_TIM_SetOffStates(tim, LL_TIM_OSSI_ENABLE, LL_TIM_OSSR_ENABLE);
-	LL_TIM_OC_SetDeadTime(tim, dead_time_dtg(dt_ticks));
+	LL_TIM_OC_SetDeadTime(tim, stm32_pa_dead_time_dtg(dt_ticks));
 
 	LL_TIM_CC_EnableChannel(tim, LL_TIM_CHANNEL_CH1 | LL_TIM_CHANNEL_CH1N |
 					     LL_TIM_CHANNEL_CH2 | LL_TIM_CHANNEL_CH2N |
 					     LL_TIM_CHANNEL_CH3 | LL_TIM_CHANNEL_CH3N);
 
-	LL_TIM_GenerateEvent_UPDATE(tim);
-	LL_TIM_EnableCounter(tim);
+	stm32_pa_timer_start(tim);
 
 	LOG_INF("TIM1: %u Hz clock, ARR %u (%u Hz), dead time %u ns (%u ticks), sample window "
 		"%u ticks",
@@ -367,92 +305,63 @@ static void timer_init(void)
 }
 
 #if HAS_HW_OC || HAS_HW_OV
-
-/* DAC channel to the comparators only (no pin), at full scale: no trip before
- * calibration sets the level.
+/* The comparators run from their driver's init: only the DAC levels and the break
+ * routing are left.
  */
-static void dac_internal(DAC_TypeDef *dac, uint32_t channel)
+static int hw_trips_init(void)
 {
-	LL_DAC_SetHighFrequencyMode(dac, LL_DAC_HIGH_FREQ_MODE_ABOVE_160MHZ);
-	LL_DAC_ConfigOutput(dac, channel, LL_DAC_OUTPUT_MODE_NORMAL, LL_DAC_OUTPUT_BUFFER_DISABLE,
-			    LL_DAC_OUTPUT_CONNECT_INTERNAL);
-	LL_DAC_ConvertData12RightAligned(dac, channel, HW_TRIP_DAC_FULL);
-	LL_DAC_Enable(dac, channel);
-}
+	uint32_t brk = 0U;
+	uint32_t brk2 = 0U;
+	int ret;
 
-/* Output high while the input (pin IO1) is above the DAC level */
-static void comp_on(COMP_TypeDef *comp, uint32_t input_minus)
-{
-	LL_COMP_SetInputPlus(comp, LL_COMP_INPUT_PLUS_IO1);
-	LL_COMP_SetInputMinus(comp, input_minus);
-	LL_COMP_SetInputHysteresis(comp, LL_COMP_HYSTERESIS_NONE);
-	LL_COMP_SetOutputPolarity(comp, LL_COMP_OUTPUTPOL_NONINVERTED);
-	LL_COMP_SetOutputBlankingSource(comp, LL_COMP_BLANKINGSRC_NONE);
-	LL_COMP_Enable(comp);
-}
-
-static void hw_trips_init(void)
-{
-	TIM_TypeDef *const tim = TIMx;
-
-	LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG); /* COMP registers */
 #if HAS_HW_OC
-	/* COMPx INP IO1: PA1, PA7, PB0 = OPAMP1..3 non-inverting inputs */
-	LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_DAC3);
-	dac_internal(DAC3, LL_DAC_CHANNEL_1);
-	dac_internal(DAC3, LL_DAC_CHANNEL_2);
-	comp_on(COMP1, LL_COMP_INPUT_MINUS_DAC3_CH1);
-	comp_on(COMP2, LL_COMP_INPUT_MINUS_DAC3_CH2);
-	comp_on(COMP4, LL_COMP_INPUT_MINUS_DAC3_CH2);
+	for (size_t i = 0; i < ARRAY_SIZE(oc_comps); i++) {
+		ret = stm32_pa_trip_comp_init(&oc_comps[i]);
+		if (ret != 0) {
+			return ret;
+		}
+		brk |= stm32_pa_break_source(oc_comps[i].regs);
+	}
 #endif
 #if HAS_HW_OV
-	/* COMP3 INP IO1: PA0, the bus divider */
-	LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_DAC1);
-	dac_internal(DAC1, LL_DAC_CHANNEL_1);
-	comp_on(COMP3, LL_COMP_INPUT_MINUS_DAC1_CH1);
+	ret = stm32_pa_trip_comp_init(&ov_comp);
+	if (ret != 0) {
+		return ret;
+	}
+	brk2 = stm32_pa_break_source(ov_comp.regs);
 #endif
+	ARG_UNUSED(ret);
 	k_busy_wait(10); /* comparator start-up, DAC settling */
 
-	/* The break pins are not used: their sources are enabled after reset */
-	LL_TIM_DisableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN, LL_TIM_BKIN_SOURCE_BKIN);
-	LL_TIM_DisableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN2, LL_TIM_BKIN_SOURCE_BKIN);
-#if HAS_HW_OC
-	LL_TIM_EnableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN, LL_TIM_BKIN_SOURCE_BKCOMP1);
-	LL_TIM_EnableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN, LL_TIM_BKIN_SOURCE_BKCOMP2);
-	LL_TIM_EnableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN, LL_TIM_BKIN_SOURCE_BKCOMP4);
-	LL_TIM_ConfigBRK(tim, LL_TIM_BREAK_POLARITY_HIGH, BREAK_FILTER, LL_TIM_BREAK_AFMODE_INPUT);
-	LL_TIM_ClearFlag_BRK(tim);
-	LL_TIM_EnableBRK(tim);
-#endif
-#if HAS_HW_OV
-	LL_TIM_EnableBreakInputSource(tim, LL_TIM_BREAK_INPUT_BKIN2, LL_TIM_BKIN_SOURCE_BKCOMP3);
-	LL_TIM_ConfigBRK2(tim, LL_TIM_BREAK2_POLARITY_HIGH, BREAK2_FILTER,
-			  LL_TIM_BREAK2_AFMODE_INPUT);
-	LL_TIM_ClearFlag_BRK2(tim);
-	LL_TIM_EnableBRK2(tim);
-#endif
+	stm32_pa_break_init(TIMx, brk, brk2);
+	return 0;
 }
 
 #if HAS_HW_OC
-/* Gain of the PGA from its non-inverting input */
-static uint32_t pga_gain(void)
+/* Gain from the non-inverting input of the amplifiers to the ADC, x1000 */
+static uint32_t oc_input_gain_milli(void)
 {
+#if DT_NODE_HAS_PROP(PS_NODE, hw_trip_current_input_gain_milli)
+	return DT_PROP(PS_NODE, hw_trip_current_input_gain_milli);
+#else
+	/* PGA of the on-chip OPAMPs */
 	switch (DT_STRING_TOKEN(PS_NODE, opamp_gain)) {
 	case OPAMP_GAIN_2:
-		return 2U;
+		return 2000U;
 	case OPAMP_GAIN_4:
-		return 4U;
+		return 4000U;
 	case OPAMP_GAIN_8:
-		return 8U;
+		return 8000U;
 	case OPAMP_GAIN_16:
-		return 16U;
+		return 16000U;
 	case OPAMP_GAIN_32:
-		return 32U;
+		return 32000U;
 	case OPAMP_GAIN_64:
-		return 64U;
+		return 64000U;
 	default:
-		return 1U; /* level too high: the software trips still act */
+		return 1000U; /* level too high: the software trips still act */
 	}
+#endif
 }
 #endif
 
@@ -461,82 +370,49 @@ static void hw_trips_arm(void)
 {
 #if HAS_HW_OC
 	const uint32_t trip_ma = DT_PROP(PS_NODE, hw_trip_current_milliamp);
-	const uint16_t dac_u = hw_trip_oc_dac(offset_u, trip_ma, info.i_full_scale_ma, pga_gain());
-	const uint16_t dac_vw = hw_trip_oc_dac(MAX(offset_v, offset_w), trip_ma,
-					       info.i_full_scale_ma, pga_gain());
+	const uint16_t offsets[] = {offset_u, offset_v, offset_w};
+	uint16_t level[ARRAY_SIZE(oc_comps)];
 
-	LL_DAC_ConvertData12RightAligned(DAC3, LL_DAC_CHANNEL_1, dac_u);
-	LL_DAC_ConvertData12RightAligned(DAC3, LL_DAC_CHANNEL_2, dac_vw);
-	LOG_INF("hardware overcurrent trip %u mA: DAC3 %u, %u", trip_ma, dac_u, dac_vw);
+	BUILD_ASSERT(ARRAY_SIZE(offsets) == ARRAY_SIZE(oc_comps));
+	for (size_t i = 0; i < ARRAY_SIZE(oc_comps); i++) {
+		level[i] = hw_trip_oc_dac(offsets[i], trip_ma, info.i_full_scale_ma,
+					  oc_input_gain_milli());
+	}
+	/* Comparators that share a DAC channel get the highest of their levels */
+	for (size_t i = 0; i < ARRAY_SIZE(oc_comps); i++) {
+		for (size_t j = 0; j < ARRAY_SIZE(oc_comps); j++) {
+			if ((oc_comps[j].dac == oc_comps[i].dac) &&
+			    (oc_comps[j].dac_channel == oc_comps[i].dac_channel)) {
+				level[i] = MAX(level[i], level[j]);
+			}
+		}
+	}
+	for (size_t i = 0; i < ARRAY_SIZE(oc_comps); i++) {
+		(void)dac_write_value(oc_comps[i].dac, oc_comps[i].dac_channel, level[i]);
+	}
+	LOG_INF("hardware overcurrent trip %u mA: DAC levels U %u, V %u, W %u", trip_ma, level[0],
+		level[1], level[2]);
 #endif
 #if HAS_HW_OV
 	const uint32_t trip_mv = DT_PROP(PS_NODE, hw_trip_vbus_mv);
 	const uint16_t dac_vbus = hw_trip_vbus_dac(trip_mv, info.adc_vbus_mv_full, ADC_FULL);
 
-	LL_DAC_ConvertData12RightAligned(DAC1, LL_DAC_CHANNEL_1, dac_vbus);
-	LOG_INF("hardware overvoltage trip %u mV: DAC1 %u", trip_mv, dac_vbus);
+	(void)dac_write_value(ov_comp.dac, ov_comp.dac_channel, dac_vbus);
+	LOG_INF("hardware overvoltage trip %u mV: DAC level %u", trip_mv, dac_vbus);
 #endif
 }
 
 #endif /* HAS_HW_OC || HAS_HW_OV */
 
-static int adc_wait(ADC_TypeDef *adc, uint32_t (*busy)(const ADC_TypeDef *))
-{
-	for (uint32_t i = 0U; i < 100000U; i++) {
-		if (busy(adc) == 0U) {
-			return 0;
-		}
-		k_busy_wait(1);
-	}
-	return -ETIMEDOUT;
-}
-
-static uint32_t adc_cal_busy(const ADC_TypeDef *adc)
-{
-	return LL_ADC_IsCalibrationOnGoing(adc);
-}
-
-static uint32_t adc_not_ready(const ADC_TypeDef *adc)
-{
-	return (LL_ADC_IsActiveFlag_ADRDY(adc) != 0U) ? 0U : 1U;
-}
-
-static int adc_setup(ADC_TypeDef *adc)
-{
-	int ret;
-
-	LL_ADC_DisableDeepPowerDown(adc);
-	LL_ADC_EnableInternalRegulator(adc);
-	k_busy_wait(LL_ADC_DELAY_INTERNAL_REGUL_STAB_US);
-
-	LL_ADC_StartCalibration(adc, LL_ADC_SINGLE_ENDED);
-	ret = adc_wait(adc, adc_cal_busy);
-	if (ret != 0) {
-		return ret;
-	}
-	/* LL_ADC_DELAY_CALIB_ENABLE_ADC_CYCLES ADC clock cycles (>= 4 at 42.5 MHz) */
-	k_busy_wait(1);
-
-	LL_ADC_SetResolution(adc, LL_ADC_RESOLUTION_12B);
-	LL_ADC_SetDataAlignment(adc, LL_ADC_DATA_ALIGN_RIGHT);
-	LL_ADC_INJ_SetQueueMode(adc, LL_ADC_INJ_QUEUE_DISABLE);
-	LL_ADC_INJ_SetTrigAuto(adc, LL_ADC_INJ_TRIG_INDEPENDENT);
-
-	LL_ADC_ClearFlag_ADRDY(adc);
-	LL_ADC_Enable(adc);
-	return adc_wait(adc, adc_not_ready);
-}
-
 static int adcs_init(void)
 {
 	int ret;
 
-	/* Synchronous ADC clock: HCLK / 4 = 42.5 MHz (max. 60 MHz) */
-	LL_ADC_SetCommonClock(__LL_ADC_COMMON_INSTANCE(ADC_M), LL_ADC_CLOCK_SYNC_PCLK_DIV4);
+	stm32_pa_adc_common_clock(ADC_M);
 
-	ret = adc_setup(ADC_M);
+	ret = stm32_pa_adc_setup(ADC_M);
 	if (ret == 0) {
-		ret = adc_setup(ADC_S);
+		ret = stm32_pa_adc_setup(ADC_S);
 	}
 	if (ret != 0) {
 		LOG_ERR("ADC setup failed (%d)", ret);
@@ -596,7 +472,7 @@ static int stm32_init(const struct device *dev)
 
 	scaling_init();
 
-	ret = clocks_on();
+	ret = stm32_pa_clocks_on(tim_clk, adc_clk, &info.timer_clock_hz);
 	if (ret != 0) {
 		return ret;
 	}
@@ -611,7 +487,10 @@ static int stm32_init(const struct device *dev)
 	 */
 	timer_init();
 #if HAS_HW_OC || HAS_HW_OV
-	hw_trips_init();
+	ret = hw_trips_init();
+	if (ret != 0) {
+		return ret;
+	}
 #endif
 
 	ret = pinctrl_apply_state(PINCTRL_DT_DEV_CONFIG_GET(PS_NODE), PINCTRL_STATE_DEFAULT);
@@ -626,8 +505,7 @@ static int stm32_init(const struct device *dev)
 	}
 
 	/* Cycle counter for the fast_cycles_max statistic */
-	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+	stm32_pa_cycle_counter_on();
 
 	IRQ_DIRECT_CONNECT(ADC_IRQN, ADC_IRQ_PRIO, power_stage_adc_isr, IRQ_ZERO_LATENCY);
 	irq_enable(ADC_IRQN);

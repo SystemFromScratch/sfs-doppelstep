@@ -106,3 +106,11 @@ with or endorsed by their owners.
 
 Doppelstep builds on the work of the Zephyr Project, MCUboot, STMicroelectronics (STM32Cube),
 SEGGER (RTT) and ROBOTIS (DynamixelSDK, the published Control Table of the XM430-W350).
+
+The second board of Doppelstep, the [full-bridge board with the DRV8412](hardware-full-bridge.md),
+is the Stepper Motor FOC Closed-Loop Driver of
+[Awesome-SMT-Machine](https://github.com/baoqi-zhong/Awesome-SMT-Machine) by
+[Ziyang Zhong](https://baoqi-zhong.github.io/) and [Ziming Xian](https://github.com/ZimingXian):
+Ziming Xian designed the PCB, Ziyang Zhong brought up its software. Many thanks to both of them
+for publishing the design, for agreeing that Doppelstep references their project, and for
+their support.

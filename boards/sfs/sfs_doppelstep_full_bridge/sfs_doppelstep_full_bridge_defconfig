@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Serial driver (USART3 on J4: DYNAMIXEL bus)
+CONFIG_SERIAL=y
+
+# No console UART on the board: J4 carries the DYNAMIXEL bus, logs go over the
+# debug probe (RTT, application configuration).
+CONFIG_CONSOLE=y
+CONFIG_UART_CONSOLE=n
+
+# Enable MPU
+CONFIG_ARM_MPU=y
+
+# Enable HW stack protection
+CONFIG_HW_STACK_PROTECTION=y
+
+# GPIO (reset, fault and warning pins of the DRV8412, user button)
+CONFIG_GPIO=y
+
+# Link into /chosen/zephyr,code-partition (keeps storage_partition free)
+CONFIG_USE_DT_CODE_PARTITION=y

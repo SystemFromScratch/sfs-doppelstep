@@ -111,7 +111,8 @@ Or use the VS Code task **Zephyr: Pristine Build (simulated motor)**. TIM1 and t
 keep the real timing, and the samples come from the model. The simulation backend never
 switches the outputs of the real stage, so the main output enable (MOE) stays off and the board runs with or without a motor and bus voltage.
 The RTT log shows the commanded and rotor position, the lag in electrical degrees, the
-currents, and the longest fast-loop callback in cycles and µs.
+currents, the shaft angle as an encoder sees it (`shaft N usteps`), and the longest fast-loop
+callback in cycles and µs.
 
 ### Flash budget
 
@@ -179,7 +180,8 @@ are described in [SIL and integration tests](testing.md).
 ## Limits
 
 - Present Position and Present Velocity are the commanded values, as with the real
-  motor, which has no encoder. The rotor position of the model appears only in the log.
+  motor on the B-G431B-ESC1, which has no encoder. On `native_sim`, `-sim_encoder` fits a
+  simulated encoder on the shaft of the model ([Encoder of the joint](encoder.md#in-the-simulation)).
 - The rotor of the model is never exactly still. With the 12-bit ADC the current loop toggles by
   one count (29.4 mA, about 570 mV of phase voltage), which excites the weakly damped mechanical
   resonance, about 125 Hz at the 0.5 A hold current. It reaches about 3 rpm (0.2 microstep),

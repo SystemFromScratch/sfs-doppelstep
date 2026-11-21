@@ -36,7 +36,7 @@ static K_WORK_DELAYABLE_DEFINE(log_work, log_fn);
 static void log_fn(struct k_work *work)
 {
 	struct sim_plant_state s;
-	struct sstep_motor_status status = {0};
+	struct app_status status = {0};
 	struct power_stage_stats stats;
 	struct power_stage_info info;
 
@@ -47,12 +47,13 @@ static void log_fn(struct k_work *work)
 	/* rotor behind the command, in electrical degrees: above 90 the motor is
 	 * close to losing steps, a multiple of 360 means 4 full steps lost
 	 */
-	const int32_t lag = status.position - s.rotor_usteps;
+	const int32_t lag = status.motor.position - s.rotor_usteps;
 
+	/* shaft: the rotor from its angle at the start, as an encoder sees it */
 	LOG_INF("cmd %d rotor %d usteps (lag %d deg el), %d rpm, iA %d iB %d mA, "
-		"vA %d vB %d mV, load %d uNm",
-		status.position, s.rotor_usteps, lag * 90 / MICROSTEPS,
-		s.speed_mrpm / 1000, s.i_a_ma, s.i_b_ma, s.v_a_mv, s.v_b_mv, s.load_unm);
+		"vA %d vB %d mV, load %d uNm, shaft %d usteps",
+		status.motor.position, s.rotor_usteps, lag * 90 / MICROSTEPS, s.speed_mrpm / 1000,
+		s.i_a_ma, s.i_b_ma, s.v_a_mv, s.v_b_mv, s.load_unm, s.rotor_abs_usteps);
 
 	/* native_sim: code takes no simulated time, the figure stays 0 */
 	if ((power_stage_get_stats(stage, &stats) == 0) && (stats.fast_cycles_max != 0U) &&

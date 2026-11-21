@@ -10,3 +10,9 @@ properties:
   minimal:
     type: boolean
     description: Leave out the optional operations of the class.
+
+  full-bridge:
+    type: boolean
+    description: |
+      Two full H-bridges (4 legs, Stepper-C full-bridge topology) instead of
+      three half-bridges with a shared leg.

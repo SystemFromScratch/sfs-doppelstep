@@ -1,0 +1,218 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Two full H-bridges in one gate driver with an integrated dead time and one
+  PWM input per half-bridge (for example the TI DRV8412 in mode M3..M1 = 000),
+  driven by an STM32 advanced-control timer (TIM1) without complementary
+  outputs. Low-side shunt current sensing on one leg of each bridge, through
+  amplifiers on the board or OPAMPs, and injected ADC conversions triggered by
+  the timer. Board: sfs_doppelstep_full_bridge.
+
+  This backend programs TIM1, ADC1 and ADC2 directly (LL); the referenced
+  timer and ADC nodes must therefore stay "disabled" so that no Zephyr driver
+  claims them. OPAMP nodes, the comparator and DAC of the hardware overvoltage
+  trip and the GPIO controllers are "okay" and configured by their Zephyr
+  drivers.
+
+  Legs, in the order of Stepper-C's full-bridge topology:
+    leg 0 = A+ = TIM1 CH1, leg 1 = A- = CH2, leg 2 = B+ = CH3, leg 3 = B- = CH4
+  Phase A of the stepper motor is connected between legs 0 and 1, phase B
+  between legs 2 and 3. A PWM input high switches the high side of its leg on,
+  low the low side; the gate driver inserts the dead time.
+
+  Outputs off means both reset inputs of the gate driver asserted: every switch
+  open (high impedance). The timer alone cannot do that: with one input per
+  leg, its idle level low would switch the low sides on.
+
+compatible: "sfs,stm32-full-bridge-power-stage"
+
+include: [base.yaml, pinctrl-device.yaml, power-stage-common.yaml]
+
+properties:
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  timer:
+    type: phandle
+    required: true
+    description: Advanced-control timer node (st,stm32-timers), status "disabled".
+
+  adc-master:
+    type: phandle
+    required: true
+    description: |
+      ADC that converts the phase A current and the bus voltage and raises the
+      end-of-sequence interrupt (status "disabled").
+
+  adc-slave:
+    type: phandle
+    required: true
+    description: |
+      ADC that converts the phase B current and the NTC (status "disabled").
+      Its sequence must end no later than the one of adc-master: the backend
+      reads both in the interrupt of adc-master.
+
+  adc-trigger-channel:
+    type: int
+    default: 6
+    enum: [4, 5, 6]
+    description: |
+      Timer channel that triggers the ADCs (TRGO2), in PWM mode 2 just before
+      the top of the counter. CH1..CH4 drive the legs, so the default is the
+      internal channel 6, which has no pin.
+
+  opamps:
+    type: phandles
+    description: |
+      On-chip OPAMPs of the current amplifiers, if the board uses them; none =
+      external amplifiers. In "standalone" mode the gain comes from the board
+      and no opamp-gain is set.
+
+  opamp-gain:
+    type: string
+    enum: ["OPAMP_GAIN_2", "OPAMP_GAIN_4", "OPAMP_GAIN_8", "OPAMP_GAIN_16",
+           "OPAMP_GAIN_32", "OPAMP_GAIN_64"]
+    description: PGA gain applied with opamp_set_gain() to every OPAMP; none = not set.
+
+  pwm-frequency:
+    required: true
+
+  dead-time-ns:
+    type: int
+    default: 0
+    description: |
+      Dead time that the gate driver inserts [ns] (DRV8412: a few ns). The timer
+      inserts none. Passed to Stepper-C for the duty levels of the self-test;
+      unlike the shared-leg backend, 0 does not refuse the outputs, because the
+      gate driver prevents shoot-through itself.
+
+  sample-window-ns:
+    type: int
+    default: 0
+    description: |
+      Time around the top of the counter that every leg spends on its low-side
+      switch at least [ns]: propagation delay of the gate driver, settling of the
+      current amplifiers and the sampling phases of the injected conversions.
+      Stepper-C keeps every compare value at or below the period minus this
+      time. It also keeps every high side off for part of each period, which a
+      bootstrap gate driver needs (DRV8412: at least 50 ns). At most a quarter of
+      the period.
+
+  phase-a-channel:
+    type: int
+    required: true
+    description: adc-master channel of the phase A current amplifier output.
+
+  phase-b-channel:
+    type: int
+    required: true
+    description: adc-slave channel of the phase B current amplifier output.
+
+  vbus-channel:
+    type: int
+    required: true
+    description: adc-master channel of the bus voltage divider.
+
+  temperature-channel:
+    type: int
+    description: |
+      adc-slave channel of the NTC divider (NTC from the ADC reference to the
+      input, ntc-bottom-ohm to ground); none = no sensor.
+
+  ntc-r25-ohm:
+    type: int
+    description: NTC resistance at 25 degC [Ohm]. Required with temperature-channel.
+
+  ntc-beta:
+    type: int
+    description: B constant of the NTC [K]. Required with temperature-channel.
+
+  ntc-bottom-ohm:
+    type: int
+    description: |
+      Fixed resistor from the ADC input to ground [Ohm]. Required with
+      temperature-channel.
+
+  phase-b-sense-invert:
+    type: boolean
+    description: |
+      The shunt of phase B sits on the other side of its coil than the shunt of
+      phase A (for example A on the A+ leg and B on the B- leg): the same coil
+      current gives readings of opposite sign. The backend mirrors the phase B
+      reading around zero. current-sense-invert still inverts both phases.
+
+  reset-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Reset inputs of the gate driver, one per bridge (DRV8412: RESET_AB,
+      RESET_CD), with their active level (GPIO_ACTIVE_LOW for the DRV8412).
+      Asserted from the start of the backend until output_enable(true), and
+      again by output_enable(false) and by every trip in the interrupt: both
+      bridges high impedance.
+
+  fault-gpios:
+    type: phandle-array
+    description: |
+      Fault output of the gate driver (DRV8412: FAULT, GPIO_ACTIVE_LOW): its
+      overcurrent shutdown, overtemperature shutdown or supply undervoltage.
+      Read in every period while the outputs are on: active, the backend asserts
+      the resets and passes POWER_STAGE_TRIP_DRIVER; the outputs stay refused
+      until a reset of the MCU.
+
+  otw-gpios:
+    type: phandle-array
+    description: |
+      Overtemperature warning of the gate driver (DRV8412: OTW, GPIO_ACTIVE_LOW).
+      While active, power_stage_get_temperature() reports at least
+      otw-temperature-celsius.
+
+  otw-temperature-celsius:
+    type: int
+    default: 125
+    description: |
+      Junction temperature at which otw-gpios becomes active [degC] (DRV8412:
+      125).
+
+  hw-trip-vbus-mv:
+    type: int
+    description: |
+      Bus overvoltage level of the hardware trip [mV]; none = no hardware trip.
+      The comparator of hw-trip-vbus-comparator compares the bus divider with a
+      DAC level and drives the break input BRK2 of the timer, which forces the
+      PWM inputs low (low sides on, the coils short-circuited) until the
+      interrupt asserts the resets, within one PWM period. Set it above
+      vbus-max-mv of the motor node.
+
+  hw-trip-vbus-comparator:
+    type: phandle
+    description: |
+      Comparator of the bus divider (st,stm32g4-comp, status "okay"), required
+      with hw-trip-vbus-mv; its negative input names the DAC channel of the
+      level, whose DAC node must be "okay" too.
+
+  current-offset-min-counts:
+    type: int
+    description: |
+      Lowest acceptable current sensor offset at 0 A [ADC counts]. Outside
+      [min, max], power_stage_calibrate() fails with -EIO and the outputs are
+      refused. None = no check.
+
+  current-offset-max-counts:
+    type: int
+    description: Highest acceptable current sensor offset at 0 A [ADC counts].
+
+  adc-vref-mv:
+    required: true
+
+  shunt-micro-ohms:
+    required: true
+
+  current-sense-gain-milli:
+    required: true
+
+  vbus-divider:
+    required: true

@@ -16,7 +16,7 @@ This page lists that mapping, the units, and what differs from a real XM430.
 | Goal Velocity (104) | `stepper_ctrl_run()` or `stepper_ctrl_stop()` (velocity mode) |
 | Drive Mode (10) bit 0, Homing Offset (20) | Direction and offset of the position mapping |
 | Current Limit (38) | Run current = min(limit × 2.69 mA, `rated-current-milliamp`). At startup and after a Factory Reset the run current is `run-current-milliamp` (1500 mA), whatever the register says; a host write raises or lowers it, up to the rated current (2000 mA) |
-| Present Position (132), Position Trajectory (140) | Commanded position (no encoder) |
+| Present Position (132), Position Trajectory (140) | Commanded position; with an encoder Present Position is the measured shaft position ([Encoder of the joint](encoder.md)) |
 | Present Velocity (128), Velocity Trajectory (136) | Commanded velocity |
 | Present Current (126) | Phase current amplitude √(iA² + iB²), averaged over 8 ms (one ADC step is 29 mA on the ESC1); 0 with the torque off |
 | Model Information (2) | Version of the Doppelstep firmware from git at build time: byte 0 patch, 1 minor, 2 major, 3 commits after the release tag (bit 7: uncommitted changes); `0x00000200` = 0.2.0 ([Releasing](development.md#releasing)) |
@@ -53,10 +53,13 @@ count at the joint.
 
 ## Startup position
 
-The motor has no encoder. At power-on the rotor position is reported as Present Position
-**2048** (`start-position` of the servo node, 0 rad for `dynamixel_hardware_interface`):
-power the joint up in that position. With the torque off the rotor can be moved by hand, and
-the reported position is then no longer the real one.
+Without an encoder (B-G431B-ESC1), the rotor position at power-on is reported as Present
+Position **2048** (`start-position` of the servo node, 0 rad for
+`dynamixel_hardware_interface`): power the joint up in that position. With the torque off the
+rotor can be moved by hand, and the reported position is then no longer the real one.
+
+With an encoder, Present Position at power-on is `start-position` plus the absolute shaft
+angle, and it follows the shaft with the torque off ([Encoder of the joint](encoder.md#coordinates)).
 
 ## Factory values and the EEPROM
 
@@ -173,13 +176,13 @@ an XM430. Model Information (2) holds the firmware version.*
 
 | Topic | Doppelstep |
 |---|---|
-| Position and velocity readings | Commanded values: there is no encoder, and lost steps are not detected yet |
+| Position and velocity readings | Without an encoder: commanded values, lost steps not detected. With an encoder: Present Position measured, lost steps raise Overload Error; Present Velocity stays the commanded one |
 | Operating Modes 0, 5, 16 | Refused with Data Range Error |
 | Model Information (2) | The Doppelstep firmware version instead of 0 |
 | Factory Current, Velocity and Temperature Limit | From the devicetree of the board and motor: rated current 2000 mA, largest motor velocity, 80 °C ([Factory values](#factory-values-and-the-eeprom)) |
 | Max / Min Voltage Limit | Range 9.5–30 V instead of 9.5–16 V, factory 28 / 10 V (the bus voltage trips); not compared with the input voltage, the protection uses the devicetree |
 | PWM Limit (36), Goal PWM (100) | Stored, not applied: the motor runs in current drive, and Stepper-C has no duty limit yet |
-| Velocity PI, Position PID and Feedforward gains (76–90) | Stored with the XM430 factory values, not applied: without an encoder there is no measured velocity or position to close these loops on. The only closed loop is the current loop of Stepper-C (gains from R, L and `current-bandwidth-hz`). They map once an encoder is added |
+| Velocity PI, Position PID and Feedforward gains (76–90) | Stored with the XM430 factory values. With an encoder, Position P Gain (84) / 1024 is the gain of the position regulator at standstill, which leads the field of the stepper instead of commanding a torque ([Position regulator](encoder.md#position-regulator)). The other gains are not applied: the closed loop inside is the current loop of Stepper-C |
 | Reboot on the board | Resets the MCU: 500 ms of silence plus startup, Present Position restarts at 2048 |
 | Present Temperature | The power stage (NTC on the board), not the motor winding |
 | Several IDs on one bus | One ID per board |

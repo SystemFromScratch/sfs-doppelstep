@@ -1,9 +1,11 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * MCUboot of the board build: serial recovery on USART2 at the default rate of
- * the DYNAMIXEL bus (docs/firmware-update.md). The rate is fixed: the bootloader
- * does not read the Baud Rate register of the application.
+ * MCUboot of the board build: serial recovery on the UART of the DYNAMIXEL bus,
+ * the node with the label sfs_dxl_uart in the board devicetree (USART2 on the
+ * B-G431B-ESC1), at the default rate of MCUboot (docs/firmware-update.md). The
+ * rate is fixed: the bootloader does not read the Baud Rate register of the
+ * application.
  *
  * This overlay replaces the app.overlay of MCUboot, so it repeats its
  * code partition.
@@ -14,11 +16,11 @@
 		zephyr,code-partition = &boot_partition;
 		/delete-property/ zephyr,console;
 		/delete-property/ zephyr,shell-uart;
-		zephyr,uart-mcumgr = &usart2;
+		zephyr,uart-mcumgr = &sfs_dxl_uart;
 	};
 };
 
-&usart2 {
+&sfs_dxl_uart {
 	current-speed = <1000000>;
 	/* At 1 Mbps a byte arrives every 10 us. Without the 8-byte FIFO a late receive
 	 * interrupt drops a byte, and with it the whole SMP frame of an upload chunk.

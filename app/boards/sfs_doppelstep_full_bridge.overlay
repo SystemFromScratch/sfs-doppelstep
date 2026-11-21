@@ -1,0 +1,187 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Doppelstep on the full-bridge board: TI DRV8412, 17HS19-2004S1 stepper motor.
+ * Values from the schematic Stepper-Motor-FOC-Driver (KiCad 8); the measured values
+ * of the bring-up replace the marked estimates (docs/hardware-full-bridge.md).
+ */
+
+/ {
+	chosen {
+		/* USART3 carries the DYNAMIXEL bus; console and logs go to RTT. */
+		sfs,servo = &servo;
+		sfs,motor = &motor;
+		/* MA730 on SPI2 (board devicetree); checked at startup */
+		sfs,encoder = &encoder;
+		/* STATUS LED: the first WS2812B of the chain on PB3 (board devicetree) */
+		sfs,status-led-strip = &leds;
+	};
+
+	power_stage: power-stage {
+		compatible = "sfs,stm32-full-bridge-power-stage";
+		pinctrl-0 = <&tim1_ch1_pa8 &tim1_ch2_pa9 &tim1_ch3_pa10 &tim1_ch4_pa11
+			     &adc1_in1_pa0 &adc2_in17_pa4>;
+		pinctrl-names = "default";
+
+		timer = <&timers1>;
+		adc-master = <&adc1>;
+		adc-slave = <&adc2>;
+		/* standalone: the gain comes from the feedback network of the board */
+		opamps = <&opamp1 &opamp2>;
+
+		/* 20 kHz: TIM1 at 170 MHz, center-aligned, ARR = 4250; CH1..CH4 drive
+		 * PWM_A..PWM_D, the internal CH6 triggers the ADCs
+		 */
+		pwm-frequency = <20000>;
+		adc-trigger-channel = <6>;
+
+		/* The DRV8412 inserts its own dead time (5.5 ns typical) and has no
+		 * dead-time setting: 0 here. The effective dead time of its propagation
+		 * delays is measured in the bring-up (dead-time-comp-ns of the motor).
+		 */
+		dead-time-ns = <0>;
+
+		/* Estimate, to be measured: the gate driver delay (about 100 ns) and the
+		 * settling of the amplifiers (OPAMP GBW 13 MHz at gain 26.5: about
+		 * 0.5 MHz, some 1.5 us to 12 bit) before the trigger, the sampling of
+		 * A and VBUS (about 0.9 us) after it. 2000 ns = 340 of 4250 ticks: the
+		 * voltage limit drops by 8 %. Also keeps every high side off for 4 us
+		 * per period, far more than the 50 ns the bootstrap needs.
+		 */
+		sample-window-ns = <2000>;
+
+		/* OPAMP1 out PA2 = ADC1_IN3 (I_A), OPAMP2 out PA6 = ADC2_IN3 (I_B),
+		 * VBUS PA0 = ADC1_IN1, NTC PA4 = ADC2_IN17
+		 */
+		phase-a-channel = <3>;
+		phase-b-channel = <3>;
+		vbus-channel = <1>;
+
+		/* NTC as on the B-G431B-ESC1 (TDK NTCG103JF103FT1: R25 10 kOhm, B25/85
+		 * 3435 K): +3.3VADC - TH1 - PA4 - R19 10k - GND, C18 10 nF
+		 */
+		temperature-channel = <17>;
+		temperature-limit-celsius = <80>;
+		ntc-r25-ohm = <10000>;
+		ntc-beta = <3435>;
+		ntc-bottom-ohm = <10000>;
+
+		/* RESET_AB PC6, RESET_CD PA12 (low: bridge high impedance), FAULT PB11,
+		 * OTW PB0: open drain with pull-up to VREG inside the DRV8412
+		 */
+		reset-gpios = <&gpioc 6 GPIO_ACTIVE_LOW>, <&gpioa 12 GPIO_ACTIVE_LOW>;
+		fault-gpios = <&gpiob 11 GPIO_ACTIVE_LOW>;
+		otw-gpios = <&gpiob 0 GPIO_ACTIVE_LOW>;
+
+		adc-vref-mv = <3300>;
+
+		/* 10 mOhm shunts R25 (GND_A) and R15 (GND_D). The + input of each
+		 * amplifier is the shunt through 1k with 51k to +3.3VADC and 51k to GND:
+		 * V+ = 0.0623 V + 0.962 x Vshunt; the feedback 1k / 25.5k gives 26.5 from
+		 * there, so 1.65 V at 0 A (2048 counts) and 25.5 V/V from the shunt
+		 * (label k = 25.5): 6.47 A full scale.
+		 */
+		shunt-micro-ohms = <10000>;
+		current-sense-gain-milli = <25500>;
+
+		/* The shunt of phase A sits in the low-side path of leg A+, that of
+		 * phase B in leg B-: at the sample (all low sides on) a positive coil A
+		 * current flows up through R25 (reading below the offset), a positive
+		 * coil B current down through R15 (above). current-sense-invert turns
+		 * both, phase-b-sense-invert turns B back. Check in bring-up step 3.
+		 */
+		current-sense-invert;
+		phase-b-sense-invert;
+
+		/* 10k / (10k + 100k): 36.3 V full scale */
+		vbus-divider = <10000 100000>;
+
+		/* Hardware overvoltage trip only (COMP3 on PA0 against DAC1 channel 1):
+		 * the DRV8412 protects its switches itself (cycle-by-cycle current limit
+		 * at about 5.8 A with R31 47k, overcurrent shutdown on FAULT), so no
+		 * current comparators: their shared interrupt line would cost about
+		 * 2 KB of flash (docs/protection.md). 30 V: above vbus-max-mv (28 V).
+		 */
+		hw-trip-vbus-mv = <30000>;
+		hw-trip-vbus-comparator = <&comp3>;
+
+		/* 2048 counts expected (1.65 V); +-10 % for the resistor spread */
+		current-offset-min-counts = <1850>;
+		current-offset-max-counts = <2250>;
+	};
+
+	motor: motor {
+		compatible = "sfs,sstep-motor";
+		power-stage = <&power_stage>;
+
+		/* 17HS19-2004S1 */
+		phase-resistance-milliohm = <1600>;
+		phase-inductance-microhenry = <3000>;
+		rated-current-milliamp = <2000>;
+		back-emf-uv-s-per-rad = <208600>;
+		full-steps-per-rev = <200>;
+
+		/* 24 V board: the DRV8412 gate supply comes from a buck converter on
+		 * the bus (U2), which needs about 12 V at its input
+		 */
+		vbus-nominal-mv = <24000>;
+		vbus-min-mv = <12000>;
+		vbus-max-mv = <28000>;
+		trip-current-milliamp = <3500>;
+		current-slew-ma-per-ms = <30>;
+		selftest-current-milliamp = <600>;
+		aux-trip;
+
+		slow-loop-hz = <1000>;
+		microsteps = <16>;
+		current-bandwidth-hz = <1000>;
+		run-current-milliamp = <1500>;
+		hold-current-milliamp = <500>;
+		hold-delay-ms = <500>;
+		max-velocity = <16000>;
+		max-acceleration = <64000>;
+
+		motor_drv: driver {
+			compatible = "sfs,sstep-stepper-driver";
+		};
+
+		motor_ctrl: ctrl {
+			compatible = "sfs,sstep-stepper-ctrl";
+		};
+	};
+};
+
+/* Hardware overvoltage trip: the bus divider (PA0, input IO1 = "IN0") against DAC1
+ * channel 1, connected internally; the backend routes the output to BRK2 of TIM1.
+ * The Miller hold of the G4 comparators stays off, as on the B-G431B-ESC1.
+ */
+&comp3 {
+	positive-input = "IN0";
+	negative-input = "DAC1_CH1";
+	st,miller-effect-hold-disable;
+	status = "okay";
+};
+
+&dac1 {
+	status = "okay";
+};
+
+/* DYNAMIXEL Protocol 2.0 bus on J4: 57600 bps until the Baud Rate register is
+ * applied at startup (factory-baud-code 1, as an XM430). MCUboot keeps 1 Mbps
+ * (app/sysbuild/mcuboot.overlay).
+ */
+&usart3 {
+	current-speed = <57600>;
+	fifo-enable;
+
+	servo: dxl-servo {
+		compatible = "sfs,x430-servo";
+		storage = <&storage_partition>;
+
+		/* 17HS19-2004S1 in direct drive: one joint revolution = one motor
+		 * revolution = 4096 pulses of the XM430 = 200 x 16 = 3200 microsteps.
+		 */
+		gear-motor-revs = <1>;
+		gear-joint-revs = <1>;
+	};
+};

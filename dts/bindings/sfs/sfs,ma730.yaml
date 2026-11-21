@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  MPS MagAlpha MA730: 14-bit contactless magnetic angle sensor on SPI (mode 0 or
+  3, up to 25 MHz, 16-bit frames). The driver reads the angle and the magnetic
+  field flags and never writes the registers: they are in non-volatile memory
+  rated for 1000 write cycles. Zero position and direction are applied in
+  software (zero-offset, reverse).
+
+  Angle: 16 bits per revolution (65536 = 360 degrees, 14 bits effective). The
+  internal filter of the MA730 has a cutoff of about 23 Hz: fine for the
+  position of a joint, not for commutation.
+
+compatible: "sfs,ma730"
+
+include: [sensor-device.yaml, spi-device.yaml]
+
+properties:
+  reverse:
+    type: boolean
+    description: |
+      Count the angle the other way round (the magnet seen from the other
+      side, or the sensor on the other end of the shaft).
+
+  zero-offset:
+    type: int
+    default: 0
+    description: |
+      Raw reading [1/65536 revolution] that counts as angle 0, subtracted after
+      reverse.

@@ -266,6 +266,10 @@ static void fast_loop(const struct power_stage_sample *s, uint32_t trips, void *
 	if ((trips & POWER_STAGE_TRIP_HW_OV) != 0U) {
 		(void)sstep_report_fault(drv, SSTEP_FAULT_OVERVOLTAGE);
 	}
+	/* The gate driver protected itself; which of its trips it was, it does not say */
+	if ((trips & POWER_STAGE_TRIP_DRIVER) != 0U) {
+		(void)sstep_report_fault(drv, SSTEP_FAULT_HAL);
+	}
 	/* The stage has switched the outputs off already; the fault keeps them off. With
 	 * the outputs off a late period is harmless, for example while a flash write of
 	 * the EEPROM area (allowed only with the torque off) stalls the CPU: no fault.

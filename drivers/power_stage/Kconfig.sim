@@ -14,6 +14,12 @@ config POWER_STAGE_SIM
 	  Model: sil/c/sstep_plant.c of Stepper-Lab (the code of its Xcos
 	  plant block), parameters from its params/*.json (CONFIG_SSTEP_PLANT_*).
 
+config SIM_ENCODER
+	bool "Simulated shaft encoder (sensor API) on the motor model"
+	default y
+	depends on DT_HAS_SFS_SIM_ENCODER_ENABLED
+	select SENSOR
+
 if POWER_STAGE_SIM
 
 config POWER_STAGE_SIM_INIT_PRIORITY

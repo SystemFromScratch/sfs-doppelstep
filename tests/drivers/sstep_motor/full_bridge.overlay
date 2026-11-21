@@ -1,0 +1,10 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Scenarios .full_bridge and .full_bridge.selftest: the motors on a fake stage with two
+ * full H-bridges (4 legs), as the sfs_doppelstep_full_bridge board with the DRV8412.
+ */
+
+&stage {
+	full-bridge;
+};

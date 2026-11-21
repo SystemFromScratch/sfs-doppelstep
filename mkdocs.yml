@@ -46,6 +46,8 @@ nav:
       - Technology stack: technology.md
       - Getting started: getting-started.md
       - Hardware and bring-up: hardware.md
+      - Full-bridge board (DRV8412): hardware-full-bridge.md
+      - Encoder of the joint: encoder.md
       - Dead time of the power stage: dead-time.md
       - Measurements with MCUViewer: measurements.md
       - Protection: protection.md
@@ -60,6 +62,7 @@ nav:
       - Development environment: development.md
       - Tests and CI: testing.md
       - Hardware checklist: hardware-checklist.md
+      - Hardware development: hardware-development.md
       - Test record: test-record.md
       - GUI: gui/index.md
   - About:
@@ -127,7 +130,7 @@ extra:
     web_only: [index.md]
     keywords: >-
       Zephyr RTOS, stepper motor, microstepping, current control, DYNAMIXEL Protocol 2.0,
-      XM430-W350, B-G431B-ESC1, STM32G431, MCUboot, ROS 2
+      XM430-W350, B-G431B-ESC1, DRV8412, MA730, STM32G431, MCUboot, ROS 2
     vendor_trademarks: >-
       DYNAMIXEL and ROBOTIS are trademarks of ROBOTIS Co., Ltd. STM32 is a registered
       trademark of STMicroelectronics International N.V. Arm and Cortex are trademarks of

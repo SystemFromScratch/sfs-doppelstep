@@ -318,6 +318,17 @@ ZTEST(motor, test_hw_overvoltage_trip_latches_overvoltage)
 	zassert_true((status().faults & SSTEP_MOTOR_FAULT_OVERVOLTAGE) != 0U);
 }
 
+ZTEST(motor, test_gate_driver_fault_latches_a_hal_fault)
+{
+	zassert_ok(stepper_enable(drv));
+	run_ms(1);
+	fake_power_stage_fire(stage, &zero, POWER_STAGE_TRIP_DRIVER);
+	zassert_false(fake_power_stage_output_on(stage));
+	zassert_ok(sstep_motor_process(motor));
+	zassert_equal(status().state, SSTEP_MOTOR_FAULT);
+	zassert_true((status().faults & SSTEP_MOTOR_FAULT_HAL) != 0U);
+}
+
 ZTEST(motor, test_fast_loop_overrun_reports_a_hal_fault)
 {
 	zassert_ok(stepper_enable(drv));

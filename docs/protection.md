@@ -56,6 +56,12 @@ offset calibration from the measured offset: `(offset + trip counts) / 16`, so t
 the bias resistors and of the 3.3 V cancels. At 10 A and an offset of 2534 counts the level is
 DAC code 180 (0.145 V). COMP3 compares the bus divider on PA0 with DAC1: 30 V is code 3583.
 
+The comparators and DACs are devicetree nodes of their Zephyr drivers (`&comp1` .. `&comp4`,
+`&dac1`, `&dac3` in `app/boards/b_g431b_esc1.overlay`): the positive input of each comparator is
+its pin, the negative input names its DAC channel, and the power stage node lists them in
+`hw-trip-current-comparators` and `hw-trip-vbus-comparator`. The backend sets the DAC levels with
+`dac_write_value()` and routes the comparator outputs to the break inputs.
+
 COMP1/2/4 drive the break input BRK of TIM1 and COMP3 drives BRK2, so the firmware can tell
 the overcurrent from the overvoltage. The break clears MOE: every gate driver input goes low,
 both switches of every leg are off. The interrupt then reports the trip
@@ -86,6 +92,30 @@ Input Voltage Error right after the start, Torque Enable refused.
 
 The simulated-motor build on the board leaves the comparators out (`app/sim.overlay`): its
 outputs stay off, and the image has no flash to spare.
+
+### One comparator on the full-bridge board
+
+The [full-bridge board](hardware-full-bridge.md) with the DRV8412 keeps only the overvoltage
+comparator (COMP3 on PA0 against DAC1, into BRK2) and has no current comparators. The reasons:
+
+- **The gate driver protects its own switches.** The DRV8412 limits the current of every
+  switch in every PWM period (cycle-by-cycle limit, set by R31 on OC_ADJ) and shuts down on a
+  short, inside the chip and without the MCU. It reports the shutdown on FAULT, which the
+  backend reads in every period and latches as a fault (`POWER_STAGE_TRIP_DRIVER`). Comparators
+  on the shunts would add a second, slower path for the same events.
+- **The shunts see two of the four legs.** Only leg A+ and leg B− have a shunt, so a
+  comparator would miss a short through a low-side switch of leg A− or B+. The gate driver
+  sees all four legs.
+- **Flash.** COMP1 (PA1) and COMP2 (PA7) share an interrupt line with COMP3. With two or more
+  of them enabled, Zephyr builds the shared interrupt table (about 1.8 KB on the ESC1), although
+  the trips use no interrupt. The full-bridge board also needs the encoder and LED drivers in
+  the same 86 KB slot. With COMP3 alone the table is not built: the application is about
+  3 KB smaller than on the ESC1 (79.7 KB against 82.8 KB, clang build).
+- **The bus voltage has no other hardware guard.** The DRV8412 does not limit its supply, and
+  braking pumps energy back into the bus. So the overvoltage comparator stays.
+
+After a break of BRK2 the PWM inputs are low, so the low sides short the coils until the
+interrupt asserts both resets of the DRV8412, within one PWM period.
 
 ## Software trips
 

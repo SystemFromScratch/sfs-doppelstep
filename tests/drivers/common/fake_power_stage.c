@@ -53,13 +53,18 @@ void fake_power_stage_set_plant(const struct device *dev, fake_plant_fn fn, void
 	}
 }
 
+struct fake_config {
+	bool full_bridge;
+};
+
 static int fake_init(const struct device *dev)
 {
+	const struct fake_config *cfg = dev->config;
 	struct fake_data *data = dev->data;
 
 	data->info = (struct power_stage_info){
-		.topology = POWER_STAGE_SHARED_LEG,
-		.legs = 3,
+		.topology = cfg->full_bridge ? POWER_STAGE_FULL_BRIDGE : POWER_STAGE_SHARED_LEG,
+		.legs = cfg->full_bridge ? 4U : 3U,
 		.outputs_allowed = true,
 		.timer_clock_hz = 170000000U,
 		.pwm_period_ticks = 4250,
@@ -197,7 +202,10 @@ uint32_t fake_power_stage_aux_trip_ma(const struct device *dev)
 
 #define FAKE_DEFINE(n)                                                                             \
 	static struct fake_data fake_data_##n;                                                     \
-	DEVICE_DT_INST_DEFINE(n, fake_init, NULL, &fake_data_##n, NULL, POST_KERNEL,               \
+	static const struct fake_config fake_config_##n = {                                        \
+		.full_bridge = DT_INST_PROP(n, full_bridge),                                       \
+	};                                                                                         \
+	DEVICE_DT_INST_DEFINE(n, fake_init, NULL, &fake_data_##n, &fake_config_##n, POST_KERNEL,   \
 			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE,                                  \
 			      COND_CODE_1(DT_INST_PROP(n, minimal), (&fake_minimal_api),           \
 					  (&fake_api)));

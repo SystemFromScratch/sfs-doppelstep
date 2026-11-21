@@ -7,7 +7,8 @@
  *
  * Overcurrent: the comparator watches the non-inverting input of the current
  * amplifier, where the shunt voltage sits on the bias of the board; the amplifier
- * multiplies both by its PGA gain. So the input at the trip current is
+ * multiplies both by its gain from that input (the PGA gain of an on-chip OPAMP, or
+ * the gain of the external feedback network). So the input at the trip current is
  * (offset + trip counts at the amplifier output) / gain.
  */
 
@@ -24,14 +25,15 @@
  * @param offset_counts   Amplifier output at 0 A (calibrated offset) [ADC counts].
  * @param trip_ma         Trip current [mA].
  * @param i_full_scale_ma Current for HW_TRIP_ADC_HALF counts at the amplifier output [mA].
- * @param pga_gain        Gain of the amplifier from its non-inverting input.
+ * @param gain_milli      Gain of the amplifier from its non-inverting input, x1000.
  * @return DAC code, rounded, at most HW_TRIP_DAC_FULL.
  */
 static inline uint16_t hw_trip_oc_dac(uint16_t offset_counts, uint32_t trip_ma,
-				      uint32_t i_full_scale_ma, uint32_t pga_gain)
+				      uint32_t i_full_scale_ma, uint32_t gain_milli)
 {
 	const uint64_t trip_counts = (uint64_t)trip_ma * HW_TRIP_ADC_HALF / i_full_scale_ma;
-	const uint64_t code = ((uint64_t)offset_counts + trip_counts + pga_gain / 2U) / pga_gain;
+	const uint64_t code =
+		(((uint64_t)offset_counts + trip_counts) * 1000U + gain_milli / 2U) / gain_milli;
 
 	return (uint16_t)((code > HW_TRIP_DAC_FULL) ? HW_TRIP_DAC_FULL : code);
 }

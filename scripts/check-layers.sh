@@ -24,9 +24,12 @@ check() {
     fi
 }
 
-check "registers and interrupts of the MCU only in its power stage backend" \
+# The STM32 backends of the power stage, their shared building blocks (stm32_pwm_adc.*),
+# and the STM32 backend of the WS2812 LED chain (timer and DMA, docs/architecture.md)
+check "registers and interrupts of the MCU only in its hardware backends" \
     'stm32_ll|\bDWT\b|\bISR_DIRECT|\bIRQ_DIRECT_CONNECT|\bLL_[A-Z]+_' \
-    "${SOURCES[@]}" ':!drivers/power_stage/power_stage_stm32.c'
+    "${SOURCES[@]}" ':!drivers/power_stage/power_stage_stm32*.c' \
+    ':!drivers/power_stage/stm32_pwm_adc.*' ':!drivers/ws2812/ws2812_stm32_tim.c'
 
 check "the Stepper-C API only in the motor driver" \
     '<sstep\.h>|\bsstep_(?!motor|plant)|\bSSTEP_(?!MOTOR|PLANT)' \

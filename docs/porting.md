@@ -13,7 +13,8 @@ already has a backend, only the devicetree and the board configuration change.
 | The nodes of the stage, the motor and the servo | `app/boards/<board>.overlay` |
 | Zephyr options of the board: FPU or not, console, flash writes | `app/boards/<board>.conf` |
 
-Copy `drivers/power_stage/power_stage_stm32.c` as the starting point, and use the fake backend in
+Copy `drivers/power_stage/power_stage_stm32.c` as the starting point (within STM32, reuse the timer
+and ADC building blocks of `stm32_pwm_adc.h`), and use the fake backend in
 `tests/drivers/common/` as the shortest example of the API.
 
 ## Backend checklist

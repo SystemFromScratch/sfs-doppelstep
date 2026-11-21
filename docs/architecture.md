@@ -33,8 +33,12 @@ the board and the bindings without extra CMake.
    it owns. The only exception is the fast loop, which stays in the interrupt inside the driver.
 2. **The X430 driver does not know the motor, and the motor driver does not know DYNAMIXEL.**
    Only `app/src/joint_bridge.c` knows both, so X430 units never reach the motor driver.
-3. **Only a `power_stage` backend touches registers.** LL calls, the cycle counter, OPAMPs and
-   direct interrupts appear nowhere else.
+3. **Only a hardware backend touches registers.** LL calls, the cycle counter and direct
+   interrupts appear only in the `power_stage` backends (on STM32 they share their timer and
+   ADC building blocks in `drivers/power_stage/stm32_pwm_adc.c`) and in the STM32 backend of
+   the WS2812 LED chain (`drivers/ws2812/`), whose Zephyr alternative does not fit in flash. Peripherals that only need a configuration
+   (OPAMPs, comparators, DACs) belong to their Zephyr drivers and are described in the
+   devicetree.
 4. **The devicetree selects the hardware.** The `power-stage` phandle of the motor selects the
    backend, the servo is a child node of its UART, and a phandle selects the flash partition.
 
@@ -45,15 +49,31 @@ the backends and any output switching in the simulation backend.
 
 | Driver | Compatible | API |
 |---|---|---|
-| Power stage, STM32 | `sfs,stm32-shared-leg-power-stage` | Class `power_stage` (`power_stage.h`) |
+| Power stage, STM32 (B-G431B-ESC1) | `sfs,stm32-shared-leg-power-stage` | Class `power_stage` (`power_stage.h`) |
+| Power stage, STM32 + DRV8412 (two full bridges) | `sfs,stm32-full-bridge-power-stage` | Class `power_stage` |
+| Encoder MA730 | `sfs,ma730`, on SPI | Zephyr class `sensor` (`SENSOR_CHAN_ROTATION`), plus `ma730.h` |
+| WS2812 LED chain, STM32 timer + DMA | `sfs,ws2812-stm32-tim` | Zephyr class `led_strip` |
 | Power stage, simulation | `sfs,sim-power-stage` | Class `power_stage`, plus `power_stage_sim.h` |
 | Motor (Stepper-C) | `sfs,sstep-motor` with the children `sfs,sstep-stepper-driver` and `sfs,sstep-stepper-ctrl` | Zephyr classes `stepper` and `stepper_ctrl`, plus `sstep_motor.h` |
 | Servo (X430 emulator) | `sfs,x430-servo`, a child of the UART | `x430_servo.h` |
 
-**Why a custom class for the power stage?** Zephyr's PWM API has no dead time, center alignment
-or complementary outputs, and its ADC API has no timer-triggered injected conversions. A 20 kHz
-current loop needs all of them, so MCU-specific code is unavoidable. The `power_stage` class
-keeps that code in one file per MCU family, the way Zephyr does for its own driver classes.
+**Why a custom class for the power stage?** A 20 kHz current loop needs conversions triggered
+by the PWM timer at the top of the counter, all compare values of a period written at once, a
+trigger output, break inputs that switch the outputs off in hardware, and all of that from a
+zero-latency interrupt. Zephyr v4.5 has none of it in its APIs: the STM32 PWM driver sets
+center alignment and dead time from the devicetree, but `pwm_set()` writes one channel at a
+time and is not meant for a zero-latency interrupt; the STM32 ADC driver has injected channels,
+but only with a software trigger, and `adc_read()` waits on a semaphore. So MCU-specific code is
+unavoidable. The `power_stage` class keeps it in one backend per MCU family, the way Zephyr does
+for its own driver classes (`pwm_stm32.c` is built on the same LL functions), and the code above
+the class does not depend on it.
+
+What only needs a configuration goes through Zephyr drivers: the OPAMPs (`opamp_set_gain()`), the
+comparators of the hardware trips (`st,stm32g4-comp`) and the DACs of their levels
+(`dac_channel_setup()`, `dac_write_value()`). The backend keeps only the break routing of the timer
+and the high-frequency mode of the DAC, which the Zephyr DAC driver does not set. The price on the
+B-G431B-ESC1 is about 5.3 KB of flash, most of it the shared interrupt table that Zephyr needs
+because COMP1, COMP2 and COMP3 share one interrupt line, although the trips use no interrupt.
 
 **Why three nodes for the motor?** Zephyr splits stepper devices into a hardware driver
 (`stepper`: enable, disable, microsteps) and a motion controller (`stepper_ctrl`: moves, ramp,

@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config WS2812_STM32_TIM
+	bool "WS2812 LED chain on an STM32 timer channel with DMA"
+	default y
+	depends on DT_HAS_SFS_WS2812_STM32_TIM_ENABLED
+	depends on LED_STRIP
+	help
+	  Zephyr led_strip driver: one timer channel in PWM mode, the bits
+	  written to its compare register by DMA on every update event
+	  (compatible sfs,ws2812-stm32-tim).

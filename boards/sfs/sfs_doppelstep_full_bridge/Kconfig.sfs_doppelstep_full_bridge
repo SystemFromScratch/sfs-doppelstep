@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Doppelstep full-bridge board: STM32G431CBU6 (UFQFPN48), TI DRV8412.
+
+config BOARD_SFS_DOPPELSTEP_FULL_BRIDGE
+	select SOC_STM32G431XX

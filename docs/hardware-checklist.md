@@ -24,7 +24,7 @@ Then read the log with `west rtt -d build -r openocd`.
 
 | # | Check | Expected |
 |---|---|---|
-| 1 | Startup log | No `<err>`. Offsets about 2530 counts (inside 2300..2800), `hardware overcurrent trip 10000 mA: DAC3 …` near 180, `hardware overvoltage trip 30000 mV: DAC1 3583`, `TIM1: ... dead time 1200 ns (204 ticks)`, the line `x430_servo: DYNAMIXEL` |
+| 1 | Startup log | No `<err>`. Offsets about 2530 counts (inside 2300..2800), `hardware overcurrent trip 10000 mA: DAC levels U …, V …, W …` near 180, `hardware overvoltage trip 30000 mV: DAC level 3583`, `TIM1: ... dead time 1200 ns (204 ticks)`, the line `x430_servo: DYNAMIXEL` |
 | 2 | STATUS LED, then LED (65) = 1 and 0 from the Wizard | Off after startup (LED 0). Follows the LED register; fast blink only with an alarm |
 | 2a | Hardware Error Status over 10 power cycles, the first with erased NVS | 0 every time, LED off (no fast blink). No false fault from the shared-leg check at startup |
 | 2b | Realtime Tick over a minute, torque on at rest | Rises steadily: no watchdog reset. The startup log has `watchdog 500 ms` and no `reset by the watchdog` |

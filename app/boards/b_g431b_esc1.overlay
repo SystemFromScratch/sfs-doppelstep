@@ -86,10 +86,13 @@
 		 * input is the shunt through 1.5k with 22k to +3.3 V and 2.2k to
 		 * GND, V+ = 0.129 V + 4/7 Vshunt (1.71 mV/A); the comparator offset
 		 * of +-5 mV is about +-3 A. 10 A: about 3 x trip-current-milliamp
-		 * of the motor. 30 V: above vbus-max-mv (28 V).
+		 * of the motor. 30 V: above vbus-max-mv (28 V). Comparators and
+		 * DACs: nodes below.
 		 */
 		hw-trip-current-milliamp = <10000>;
+		hw-trip-current-comparators = <&comp1 &comp2 &comp4>;
 		hw-trip-vbus-mv = <30000>;
+		hw-trip-vbus-comparator = <&comp3>;
 
 		/* Offsets measured on the board: 2534 (U), 2528 counts = 16 x 0.129 V */
 		current-offset-min-counts = <2300>;
@@ -141,6 +144,49 @@
 			compatible = "sfs,sstep-stepper-ctrl";
 		};
 	};
+};
+
+/* Hardware trip comparators of the power stage (Zephyr comparator driver): the
+ * OPAMP+ inputs of U, V, W (PA1, PA7, PB0, input IO1 = "IN0") against DAC3, the
+ * bus divider (PA0) against DAC1 channel 1. Without interrupts: they act only
+ * through the break inputs of TIM1, routed by the backend. The Miller hold of
+ * the G4 comparators stays off, as measured on this board (docs/protection.md).
+ */
+&comp1 {
+	positive-input = "IN0";
+	negative-input = "DAC3_CH1";
+	st,miller-effect-hold-disable;
+	status = "okay";
+};
+
+&comp2 {
+	positive-input = "IN0";
+	negative-input = "DAC3_CH2";
+	st,miller-effect-hold-disable;
+	status = "okay";
+};
+
+&comp4 {
+	positive-input = "IN0";
+	negative-input = "DAC3_CH2";
+	st,miller-effect-hold-disable;
+	status = "okay";
+};
+
+&comp3 {
+	positive-input = "IN0";
+	negative-input = "DAC1_CH1";
+	st,miller-effect-hold-disable;
+	status = "okay";
+};
+
+/* Trip levels only, connected internally (no pin) */
+&dac1 {
+	status = "okay";
+};
+
+&dac3 {
+	status = "okay";
 };
 
 /* DYNAMIXEL Protocol 2.0 bus: ST-LINK VCP for now. 57600 bps until the Baud Rate

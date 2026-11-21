@@ -16,9 +16,15 @@ target_sources(app PRIVATE
   src/joint.c
   src/joint_bridge.c
   src/supervisor.c
+  src/status_led.c
 )
 
 target_sources_ifdef(CONFIG_POWER_STAGE_SIM app PRIVATE src/sim_log.c)
+# Encoder of the joint: only with chosen sfs,encoder (control_task.c)
+dt_chosen(sfs_encoder_path PROPERTY "sfs,encoder")
+if(sfs_encoder_path)
+  target_sources(app PRIVATE src/enc_track.c)
+endif()
 
 target_link_libraries(app PRIVATE x430)
 

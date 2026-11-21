@@ -25,7 +25,34 @@
  */
 &power_stage {
 	/delete-property/ hw-trip-current-milliamp;
+	/delete-property/ hw-trip-current-comparators;
 	/delete-property/ hw-trip-vbus-mv;
+	/delete-property/ hw-trip-vbus-comparator;
 	/delete-property/ current-offset-min-counts;
 	/delete-property/ current-offset-max-counts;
+};
+
+/* Without the hardware trips their comparators and DACs are not built */
+&comp1 {
+	status = "disabled";
+};
+
+&comp2 {
+	status = "disabled";
+};
+
+&comp3 {
+	status = "disabled";
+};
+
+&comp4 {
+	status = "disabled";
+};
+
+&dac1 {
+	status = "disabled";
+};
+
+&dac3 {
+	status = "disabled";
 };

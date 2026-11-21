@@ -17,3 +17,11 @@ tests:
   doppelstep.drivers.sstep_motor.deadtime:
     extra_args:
       - EXTRA_DTC_OVERLAY_FILE=deadtime.overlay
+  doppelstep.drivers.sstep_motor.full_bridge:
+    extra_args:
+      - EXTRA_DTC_OVERLAY_FILE=full_bridge.overlay
+  doppelstep.drivers.sstep_motor.full_bridge.selftest:
+    extra_configs:
+      - CONFIG_SSTEP_MOTOR_SELFTEST=y
+    extra_args:
+      - EXTRA_DTC_OVERLAY_FILE=full_bridge.overlay

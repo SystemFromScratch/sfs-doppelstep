@@ -37,6 +37,11 @@ drives it without changes. The same firmware runs on a PC with a
 physical model of the motor, so protocol, motion and protection are tested on every change
 before they reach the hardware.
 
+A second board is in development: the **Stepper Motor FOC Closed-Loop Driver** of
+[Awesome-SMT-Machine](https://github.com/baoqi-zhong/Awesome-SMT-Machine), with two full
+H-bridges (TI DRV8412) and an MA730 magnetic encoder that measures the position of the joint
+([Supported boards](#supported-boards)).
+
 | | |
 | --- | --- |
 | **Servo emulation** | The complete Control Table of an XM430-W350, checked as the real servo checks it; position, extended position and velocity mode; Sync/Bulk and Fast Sync/Bulk Read, Bus Watchdog, Reboot, Factory Reset; EEPROM area in flash |
@@ -55,6 +60,26 @@ Measured with the CI build of this version:
 | Application | 77 352 B flash of the 87 712 B slot, 20 828 B RAM (simulated motor: 84 020 B) |
 | Bootloader | MCUboot, 37 148 B flash |
 | Tests per CI run | 157: 115 ztest cases, 32 SIL and integration tests, 10 fixed-point motion tests (plus 45 host tests of the GUI) |
+
+## Supported boards
+
+| Board | Power stage | Encoder | Status |
+| --- | --- | --- | --- |
+| [STMicroelectronics B-G431B-ESC1](https://systemfromscratch.github.io/sfs-doppelstep/hardware/) (`b_g431b_esc1`) | Three half-bridges, shared-leg topology | None | Checked with a real motor at 12 V and 24 V |
+| [Stepper Motor FOC Closed-Loop Driver](https://systemfromscratch.github.io/sfs-doppelstep/hardware-full-bridge/) of [Awesome-SMT-Machine](https://github.com/baoqi-zhong/Awesome-SMT-Machine) (`sfs_doppelstep_full_bridge`) | TI DRV8412, two full H-bridges | MA730 on SPI2 | Built and tested in CI; the run on the board is next |
+
+The second board comes from the open-source pick-and-place machine of
+[Ziyang Zhong](https://baoqi-zhong.github.io/) and [Ziming Xian](https://github.com/ZimingXian):
+Ziming Xian designed the PCB, Ziyang Zhong did the software bring-up. It carries an
+STM32G431CBU6, a DRV8412, an MA730 magnetic encoder, WS2812B LEDs and a CAN transceiver on a
+4-layer PCB on the back of a NEMA 17 motor. It is not the final hardware of Doppelstep, but a
+good starting point: the same MCU as the B-G431B-ESC1, plus an encoder on the motor shaft.
+Doppelstep uses its DRV8412, current sensing, encoder, one status LED and USART3 for the
+DYNAMIXEL bus; the CAN bus is not used. The authors welcome fabricating the board for
+early-stage validation. Do not use it for commercial purposes, a company demo included,
+without discussing it with both of them first. The requirements for a dedicated Doppelstep PCB
+are collected in
+[Hardware development](https://systemfromscratch.github.io/sfs-doppelstep/hardware-development/).
 
 ## Why it is worth a look
 
@@ -89,11 +114,12 @@ Doppelstep **0.3.0** drives a real motor and works with DYNAMIXEL Wizard 2.0: ch
 - [x] Checked with a real motor (17HS19-2004S1, 12 V and 24 V): all 20 GUI test scenarios in three runs, hardware comparators, 2 minutes of moves at 1.5 A
 - [x] Self-test on the board: no supply, open coil, no motor, coil on the wrong legs, swapped coils ([test record](https://systemfromscratch.github.io/sfs-doppelstep/test-record/))
 - [ ] Rest of the [hardware checklist](https://systemfromscratch.github.io/sfs-doppelstep/hardware-checklist/) with the motor: vibration at rest (check 16)
-- [ ] Lost steps reported (the motor has no encoder)
+- [x] Lost steps reported, with an encoder (Overload Error; simulated encoder in the SIL tests)
 - [ ] PWM Limit applied (a duty limit in Stepper-C)
-- [ ] Velocity PI / Position PID gains of the Control Table: with an encoder
+- [x] Position regulator with an encoder (Position P Gain); Velocity PI and Position I/D not applied
 - [x] Temperature sensor (power stage NTC) and overheating trip
 - [ ] Single-wire TTL bus shared with real DYNAMIXEL servos
+- [ ] Second board with two full H-bridges (TI DRV8412, [docs](https://systemfromscratch.github.io/sfs-doppelstep/hardware-full-bridge/)): power stage backend, MA730 encoder and WS2812B status LED drivers built in CI, measured Present Position, lost steps and position regulator from the encoder ([docs](https://systemfromscratch.github.io/sfs-doppelstep/encoder/)); the run on hardware to follow
 
 ## Quick start
 
@@ -138,6 +164,7 @@ MCUboot: for a product, build from source with your own key
 | Target | Command |
 | --- | --- |
 | Board, real motor | `west build -p always --sysbuild -b b_g431b_esc1 -s app -d build` |
+| Full-bridge board (DRV8412) | `west build -p always --sysbuild -b sfs_doppelstep_full_bridge -s app -d build-fb` |
 | Board, simulated motor | the same, plus `-- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay` |
 | PC (`native_sim`) | `west build -b native_sim/native/64 -s app -d build-native` |
 | Flash MCUboot and the signed application | `west flash -d build -r openocd` |
@@ -152,9 +179,10 @@ and follow its bring-up checklist.
 
 ```text
 app/                    Zephyr application: threads, queues, register mapping, board overlays
-drivers/                power_stage/ (STM32, simulation), motor/ (Stepper-C), x430/ (servo)
+drivers/                power_stage/ (STM32, simulation), motor/ (Stepper-C), x430/ (servo),
+                        ma730/ (encoder), ws2812/ (status LED)
 include/, dts/          public driver APIs, devicetree bindings
-boards/                 out-of-tree board B-G431B-ESC1
+boards/                 out-of-tree boards: B-G431B-ESC1, full-bridge board (DRV8412)
 modules/                build glue of Stepper-C, the X430 emulator and Stepper-Lab
 tests/                  ztest suites, pytest SIL and integration tests
 tools/                  bench GUI, native_sim launcher, documentation tools
@@ -192,6 +220,16 @@ contact@systemfromscratch.com
 
 Need firmware like this for your product, Zephyr drivers, a bootloader or CRA readiness? Get
 in touch.
+
+## Acknowledgements
+
+Many thanks to **Ziyang Zhong** ([baoqi-zhong](https://github.com/baoqi-zhong)) and
+**Ziming Xian** ([ZimingXian](https://github.com/ZimingXian)), the authors of
+[Awesome-SMT-Machine](https://github.com/baoqi-zhong/Awesome-SMT-Machine). Ziming Xian designed
+the Stepper Motor FOC Closed-Loop Driver and Ziyang Zhong brought up its software. Thanks to both of them for
+publishing it with its schematic, for agreeing that Doppelstep references their project, and
+for their support and advice. Their board gave Doppelstep a closed-loop
+platform with an encoder from the start. Have a look at their pick-and-place machine as well.
 
 ## Contributing
 

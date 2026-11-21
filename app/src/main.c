@@ -1,8 +1,8 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * Doppelstep: 17HS19-2004S1 stepper motor on B-G431B-ESC1, controlled
- * by Stepper-C, seen by the host as a DYNAMIXEL XM430-W350 (Protocol 2.0).
+ * Doppelstep: 17HS19-2004S1 stepper motor on the B-G431B-ESC1 or the full-bridge board,
+ * controlled by Stepper-C, seen by the host as a DYNAMIXEL XM430-W350 (Protocol 2.0).
  *
  * The drivers have initialised themselves, with the outputs off. main() measures
  * the current sensor offsets, starts the control task, connects the servo to the
@@ -16,7 +16,6 @@
 #include <doppelstep_version.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
-#include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -27,7 +26,17 @@
 #include "app_msg.h"
 #include "app_tasks.h"
 #include "joint_bridge.h"
+#include "status_led.h"
 #include "supervisor.h"
+
+/* The startup check of the field flags is specific to the MA730 */
+#define ENCODER_MA730                                                                              \
+	COND_CODE_1(DT_HAS_CHOSEN(sfs_encoder),                                                    \
+		    (DT_NODE_HAS_COMPAT(DT_CHOSEN(sfs_encoder), sfs_ma730)), (0))
+
+#if ENCODER_MA730
+#include <doppelstep/drivers/ma730.h>
+#endif
 
 LOG_MODULE_REGISTER(main, CONFIG_SFS_LOG_LEVEL);
 
@@ -38,7 +47,6 @@ static const struct device *const motor = DEVICE_DT_GET(MOTOR_NODE);
 static const struct device *const motor_drv = DEVICE_DT_GET(DT_CHILD(MOTOR_NODE, driver));
 static const struct device *const motor_ctrl = DEVICE_DT_GET(DT_CHILD(MOTOR_NODE, ctrl));
 static const struct device *const servo = DEVICE_DT_GET(DT_CHOSEN(sfs_servo));
-static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
 /* STATUS LED, as the LED of an XM430: the LED register (65) switches it on and off,
  * and an alarm makes it blink fast whatever the register says: a fault of the motor,
@@ -49,17 +57,17 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
 static bool led_alarm(void)
 {
-	struct sstep_motor_status status;
+	struct app_status status;
 	int32_t hw_error;
 
-	status.state = SSTEP_MOTOR_DISABLED;
+	status.motor.state = SSTEP_MOTOR_DISABLED;
 	(void)app_status_get(&status);
 
 	x430_servo_lock(servo);
 	hw_error = x430_servo_reg_get(servo, X430_ADDR_HARDWARE_ERROR_STATUS);
 	x430_servo_unlock(servo);
 
-	return (status.state == SSTEP_MOTOR_FAULT) || (hw_error != 0);
+	return (status.motor.state == SSTEP_MOTOR_FAULT) || (hw_error != 0);
 }
 
 static bool led_register(void)
@@ -103,9 +111,34 @@ static void status_led_loop(bool startup_failed)
 			since_toggle_ms = 0;
 			on = led_register();
 		}
-		(void)gpio_pin_set_dt(&led, on ? 1 : 0);
+		status_led_set(on);
 	}
 }
+
+#if ENCODER_MA730
+/* Encoder check at startup: it answers, and the magnet is in range. Not fatal: the
+ * motor runs open loop without it.
+ */
+static void encoder_check(void)
+{
+	const struct device *const enc = DEVICE_DT_GET(DT_CHOSEN(sfs_encoder));
+	bool high = false;
+	bool low = false;
+	uint16_t angle = 0U;
+
+	if (!device_is_ready(enc) || (ma730_read_field(enc, &high, &low) != 0) ||
+	    (ma730_read_angle(enc, &angle) != 0)) {
+		LOG_WRN("encoder %s does not answer", enc->name);
+		return;
+	}
+	if (high || low) {
+		LOG_WRN("encoder: magnetic field %s the threshold, angle %u/65536",
+			high ? "above" : "below", angle);
+	} else {
+		LOG_INF("encoder: angle %u/65536, field in range", angle);
+	}
+}
+#endif
 
 static int startup(void)
 {
@@ -121,6 +154,10 @@ static int startup(void)
 	 */
 	ret = power_stage_calibrate(stage, CONFIG_SFS_STAGE_OFFSET_SAMPLES);
 	const bool sensor_fault = (ret == -EIO);
+
+#if ENCODER_MA730
+	encoder_check();
+#endif
 
 	if ((ret != 0) && !sensor_fault) {
 		return ret;
@@ -157,9 +194,7 @@ int main(void)
 
 	LOG_INF("Doppelstep %s on %s", DOPPELSTEP_VERSION_STRING, CONFIG_BOARD_TARGET);
 
-	if (gpio_is_ready_dt(&led)) {
-		(void)gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
-	}
+	status_led_init();
 
 	ret = startup();
 	if (ret != 0) {

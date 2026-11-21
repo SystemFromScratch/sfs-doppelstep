@@ -81,8 +81,10 @@
 	apb2-prescaler = <1>;
 };
 
-/* USART2: J3 pads and the ST-LINK/V2-1 Virtual COM Port */
-&usart2 {
+/* USART2: J3 pads and the ST-LINK/V2-1 Virtual COM Port. sfs_dxl_uart: the UART
+ * of the DYNAMIXEL bus, for MCUboot serial recovery (app/sysbuild/mcuboot.overlay).
+ */
+sfs_dxl_uart: &usart2 {
 	pinctrl-0 = <&usart2_tx_pb3 &usart2_rx_pb4>;
 	pinctrl-names = "default";
 	current-speed = <115200>;

@@ -12,6 +12,42 @@ config SFS_STAGE_OFFSET_SAMPLES
 
 rsource "Kconfig.app_msg"
 
+menu "Encoder of the joint (chosen sfs,encoder)"
+
+config SFS_ENC_LOST_STEP_USTEPS
+	int "Lost step: |commanded - measured| above [microsteps]"
+	default 32
+	help
+	  Beyond two full steps the torque of a stepper turns round: the rotor
+	  has slipped. Reported as Overload Error in Hardware Error Status.
+
+config SFS_ENC_SETTLE_MS
+	int "Holding time after Torque Enable before the alignment [ms]"
+	default 100
+	help
+	  The rotor snaps to the field at the enable (up to two full steps);
+	  then the commanded position is set to the measured one.
+
+config SFS_ENC_CORRECT_MS
+	int "Period of the position regulator at standstill [ms]"
+	default 10
+
+config SFS_ENC_CORRECTION_MAX_USTEPS
+	int "Largest lead of the regulator over the goal [microsteps]"
+	default 16
+	help
+	  One full step: the load angle of the largest holding torque.
+
+endmenu
+
+config SFS_STATUS_LED_BRIGHTNESS
+	int "Brightness of the STATUS LED on an LED strip (red, 1..255)"
+	default 32
+	range 1 255
+	help
+	  Only for a STATUS LED on an LED strip (chosen sfs,status-led-strip).
+	  32 is an eighth of the full current of the red channel.
+
 menu "Threads"
 
 config SFS_CONTROL_THREAD_PRIORITY

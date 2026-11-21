@@ -13,6 +13,7 @@
 #ifndef DOPPELSTEP_APP_MSG_H_
 #define DOPPELSTEP_APP_MSG_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include <zephyr/kernel.h>
@@ -32,6 +33,7 @@ enum app_cmd_op {
 	APP_CMD_SET_POSITION, /**< arg0 position [microsteps]; the rotor does not move. */
 	APP_CMD_SET_CURRENT,  /**< arg1 run, arg2 hold [mA]. */
 	APP_CMD_CLEAR_FAULTS, /**< Clear the faults; outputs stay off. */
+	APP_CMD_SET_GAIN,     /**< arg1 Position P Gain of the encoder regulator (0..16383). */
 };
 
 struct app_cmd {
@@ -65,11 +67,26 @@ int app_cmd_next(struct app_cmd *cmd, k_timeout_t timeout);
 /** Control task: result of a command. Never blocks; a full queue counts a drop. */
 void app_cmd_done(const struct app_cmd *cmd, int err);
 
+/** Encoder of the joint (chosen sfs,encoder), from the control task (enc_track.h). */
+struct app_enc_status {
+	bool valid;       /**< Measured position available (encoder present and read). */
+	bool fault;       /**< Encoder fault: reads failed; latched. */
+	bool correcting;  /**< The running move is a correction of the regulator. */
+	int32_t position; /**< Measured position [microsteps], coordinate of the motor. */
+	uint32_t lost;    /**< Lost steps detected since the start. */
+};
+
+/** What the control task publishes. */
+struct app_status {
+	struct sstep_motor_status motor;
+	struct app_enc_status enc; /**< All zero without an encoder. */
+};
+
 /** Control task: publish the status; it replaces the previous one. */
-void app_status_publish(const struct sstep_motor_status *status);
+void app_status_publish(const struct app_status *status);
 
 /** Latest status, any thread. @return 0, or -ENOMSG before the first publication. */
-int app_status_get(struct sstep_motor_status *status);
+int app_status_get(struct app_status *status);
 
 /** Results dropped by app_cmd_done() since start. */
 uint32_t app_rsp_dropped(void);

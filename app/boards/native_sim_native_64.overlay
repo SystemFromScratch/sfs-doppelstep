@@ -10,6 +10,14 @@
 	chosen {
 		sfs,servo = &servo;
 		sfs,motor = &motor;
+		/* Fitted only with -sim_encoder (sim_encoder.c): open loop otherwise */
+		sfs,encoder = &sim_encoder;
+	};
+
+	/* Shaft encoder on the motor model, as the MA730 of the full-bridge board */
+	sim_encoder: sim-encoder {
+		compatible = "sfs,sim-encoder";
+		stage = <&sim_stage>;
 	};
 
 	/* The simulated motor, with the ESC1 values of boards/b_g431b_esc1.overlay */

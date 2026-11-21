@@ -1,0 +1,6 @@
+board:
+  name: sfs_doppelstep_full_bridge
+  full_name: Doppelstep full-bridge board (STM32G431CB, DRV8412)
+  vendor: sfs
+  socs:
+    - name: stm32g431xx

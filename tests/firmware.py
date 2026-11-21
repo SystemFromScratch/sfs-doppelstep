@@ -13,7 +13,7 @@ BUS_PTY = re.compile(r"uart_1 connected to pseudotty: (\S+)")
 TIMESTAMP = re.compile(r"^\[(\d+):(\d+):(\d+)\.(\d+),(\d+)\]")
 MODEL = re.compile(
     r"sim_plant: cmd (-?\d+) rotor (-?\d+) usteps \(lag (-?\d+) deg el\), (-?\d+) rpm, "
-    r"iA (-?\d+) iB (-?\d+) mA, vA (-?\d+) vB (-?\d+) mV, load (-?\d+) uNm")
+    r"iA (-?\d+) iB (-?\d+) mA, vA (-?\d+) vB (-?\d+) mV, load (-?\d+) uNm, shaft (-?\d+) usteps")
 
 
 @dataclass
@@ -30,6 +30,7 @@ class ModelSample:
     v_a: int          # phase voltages commanded [mV]
     v_b: int
     load: int         # load torque [uN*m]
+    shaft: int        # rotor from its start angle, as an encoder sees it [microsteps]
 
     @property
     def i_amp(self):

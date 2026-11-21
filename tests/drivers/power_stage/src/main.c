@@ -194,9 +194,13 @@ ZTEST(power_stage, test_simulation_reports_25_degc)
 ZTEST(power_stage, test_hw_trip_levels)
 {
 	/* B-G431B-ESC1: offset 2534 counts, 10 A of 60.2 A full scale, PGA 16 */
-	zassert_equal(hw_trip_oc_dac(2534, 10000, 60200, 16), 180);
-	zassert_equal(hw_trip_oc_dac(4000, 60200, 60200, 16), 378); /* (4000 + 2048) / 16 */
-	zassert_equal(hw_trip_oc_dac(4095, 200000, 60200, 1), 4095); /* clamp */
+	zassert_equal(hw_trip_oc_dac(2534, 10000, 60200, 16000), 180);
+	zassert_equal(hw_trip_oc_dac(4000, 60200, 60200, 16000), 378);  /* (4000 + 2048) / 16 */
+	zassert_equal(hw_trip_oc_dac(4095, 200000, 60200, 1000), 4095); /* clamp */
+	/* External amplifier with a fractional gain (26.5 from its + input):
+	 * 6.47 A full scale, offset 2085, 5 A -> (2085 + 1582) / 26.5 = 138.4
+	 */
+	zassert_equal(hw_trip_oc_dac(2085, 5000, 6470, 26500), 138);
 	zassert_equal(hw_trip_vbus_dac(30000, 34283, 4095), 3583);
 	zassert_equal(hw_trip_vbus_dac(40000, 34283, 4095), 4095); /* clamp */
 	zassert_true(hw_offset_in_window(2534, 2300, 2800));

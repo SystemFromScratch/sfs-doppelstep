@@ -10,6 +10,22 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ### Changed
 
+- **Hardware trips through Zephyr drivers:** the comparators (`st,stm32g4-comp`) and the DACs
+  of their levels are devicetree nodes of the Zephyr comparator and DAC drivers; the power
+  stage node lists them in the new properties `hw-trip-current-comparators` and
+  `hw-trip-vbus-comparator`, and the negative input of each comparator names its DAC channel.
+  The backend keeps the break routing of TIM1 and the high-frequency mode of the DAC (not set
+  by the Zephyr DAC driver). Same levels and behaviour on the B-G431B-ESC1; the startup log now
+  reads `DAC levels U …, V …, W …`. About 5.3 KB more flash, most of it the shared interrupt
+  table of COMP1..3.
+- STM32 timer, ADC and break building blocks in `drivers/power_stage/stm32_pwm_adc.c`, for
+  the shared-leg backend and the coming full-bridge backend; `hw_trip_oc_dac()` takes the
+  amplifier gain x1000 (new optional property `hw-trip-current-input-gain-milli` for an
+  external amplifier).
+- The application runs on a board without the `led0` alias (no STATUS LED), and MCUboot
+  finds the UART of serial recovery by the label `sfs_dxl_uart` of the board devicetree
+  instead of `&usart2`.
+
 - DYNAMIXEL X430 emulator v1.1.0 (was v1.0.0): several drives on one bus. Sync Read and
   Bulk Read take turns (a drive answers after the status packet of the ID before it, and
   stays silent if it does not come within 100 ms); a Fast Sync/Bulk Read that lists other
@@ -22,6 +38,51 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ### Added
 
+- **Encoder of the joint** (chosen `sfs,encoder`, any sensor with `SENSOR_CHAN_ROTATION`;
+  [docs](docs/encoder.md)): Present Position from the shaft (Position Trajectory stays the
+  command), the absolute shaft angle at power-on, the commanded position following the
+  shaft with the torque off and aligned after Torque Enable, lost steps raising Overload
+  Error (torque off by the factory Shutdown mask), Motor Encoder Error after failed reads,
+  and a position regulator at standstill with Position P Gain / 1024 as gain. Pure logic in
+  `app/src/enc_track.c` (ztest suite `doppelstep.app.encoder`); the status queue carries
+  `struct app_status` (motor and encoder). New options `CONFIG_SFS_ENC_*`.
+- **Simulated encoder** `sfs,sim-encoder` on the motor model, fitted with `-sim_encoder`
+  (`-sim_encoder_mount`): SIL tests `tests/sil/test_encoder.py`, including the lost
+  synchronism that stays an expected failure without an encoder. The model log line ends
+  with `shaft N usteps`.
+- **Full-bridge board with the TI DRV8412** (`sfs_doppelstep_full_bridge`,
+  [docs](docs/hardware-full-bridge.md)): the Stepper Motor FOC Closed-Loop Driver of
+  [Awesome-SMT-Machine](https://github.com/baoqi-zhong/Awesome-SMT-Machine) by Ziyang Zhong
+  and Ziming Xian (PCB by Ziming Xian), referenced with their agreement; for early-stage
+  validation, no commercial use without discussing it with both authors. The documentation describes
+  where the board comes from and its parts from the published schematic, with acknowledgements in the README, About and
+  License pages. New page [Hardware development](docs/hardware-development.md): requirements for a
+  dedicated Doppelstep PCB from the review of this board and the B-G431B-ESC1. Out-of-tree board (STM32G431CB, 8 MHz crystal,
+  USART3 on J4 as DYNAMIXEL bus and MCUboot serial recovery, SPI2 for the MA730), the
+  application overlay with the scaling of the schematic, and the new power stage backend
+  `sfs,stm32-full-bridge-power-stage`. It drives four legs with TIM1 CH1..CH4 and no
+  complementary outputs or timer dead time, and triggers the ADCs from the internal CH6. It
+  switches the outputs off with RESET_AB/RESET_CD, reads FAULT in every period (new trip
+  `POWER_STAGE_TRIP_DRIVER`, latched as a HAL fault) and reports OTW as 125 °C. It mirrors
+  the phase B reading (`phase-b-sense-invert`) and keeps only the hardware overvoltage
+  comparator ([Protection](docs/protection.md#one-comparator-on-the-full-bridge-board)).
+  Built in CI; not yet run on a board.
+- **MA730 encoder driver** (`sfs,ma730`, `drivers/ma730/`): angle and magnetic field
+  flags over SPI, through the Zephyr sensor API (`SENSOR_CHAN_ROTATION`) and
+  `<doppelstep/drivers/ma730.h>`; reverse and zero offset in software, no write to the
+  non-volatile memory of the MA730. Emulator on an emulated SPI bus and the ztest suite
+  `doppelstep.drivers.ma730`. On the full-bridge board the application checks the encoder
+  and the magnet at startup.
+- **WS2812 LED driver** (`sfs,ws2812-stm32-tim`, `drivers/ws2812/`) of the Zephyr
+  `led_strip` class: a timer channel in PWM mode, the bits written to its compare register
+  by DMA on every update event, about 1.3 KB of flash (Zephyr's `worldsemi,ws2812-uart`
+  would cost 10.4 KB, which the slot has not got). ztest suite `doppelstep.drivers.ws2812`
+  for the bit stream. The STATUS LED of the full-bridge board is the first WS2812B
+  (`chosen sfs,status-led-strip`, red, `CONFIG_SFS_STATUS_LED_BRIGHTNESS`);
+  `app/src/status_led.c` drives a GPIO LED or an LED strip.
+- ztest scenarios `doppelstep.drivers.sstep_motor.full_bridge` and `.full_bridge.selftest`:
+  the motor driver and the self-test on a fake stage with two full H-bridges (new fake
+  property `full-bridge`); new self-test case for swapped coils on both topologies.
 - **Single-wire DYNAMIXEL bus** (`app/single-wire.overlay`): USART2 in single-wire
   half-duplex mode on PB3 (pad J3-2), open-drain, for several drives on one TTL bus like
   X430-T servos. Built and checked in CI (`build-ci/esc1-single-wire`); not yet tested

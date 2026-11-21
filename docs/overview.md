@@ -7,6 +7,11 @@ on its serial bus as a **DYNAMIXEL XM430-W350** servo in position, extended posi
 velocity mode. Software written for that servo, such as the ROS 2 driver of the
 OpenMANIPULATOR-X robot arm, drives it without changes in these modes.
 
+A second board is in development: the Stepper Motor FOC Closed-Loop Driver of
+[Awesome-SMT-Machine](https://github.com/baoqi-zhong/Awesome-SMT-Machine) by Ziyang Zhong and
+Ziming Xian, with two full H-bridges (TI DRV8412) and a magnetic encoder on the motor shaft
+([Full-bridge board](hardware-full-bridge.md)).
+
 This page explains the idea in plain words, who the project is for, what it does and does
 not do, and the terms used in the rest of the documentation.
 
@@ -61,7 +66,7 @@ That is where the name comes from: Doppelstep is the *double* (German *Doppelgä
 | **Does** protect the hardware inside the 20 kHz interrupt | A fault must switch the outputs off within one control period, whatever the threads are doing |
 | **Does** run unchanged on a PC with a simulated motor | Protocol, motion and protection can be tested on every change, without risking hardware |
 | **Does** update its own firmware over the servo bus | Only the bus cable is needed in the field; a signature check rejects foreign images |
-| **Does not** measure the rotor position | The motor has no encoder. Reported positions are the commanded ones, and a lost step is not detected yet ([Status](#status-and-known-limits)) |
+| **Measures** the rotor position only with an encoder | The B-G431B-ESC1 has none: reported positions are the commanded ones and a lost step goes unnoticed. With an encoder (the MA730 of the full-bridge board) Present Position is measured, lost steps are reported and a regulator removes the static error ([Encoder of the joint](encoder.md)) |
 | **Does not** support current-based and PWM modes of the servo (Operating Modes 0, 5, 16) | Without a position sensor they would not behave like the real servo; the firmware refuses them as the servo refuses invalid values |
 | **Does not** share a bus with real DYNAMIXEL servos yet | The bus runs through the debugger's USB port for now; a TTL half-duplex bus is planned |
 
@@ -91,13 +96,14 @@ wherever they matter:
   gate circuit of schematic MB1419. It is not yet confirmed with an oscilloscope on the board
   ([bring-up step 1](hardware.md#bring-up-checklist)). The effective dead time, the loss it
   causes, is measured: 1.05 µs at 24 V and 1.4 µs at 12 V ([Measurements with MCUViewer](measurements.md)).
-- **PWM Limit and the controller gains are not applied.** PWM Limit (36) and the Velocity PI /
-  Position PID / Feedforward gains (76–90) are stored as on an XM430 but have no effect: the
-  motor runs in current drive, and without an encoder there is no measured velocity or
-  position to close these loops on ([Differences from a real XM430-W350](dynamixel.md#differences-from-a-real-xm430-w350)).
-- **Lost steps are not reported.** A load above the holding torque makes the motor lose
-  synchronism silently. A test documents this as an expected failure
-  ([Tests](testing.md#expected-failure-lost-synchronism)).
+- **PWM Limit and most controller gains are not applied.** PWM Limit (36), the Velocity PI
+  gains, Position I/D and the Feedforward gains (76–90) are stored as on an XM430 but have
+  no effect: the motor runs in current drive. Position P Gain (84) sets the position
+  regulator when there is an encoder ([Encoder of the joint](encoder.md#position-regulator)).
+- **Lost steps are reported only with an encoder.** On the B-G431B-ESC1 a load above the
+  holding torque makes the motor lose synchronism silently; a test documents this as an
+  expected failure ([Tests](testing.md#expected-failure-lost-synchronism)). With an encoder
+  the slip raises Overload Error ([Encoder of the joint](encoder.md#lost-steps)).
 - **Hardware checklist not complete.** With a 17HS19-2004S1 at 12 V and 24 V all 20 GUI
   test scenarios in three runs, the hardware comparators, two minutes of moves at 1.5 A
   (bridge 39 → 48 °C) and every self-test scenario pass ([Protection](protection.md#checking-it-on-the-bench)).

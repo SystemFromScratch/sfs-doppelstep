@@ -124,22 +124,23 @@ ZTEST(msg, test_done_never_blocks_and_counts_drops)
 
 ZTEST(msg, test_status_keeps_the_latest_only)
 {
-	struct sstep_motor_status status = {.position = 1};
-	struct sstep_motor_status out;
+	struct app_status status = {.motor.position = 1, .enc.position = 7};
+	struct app_status out;
 
 	app_status_publish(&status);
-	status.position = 2;
+	status.motor.position = 2;
 	app_status_publish(&status);
 
 	zassert_ok(app_status_get(&out));
-	zassert_equal(out.position, 2);
+	zassert_equal(out.motor.position, 2);
+	zassert_equal(out.enc.position, 7, "the encoder part travels with it");
 	zassert_ok(app_status_get(&out), "reading does not consume it");
-	zassert_equal(out.position, 2);
+	zassert_equal(out.motor.position, 2);
 }
 
 ZTEST(msg, test_status_before_the_first_publish_is_an_error)
 {
-	struct sstep_motor_status out;
+	struct app_status out;
 
 	zassert_equal(app_status_get(&out), -ENOMSG);
 }

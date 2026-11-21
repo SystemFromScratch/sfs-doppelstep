@@ -3,6 +3,7 @@
 menuconfig POWER_STAGE
 	bool "Power stage drivers"
 	default y if DT_HAS_SFS_STM32_SHARED_LEG_POWER_STAGE_ENABLED || \
+		     DT_HAS_SFS_STM32_FULL_BRIDGE_POWER_STAGE_ENABLED || \
 		     DT_HAS_SFS_SIM_POWER_STAGE_ENABLED
 
 if POWER_STAGE
@@ -15,6 +16,26 @@ config POWER_STAGE_STM32
 	bool "STM32 backend (timer, ADC injected conversions, OPAMP)"
 	default y
 	depends on DT_HAS_SFS_STM32_SHARED_LEG_POWER_STAGE_ENABLED
+	select COMPARATOR if POWER_STAGE_STM32_HW_TRIP
+	select DAC if POWER_STAGE_STM32_HW_TRIP
+
+config POWER_STAGE_STM32_FULL_BRIDGE
+	bool "STM32 backend for two full H-bridges in one gate driver (DRV8412)"
+	default y
+	depends on DT_HAS_SFS_STM32_FULL_BRIDGE_POWER_STAGE_ENABLED
+	select GPIO
+	select COMPARATOR if POWER_STAGE_STM32_HW_TRIP
+	select DAC if POWER_STAGE_STM32_HW_TRIP
+
+DT_COMPAT_SFS_STM32_SHARED_LEG := sfs,stm32-shared-leg-power-stage
+DT_COMPAT_SFS_STM32_FULL_BRIDGE := sfs,stm32-full-bridge-power-stage
+
+config POWER_STAGE_STM32_HW_TRIP
+	def_bool $(dt_compat_any_has_prop,$(DT_COMPAT_SFS_STM32_SHARED_LEG),hw-trip-current-comparators) || \
+		 $(dt_compat_any_has_prop,$(DT_COMPAT_SFS_STM32_SHARED_LEG),hw-trip-vbus-comparator) || \
+		 $(dt_compat_any_has_prop,$(DT_COMPAT_SFS_STM32_FULL_BRIDGE),hw-trip-vbus-comparator)
+	help
+	  Hardware trips through comparators and DACs of their Zephyr drivers.
 
 rsource "Kconfig.sim"
 

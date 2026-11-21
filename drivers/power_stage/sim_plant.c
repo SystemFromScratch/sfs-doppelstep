@@ -67,9 +67,9 @@ static void publish(void)
 	pub.v_a_mv = (int32_t)lroundf(plant.v[0] * 1000.0f);
 	pub.v_b_mv = (int32_t)lroundf(plant.v[1] * 1000.0f);
 	pub.speed_mrpm = (int32_t)lroundf(plant.x[2] * (60000.0f / TWO_PI_F));
-	pub.rotor_usteps = plant.e_turns * usteps_per_e_turn +
-			   (int32_t)lroundf(plant.x[3] * ((float)usteps_per_e_turn / TWO_PI_F)) +
-			   pos_offset;
+	pub.rotor_abs_usteps = plant.e_turns * usteps_per_e_turn +
+			       (int32_t)lroundf(plant.x[3] * ((float)usteps_per_e_turn / TWO_PI_F));
+	pub.rotor_usteps = pub.rotor_abs_usteps + pos_offset;
 	pub.load_unm = (int32_t)lroundf(load * 1e6f);
 	pub.enabled = en;
 	barrier_dmem_fence_full();

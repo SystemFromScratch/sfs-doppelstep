@@ -24,6 +24,9 @@ struct sim_plant_state {
 	int32_t v_b_mv;       /**< Phase B voltage applied in the last period [mV]. */
 	int32_t speed_mrpm;   /**< Rotor speed [0.001 rpm]. */
 	int32_t rotor_usteps; /**< Rotor position [microsteps], same zero as the controller. */
+	int32_t rotor_abs_usteps; /**< Rotor position [microsteps] from its angle at the start,
+				   *   not moved by power_stage_position_shifted(): what an
+				   *   encoder on the shaft sees. */
 	int32_t load_unm;     /**< Load torque [uN*m]. */
 	bool enabled;         /**< Outputs enabled (windings driven). */
 };

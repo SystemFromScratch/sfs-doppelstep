@@ -9,8 +9,9 @@
 #   1. dependencies between the layers (scripts/check-layers.sh), host-only tests
 #      of the GUI (tools/gui/tests: protocol, scenarios, update sequence)
 #   2. west workspace: init / update (scripts/west-init.sh)
-#   3. pristine builds without warnings: b_g431b_esc1, b_g431b_esc1 + sim.overlay and
-#      b_g431b_esc1 + single-wire.overlay (DYNAMIXEL bus on one wire)
+#   3. pristine builds without warnings: b_g431b_esc1, b_g431b_esc1 + sim.overlay,
+#      b_g431b_esc1 + single-wire.overlay (DYNAMIXEL bus on one wire) and
+#      sfs_doppelstep_full_bridge (DRV8412 board)
 #      with sysbuild (MCUboot + signed application, then build_checks),
 #      native_sim (the test firmware)
 #   4. ztest suites with Twister (tests/app, tests/drivers) -> build-ci/twister
@@ -88,6 +89,7 @@ check() {
 # What the builds must contain (docs/firmware-update.md)
 build_checks() {
     local esc1=build-ci/esc1 sim=build-ci/esc1-sim wire=build-ci/esc1-single-wire
+    local fb=build-ci/full-bridge
     echo "::group::build checks"
     check "MCUboot image" test -f "${esc1}/mcuboot/zephyr/zephyr.hex"
     check "signed application image" test -f "${esc1}/app/zephyr/zephyr.signed.bin"
@@ -126,6 +128,21 @@ build_checks() {
         grep -q '^# CONFIG_SSTEP_MOTOR_MCUVIEWER is not set$' "${esc1}/app/zephyr/.config"
     check "MCUViewer variables in the bench build" \
         grep -q '^CONFIG_SSTEP_MOTOR_MCUVIEWER=y$' build-ci/esc1-mcuviewer/app/zephyr/.config
+    check "full bridge: MCUboot and signed application" \
+        test -f "${fb}/mcuboot/zephyr/zephyr.hex" -a -f "${fb}/app/zephyr/zephyr.signed.bin"
+    check "full bridge: MCUboot serial recovery on USART3 at 1 Mbps" \
+        bash -c "grep -A12 ': serial@40004800 {' '${fb}/mcuboot/zephyr/zephyr.dts' |
+                 grep -q 'current-speed = < 0xf4240 >'"
+    check "full bridge: Stepper-C built for two full H-bridges only" \
+        bash -c "grep -q '^CONFIG_SSTEP_TOPOLOGY_FULL_BRIDGE=y$' '${fb}/app/zephyr/.config' &&
+                 grep -q '^# CONFIG_SSTEP_TOPOLOGY_SHARED_LEG is not set$' '${fb}/app/zephyr/.config'"
+    check "full bridge: overvoltage comparator only, no shared interrupt table" \
+        bash -c "! grep -q '^CONFIG_SHARED_INTERRUPTS=y$' '${fb}/app/zephyr/.config'"
+    check "full bridge: MA730 encoder and WS2812 driver built" \
+        bash -c "grep -q '^CONFIG_MA730=y$' '${fb}/app/zephyr/.config' &&
+                 grep -q '^CONFIG_WS2812_STM32_TIM=y$' '${fb}/app/zephyr/.config'"
+    check "full bridge: no DMA driver and no asynchronous UART API (flash)" \
+        bash -c "! grep -qE '^CONFIG_(DMA|UART_ASYNC_API)=y$' '${fb}/app/zephyr/.config'"
     echo "::endgroup::"
 }
 
@@ -136,6 +153,7 @@ build esc1-single-wire --sysbuild -b b_g431b_esc1 -s app -d build-ci/esc1-single
     -- -DEXTRA_DTC_OVERLAY_FILE=single-wire.overlay
 build esc1-mcuviewer --sysbuild -b b_g431b_esc1 -s app -d build-ci/esc1-mcuviewer \
     -- -DEXTRA_CONF_FILE=mcuviewer.conf
+build full-bridge --sysbuild -b sfs_doppelstep_full_bridge -s app -d build-ci/full-bridge
 build native-tests -b native_sim/native/64 -s app -d build-tests \
     -- -DEXTRA_CONF_FILE=sim-test.conf "${sim_args[@]}"
 build_checks

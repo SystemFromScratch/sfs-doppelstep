@@ -57,8 +57,9 @@ def test_load_angle_follows_the_torque_equation(firmware_factory):
     assert abs(s.rotor - s.cmd) < 16, "steps lost"          # 16 microsteps = 1 full step
 
 
-@pytest.mark.xfail(strict=True, reason="no stall detection: a stepper without encoder loses "
-                                       "synchronism silently (docs/overview.md, Status and known limits)")
+@pytest.mark.xfail(strict=True, reason="without an encoder a stepper loses synchronism "
+                                       "silently; with one: test_encoder.py "
+                                       "(docs/overview.md, Status and known limits)")
 def test_lost_synchronism_is_reported(firmware_factory):
     # 0.12 N*m: held at the run current (Kt * 1.5 A = 0.31 N*m), lost at the
     # hold current (Kt * 0.5 A = 0.104 N*m): the joint falls.

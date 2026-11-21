@@ -11,7 +11,10 @@ firmware. [Checks on the board](hardware-checklist.md) cover what a PC cannot se
 | `tests/app/msg` | Queues: timeout, discarded late answer, full queue, latest status |
 | `tests/app/supervisor` | Watchdog decision: fed only when every task has checked in since the last check |
 | `tests/drivers/power_stage` | API contract of the class on the simulation backend, `-ENOSYS` of optional functions |
-| `tests/drivers/sstep_motor` | Motor driver through the standard classes, on a fake power stage; a fast-loop overrun faults the motor only with the outputs on; hardware trips; the bus voltage check of the enable. Scenario `.selftest`: the self-test of Stepper-C at the enable against a load model fired by a timer, with an open phase and a dead sensor of the shared leg |
+| `tests/drivers/sstep_motor` | Motor driver through the standard classes, on a fake power stage; a fast-loop overrun faults the motor only with the outputs on; hardware trips; the bus voltage check of the enable. Scenario `.selftest`: the self-test of Stepper-C at the enable against a load model fired by a timer, with an open phase, swapped coils and a dead sensor of the shared leg. Scenarios `.full_bridge` and `.full_bridge.selftest`: the same on a fake stage with two full H-bridges (4 legs, `tests/drivers/sstep_motor/full_bridge.overlay`) |
+| `tests/app/encoder` | Encoder tracking of the joint (`enc_track.c`): signed start angle, rounding, unwrapping over turns, the command following the shaft with the outputs off, alignment after settling, lost steps at the threshold, the regulator and its limits, coordinate shifts, latched encoder fault |
+| `tests/drivers/ma730` | MA730 driver against an emulated MA730 on an emulated SPI bus: angle and register frames, field flags, sensor API, reverse and zero offset, no write to the non-volatile memory |
+| `tests/drivers/ws2812` | Bit stream of the STM32 WS2812 driver: compare values per bit, colour order, dark pixels |
 
 ```bash
 west twister -T tests/app -T tests/drivers -p native_sim/native/64 --integration
@@ -77,6 +80,7 @@ the ngspice benches.
 | `sil/test_boot.py` | clean startup, ping (model 1020), live registers at rest (24.0 V, position 2048), factory EEPROM |
 | `sil/test_motion.py` | Goal Position moves the rotor of the model to the commanded position; run and hold current; Profile Velocity; time-based profile (Drive Mode 4, OpenMANIPULATOR-X); velocity mode; torque off releases the motor; refused Operating Mode; EEPROM locked while the torque is on |
 | `sil/test_protection.py` | load angle against `T = Kt·I·sin(δ)` at the run and the hold current (mean of the model samples of a window: the log resolves one microstep, 5.6° el); overload (0.4 N·m), which trips with Hardware Error Status bit 4, the Alert bit and torque off, all cleared by Reboot; undervoltage (9 V), which sets bit 0; Torque Enable in a fault is refused; **lost synchronism, which is not reported** (expected failure, see below) |
+| `sil/test_encoder.py` | with `-sim_encoder`: Present Position at the start is the absolute shaft angle (signed); Present Position is the shaft and Position Trajectory the command under a load; the regulator (Position P Gain 800) brings the shaft onto the goal within a pulse, Moving stays 0 meanwhile; lost synchronism raises Overload Error and switches the torque off |
 | `sil/test_bus.py` | bad CRC and other IDs get no answer; Bus Watchdog stops the motor and refuses goals until cleared; Reboot; Factory Reset; Sync Read / Write; rapid goals during a move; Clear Multi-Turn during a move is refused; garbage on the bus |
 | `sil/test_eeprom.py` | EEPROM values survive a power cycle (same `flash.bin`), RAM values do not |
 | `integration/test_dynamixel_sdk.py` | SDK ping, read and write; 3 s of the ros2_control loop on a sine trajectory: no failed transaction, more than 50 Hz, tracking error within a few cycles, rotor synchronous |
@@ -85,11 +89,11 @@ the ngspice benches.
 
 `test_lost_synchronism_is_reported` is marked `xfail(strict=True)`. A load of
 0.12 N·m is held at the run current (`Kt·1.5 A = 0.31 N·m`) but not at the hold current
-(`Kt·0.5 A = 0.10 N·m`), so the joint falls. The firmware still reports Torque Enable 1,
-no hardware error and the commanded position. A stepper motor without an encoder or
-stall detection cannot see this. The test documents the gap. When stall detection is
-added, the test starts to pass, and pytest reports the unexpected pass until the marker
-is removed.
+(`Kt·0.5 A = 0.10 N·m`), so the joint falls. Without an encoder the firmware still reports
+Torque Enable 1, no hardware error and the commanded position: a stepper motor without an
+encoder or stall detection cannot see this. The same scenario with the simulated encoder
+(`test_encoder.py`, `test_lost_synchronism_is_reported_as_overload`) passes: Overload
+Error, torque off.
 
 ### Scenario of a test
 
@@ -100,6 +104,8 @@ EEPROM (`flash.bin`). Options of the executable set the scenario without a rebui
 |---|---|
 | `-sim_load_unm=<µN·m>` | load torque (gravity-like), acting from the first Torque Enable |
 | `-sim_vbus_mv=<mV>` | bus voltage of the model |
+| `-sim_encoder` | fit the simulated shaft encoder (chosen `sfs,encoder`): measured Present Position, lost steps, regulator ([Encoder of the joint](encoder.md#in-the-simulation)) |
+| `-sim_encoder_mount=<counts>` | encoder reading at the start angle of the rotor [1/65536 turn] |
 
 Example:
 

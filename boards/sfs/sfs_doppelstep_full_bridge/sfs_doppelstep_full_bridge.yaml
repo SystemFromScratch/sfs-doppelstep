@@ -1,0 +1,16 @@
+identifier: sfs_doppelstep_full_bridge
+name: Doppelstep full-bridge board (DRV8412)
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+ram: 32
+flash: 128
+supported:
+  - gpio
+  - nvs
+  - opamp
+  - serial
+  - spi
+  - watchdog
+vendor: sfs

@@ -5,6 +5,10 @@ electronic speed controller (ESC) board for drone motors, with a detachable debu
 the board, how the stepper motor is wired to it, how the firmware scales the measurements,
 and the steps to bring a new setup up safely.
 
+A second board drives the motor with two full H-bridges in a TI DRV8412 and carries a
+magnetic encoder: the Stepper Motor FOC Closed-Loop Driver of Awesome-SMT-Machine. It has
+its own page, [Full-bridge board (DRV8412)](hardware-full-bridge.md).
+
 ## The board
 
 | Part | Detail |

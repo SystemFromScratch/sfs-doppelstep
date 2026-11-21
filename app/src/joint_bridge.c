@@ -54,14 +54,22 @@ static struct {
 } cache;
 
 static uint16_t faults_reported;
+static uint32_t lost_reported;
+static bool encoder_fault_reported;
 
 /* Latest status; kept if a reader finds the queue empty during a publication */
-static struct sstep_motor_status status;
+static struct app_status status;
 
-static const struct sstep_motor_status *latest_status(void)
+static const struct app_status *latest_status(void)
 {
 	(void)app_status_get(&status);
 	return &status;
+}
+
+/* Present Position: the encoder where there is one, else the commanded position */
+static int32_t measured_position(const struct app_status *st)
+{
+	return st->enc.valid ? st->enc.position : st->motor.position;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -132,17 +140,39 @@ static void refresh_temperature(void)
 	}
 }
 
+/* Errors of the encoder -> Hardware Error Status (once per new event): a lost step is
+ * an Overload Error (in the factory Shutdown mask: the emulator switches the torque
+ * off, as an XM430 that cannot hold its load), a failed encoder a Motor Encoder Error
+ * (not in the mask: the motor goes on open loop). Bus lock held.
+ */
+static void report_encoder(const struct app_enc_status *enc)
+{
+	if (enc->lost != lost_reported) {
+		lost_reported = enc->lost;
+		LOG_WRN("lost steps: the rotor left the field (event %u)", enc->lost);
+		x430_servo_raise_hw_error(servo, X430_HW_ERROR_OVERLOAD);
+	}
+	if (enc->fault && !encoder_fault_reported) {
+		encoder_fault_reported = true;
+		LOG_ERR("encoder fault: no reading");
+		x430_servo_raise_hw_error(servo, X430_HW_ERROR_MOTOR_ENCODER);
+	}
+}
+
 /* Live registers from the motor snapshot. Bus lock held. */
 static void refresh_live(void)
 {
-	const struct sstep_motor_status *st = latest_status();
-	const int32_t position = joint_position_to_dxl(&jcfg, &cache.regs, st->position);
+	const struct app_status *app = latest_status();
+	const struct sstep_motor_status *st = &app->motor;
+	const int32_t position = joint_position_to_dxl(&jcfg, &cache.regs, measured_position(app));
+	const int32_t trajectory = joint_position_to_dxl(&jcfg, &cache.regs, st->position);
 	const int32_t velocity = joint_velocity_to_dxl(&jcfg, &cache.regs, st->velocity);
-	const bool moving = st->state == SSTEP_MOTOR_MOVING;
+	/* a correction of the regulator is no move of the host */
+	const bool moving = (st->state == SSTEP_MOTOR_MOVING) && !app->enc.correcting;
 	uint8_t moving_status = 0U;
 
 	(void)x430_servo_reg_set(servo, X430_ADDR_PRESENT_POSITION, position);
-	(void)x430_servo_reg_set(servo, X430_ADDR_POSITION_TRAJECTORY, position);
+	(void)x430_servo_reg_set(servo, X430_ADDR_POSITION_TRAJECTORY, trajectory);
 	(void)x430_servo_reg_set(servo, X430_ADDR_PRESENT_VELOCITY, velocity);
 	(void)x430_servo_reg_set(servo, X430_ADDR_VELOCITY_TRAJECTORY, velocity);
 	(void)x430_servo_reg_set(servo, X430_ADDR_PRESENT_CURRENT,
@@ -173,6 +203,7 @@ static void refresh_live(void)
 	}
 	faults_reported = st->faults;
 
+	report_encoder(&app->enc);
 	refresh_temperature();
 
 	/* Outputs off while Torque Enable says on (fault, external disable) */
@@ -200,7 +231,7 @@ static uint8_t goal_position(int32_t value)
 
 	target = joint_position_from_dxl(&jcfg, &cache.regs, value);
 	profile = joint_profile(&jcfg, &cache.regs,
-				(uint32_t)llabs((int64_t)target - latest_status()->position),
+				(uint32_t)llabs((int64_t)target - latest_status()->motor.position),
 				cache.profile_velocity, cache.profile_acceleration,
 				cache.velocity_limit, V_MAX, ACCEL_MAX);
 
@@ -305,6 +336,10 @@ static uint8_t on_write(const struct device *dev, uint16_t address, uint8_t size
 	case X430_ADDR_GOAL_VELOCITY:
 		return goal_velocity(value);
 
+	case X430_ADDR_POSITION_P_GAIN:
+		/* the regulator of the encoder (control_task.c); without one, stored only */
+		return to_status(app_call(APP_CMD_SET_GAIN, 0, (uint32_t)value, 0U));
+
 	default:
 		return DXL2_ERR_NONE;
 	}
@@ -331,12 +366,14 @@ static uint8_t on_event(const struct device *dev, enum x430_event event, void *u
 		(void)app_call(APP_CMD_DISABLE, 0, 0U, 0U);
 		(void)app_call(APP_CMD_CLEAR_FAULTS, 0, 0U, 0U);
 		faults_reported = 0U;
+		encoder_fault_reported = false;
 		reload_cache();
+		(void)app_call(APP_CMD_SET_GAIN, 0, (uint32_t)reg(X430_ADDR_POSITION_P_GAIN), 0U);
 		break;
 
 	case X430_EVENT_CLEAR_MULTI_TURN: {
 		const int32_t present = joint_position_to_dxl(&jcfg, &cache.regs,
-							      latest_status()->position);
+							      measured_position(latest_status()));
 		const int32_t wrapped = ((present % JOINT_DXL_PULSES_PER_REV) +
 					 JOINT_DXL_PULSES_PER_REV) %
 					JOINT_DXL_PULSES_PER_REV;
@@ -356,6 +393,7 @@ static uint8_t on_event(const struct device *dev, enum x430_event event, void *u
 
 	case X430_EVENT_BACKUP_RESTORED:
 		reload_cache();
+		(void)app_call(APP_CMD_SET_GAIN, 0, (uint32_t)reg(X430_ADDR_POSITION_P_GAIN), 0U);
 		(void)app_call(APP_CMD_SET_CURRENT, 0,
 			       joint_current_from_dxl((uint32_t)reg(X430_ADDR_CURRENT_LIMIT)),
 			       I_HOLD_MA);
@@ -373,7 +411,7 @@ static bool on_nvm_allowed(const struct device *dev, void *user_data)
 	ARG_UNUSED(user_data);
 
 	/* A flash erase stalls the CPU (single bank) and with it the current loop */
-	return latest_status()->state == SSTEP_MOTOR_DISABLED;
+	return latest_status()->motor.state == SSTEP_MOTOR_DISABLED;
 }
 
 static const struct x430_servo_callbacks callbacks = {
@@ -416,8 +454,10 @@ int joint_bridge_init(const struct device *dev)
 	x430_servo_lock(servo);
 	reload_cache();
 	refresh_live();
+	const uint32_t p_gain = (uint32_t)reg(X430_ADDR_POSITION_P_GAIN);
 	x430_servo_unlock(servo);
 
+	(void)app_call(APP_CMD_SET_GAIN, 0, p_gain, 0U);
 	return x430_servo_start(servo, &callbacks, NULL);
 }
 

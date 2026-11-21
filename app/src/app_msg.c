@@ -15,7 +15,7 @@ LOG_MODULE_REGISTER(app_msg, CONFIG_APP_MSG_LOG_LEVEL);
 
 K_MSGQ_DEFINE(cmd_q, sizeof(struct app_cmd), 2, 4);
 K_MSGQ_DEFINE(rsp_q, sizeof(struct app_rsp), 2, 4);
-K_MSGQ_DEFINE(status_q, sizeof(struct sstep_motor_status), 1, 4);
+K_MSGQ_DEFINE(status_q, sizeof(struct app_status), 1, 4);
 
 static atomic_t rsp_dropped;
 
@@ -63,7 +63,7 @@ void app_cmd_done(const struct app_cmd *cmd, int err)
 	}
 }
 
-void app_status_publish(const struct sstep_motor_status *status)
+void app_status_publish(const struct app_status *status)
 {
 	/* Safe between the two calls: the publisher is a cooperative thread that outranks
 	 * every reader on a single core; a reader that still sees the queue empty keeps
@@ -73,7 +73,7 @@ void app_status_publish(const struct sstep_motor_status *status)
 	(void)k_msgq_put(&status_q, status, K_NO_WAIT);
 }
 
-int app_status_get(struct sstep_motor_status *status)
+int app_status_get(struct app_status *status)
 {
 	return k_msgq_peek(&status_q, status);
 }

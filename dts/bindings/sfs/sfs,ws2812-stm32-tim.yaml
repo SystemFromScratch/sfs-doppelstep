@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  WS2812 LED chain on one channel of an STM32 general-purpose timer, the bits
+  written to the compare register by DMA on every update event (one PWM period
+  of 1.25 us per bit). Flash cost about 0.6 KB: no Zephyr DMA or async UART
+  driver, which together cost about 10 KB (docs/hardware-full-bridge.md).
+
+  The driver programs the timer, one DMA1 channel and its DMAMUX channel
+  directly (LL): the timer, dma1 and dmamux1 nodes must stay "disabled" so that
+  no Zephyr driver claims them. The dmas property only names the DMAMUX channel
+  and the request (cells: channel, request, configuration; the configuration is
+  ignored), DMA1 channel = DMAMUX channel + 1.
+
+compatible: "sfs,ws2812-stm32-tim"
+
+include: [ws2812.yaml, pinctrl-device.yaml]
+
+properties:
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  timer:
+    type: phandle
+    required: true
+    description: General-purpose timer node (st,stm32-timers), status "disabled".
+
+  channel:
+    type: int
+    required: true
+    enum: [1, 2, 3, 4]
+    description: Timer channel of the data pin.
+
+  dmas:
+    type: phandle-array
+    required: true
+    description: |
+      <&dmamux1 channel request 0>: request = the update event of the timer
+      (TIM2_UP = 60 on the STM32G4).
+
+  t0h-ns:
+    type: int
+    default: 400
+    description: High time of a 0 bit [ns].
+
+  t1h-ns:
+    type: int
+    default: 800
+    description: High time of a 1 bit [ns].
+
+  period-ns:
+    type: int
+    default: 1250
+    description: Duration of one bit [ns].

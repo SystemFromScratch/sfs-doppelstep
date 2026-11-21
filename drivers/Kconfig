@@ -5,5 +5,7 @@ menu "Doppelstep drivers"
 rsource "power_stage/Kconfig"
 rsource "motor/Kconfig"
 rsource "x430/Kconfig"
+rsource "ma730/Kconfig"
+rsource "ws2812/Kconfig"
 
 endmenu

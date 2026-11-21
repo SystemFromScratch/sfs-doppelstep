@@ -23,6 +23,9 @@ static const struct device *const motor = DEVICE_DT_GET(DT_NODELABEL(motor));
 static const struct device *const drv = DEVICE_DT_GET(DT_NODELABEL(motor_drv));
 static const struct device *const ctrl = DEVICE_DT_GET(DT_NODELABEL(motor_ctrl));
 
+/* Scenario .full_bridge: the stage has two full H-bridges (full_bridge.overlay) */
+#define FULL_BRIDGE DT_PROP(DT_NODELABEL(stage), full_bridge)
+
 #define PERIOD   4250
 #define ZERO     2048
 #define I_FS_MA  60155 /* scaling of the fake stage */
@@ -39,6 +42,7 @@ struct load {
 	bool open_a;
 	bool dead_w_sensor; /* the shunt of the shared leg reads 0 A */
 	bool w_spike;       /* one sample of the shared leg 80 counts off (a switching edge) */
+	bool swapped;       /* the sensors see the coils swapped (A on the sensor of B) */
 	uint32_t samples;
 	uint16_t vbus;
 	uint32_t periods_a; /* periods with coil A driven */
@@ -66,12 +70,20 @@ static void plant(const uint16_t *cmp, bool on, struct power_stage_sample *out, 
 
 	if (on) {
 		l->outputs_seen = true;
+		/* Coil voltages: shared leg A = U - W, B = V - W; full bridge A = 0 - 1,
+		 * B = 2 - 3
+		 */
+		const int32_t va = FULL_BRIDGE ? ((int32_t)cmp[0] - cmp[1])
+					       : ((int32_t)cmp[0] - cmp[2]);
+		const int32_t vb = FULL_BRIDGE ? ((int32_t)cmp[2] - cmp[3])
+					       : ((int32_t)cmp[1] - cmp[2]);
+
 		if (!l->open_a) {
-			ia_ss = ((int32_t)cmp[0] - cmp[2]) * vbus_mv / PERIOD * 1000 / R_MOHM;
+			ia_ss = va * vbus_mv / PERIOD * 1000 / R_MOHM;
 		}
-		ib_ss = ((int32_t)cmp[1] - cmp[2]) * vbus_mv / PERIOD * 1000 / R_MOHM;
-		l->periods_a += (cmp[0] > 0U) ? 1U : 0U;
-		l->periods_b += (cmp[1] > 0U) ? 1U : 0U;
+		ib_ss = vb * vbus_mv / PERIOD * 1000 / R_MOHM;
+		l->periods_a += (va != 0) ? 1U : 0U;
+		l->periods_b += (vb != 0) ? 1U : 0U;
 		l->ia_ma += (ia_ss - l->ia_ma) / TAU_PERIODS;
 		l->ib_ma += (ib_ss - l->ib_ma) / TAU_PERIODS;
 	} else {
@@ -81,11 +93,12 @@ static void plant(const uint16_t *cmp, bool on, struct power_stage_sample *out, 
 	if (l->open_a) {
 		l->ia_ma = 0;
 	}
-	ia = l->ia_ma;
-	ib = l->ib_ma;
+	ia = l->swapped ? l->ib_ma : l->ia_ma;
+	ib = l->swapped ? l->ia_ma : l->ib_ma;
 	out->i_a = counts(ia);
 	out->i_b = counts(ib);
-	out->i_aux = l->dead_w_sensor ? counts(0) : counts(-(ia + ib));
+	/* A full bridge has no leg that the phase currents do not show */
+	out->i_aux = (FULL_BRIDGE || l->dead_w_sensor) ? counts(0) : counts(-(ia + ib));
 	l->samples++;
 	if (l->w_spike && (l->samples == 400U)) {
 		out->i_aux -= 80U;
@@ -207,6 +220,9 @@ ZTEST(motor_selftest, test_failed_selftest_latches_a_fault)
 ZTEST(motor_selftest, test_broken_sensor_of_the_shared_leg_fails)
 {
 	/* Stepper-C sees iU and iV only; the driver adds up the three legs */
+	if (FULL_BRIDGE) {
+		ztest_test_skip();
+	}
 	load.dead_w_sensor = true;
 	zassert_ok(stepper_enable(drv));
 	settle();
@@ -218,12 +234,35 @@ ZTEST(motor_selftest, test_broken_sensor_of_the_shared_leg_fails)
 ZTEST(motor_selftest, test_one_disturbed_sample_of_the_shared_leg_passes)
 {
 	/* a broken sensor is wrong as long as current flows; one disturbed sample is not */
+	if (FULL_BRIDGE) {
+		ztest_test_skip();
+	}
 	load.w_spike = true;
 	zassert_ok(stepper_enable(drv));
 	settle();
 	zassert_true(load.samples > 400U, "the disturbed sample came during the test");
 	zassert_true(fake_power_stage_output_on(stage));
 	zassert_equal(status().faults, 0U);
+}
+
+ZTEST(motor_selftest, test_swapped_coils_fail)
+{
+	load.swapped = true;
+	zassert_ok(stepper_enable(drv));
+	settle();
+	zassert_false(fake_power_stage_output_on(stage));
+	zassert_equal(status().state, SSTEP_MOTOR_FAULT);
+	zassert_true((status().faults & SSTEP_MOTOR_FAULT_SELFTEST) != 0U);
+}
+
+ZTEST(motor_selftest, test_the_stage_has_the_topology_of_the_node)
+{
+	struct power_stage_info info;
+
+	zassert_ok(power_stage_get_info(stage, &info));
+	zassert_equal(info.topology,
+		      FULL_BRIDGE ? POWER_STAGE_FULL_BRIDGE : POWER_STAGE_SHARED_LEG);
+	zassert_equal(info.legs, FULL_BRIDGE ? 4U : 3U);
 }
 
 ZTEST(motor_selftest, test_enable_with_vbus_out_of_range_is_refused)

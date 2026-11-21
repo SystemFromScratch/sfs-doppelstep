@@ -8,7 +8,8 @@ description: |
   This backend programs TIM1, ADC1 and ADC2 directly (LL); the referenced
   timer and ADC nodes must therefore stay "disabled" so that no Zephyr driver
   claims them. The OPAMP nodes are "okay" and configured by the Zephyr OPAMP
-  driver.
+  driver, the comparator and DAC nodes of the hardware trips are "okay" and
+  configured by the Zephyr comparator and DAC drivers.
 
   Legs, in the order of Stepper-C's shared-leg topology:
     leg 0 = U = TIM1 CH1/CH1N, leg 1 = V = CH2/CH2N, leg 2 = W = CH3/CH3N
@@ -121,20 +122,45 @@ properties:
     type: int
     description: |
       Short-circuit level of the hardware trip [mA]; none = no hardware trip.
-      COMP1, COMP2 and COMP4 compare the non-inverting inputs of OPAMP1..3
-      (PA1, PA7, PB0: shunt voltage on the bias of the board) with DAC3 and drive
-      the break input BRK of the timer: the outputs go off in hardware, within the
-      break filter (about 0.5 us). Catches a current down through a low-side
-      switch: shoot-through, a phase shorted to the bus, a phase-to-phase short.
-      The level follows the calibrated offset. Set it above trip-current-milliamp
-      of the motor node.
+      The comparators of hw-trip-current-comparators compare the non-inverting
+      inputs of the current amplifiers (shunt voltage on the bias of the board)
+      with DAC levels and drive the break input BRK of the timer: the outputs go
+      off in hardware, within the break filter (about 0.5 us). Catches a current
+      down through a low-side switch: shoot-through, a phase shorted to the bus,
+      a phase-to-phase short. The level follows the calibrated offset. Set it
+      above trip-current-milliamp of the motor node.
+
+  hw-trip-current-comparators:
+    type: phandles
+    description: |
+      Comparators (st,stm32g4-comp, status "okay", driven by the Zephyr
+      comparator driver) of the legs U, V and W, required with
+      hw-trip-current-milliamp. The positive input of each one is the
+      non-inverting input of the amplifier of its leg, the negative input a DAC
+      channel (for example "DAC3_CH1"), whose DAC node must be "okay" too:
+      the backend writes the level there with the Zephyr DAC driver. Legs that
+      share a DAC channel get the highest of their levels.
+
+  hw-trip-current-input-gain-milli:
+    type: int
+    description: |
+      Gain from the comparator input (the non-inverting input of the current
+      amplifier) to the ADC input, x1000. Default: the PGA gain of opamp-gain.
+      Needed for an external feedback network.
 
   hw-trip-vbus-mv:
     type: int
     description: |
       Bus overvoltage level of the hardware trip [mV]; none = no hardware trip.
-      COMP3 compares the bus divider (PA0) with DAC1 channel 1 and drives the
-      break input BRK2 of the timer. Set it above vbus-max-mv of the motor node.
+      The comparator of hw-trip-vbus-comparator compares the bus divider with a
+      DAC level and drives the break input BRK2 of the timer. Set it above
+      vbus-max-mv of the motor node.
+
+  hw-trip-vbus-comparator:
+    type: phandle
+    description: |
+      Comparator of the bus divider (as hw-trip-current-comparators), required
+      with hw-trip-vbus-mv.
 
   current-offset-min-counts:
     type: int

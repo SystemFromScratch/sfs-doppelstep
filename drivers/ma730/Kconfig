@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config MA730
+	bool "MPS MA730 magnetic angle sensor"
+	default y
+	depends on DT_HAS_SFS_MA730_ENABLED
+	select SPI
+	select SENSOR
+	help
+	  Angle and field flags of an MA730 on SPI, through the sensor API
+	  (SENSOR_CHAN_ROTATION) and <doppelstep/drivers/ma730.h>.
+
+if MA730
+
+config MA730_INIT_PRIORITY
+	int "MA730 init priority"
+	default 75
+
+config MA730_EMUL
+	bool "Emulator of the MA730 on an emulated SPI bus (tests)"
+	default y
+	depends on EMUL && SPI_EMUL
+
+endif # MA730
