@@ -79,8 +79,8 @@ The 24.0 V of the simulated-motor build is the bus voltage of the model
 (`CONFIG_SFS_SIM_VBUS_MV`), not a measurement. With USB only and no supply, the ADC of the test
 board read about 4.7 V on the bus input, below the 10 V undervoltage trip.
 
-The temperature is converted as the fourth injected conversion of every PWM period (about
-0.9 µs more before the fast loop) and read with the beta model, about 1309 counts at 25 °C and
+The temperature is converted every PWM period as the second regular conversion of ADC1,
+after W and outside the sampling window, and read with the beta model, about 1309 counts at 25 °C and
 3025 at 80 °C. Present Temperature shows it in whole °C. Above Temperature Limit (31, factory
 80 °C) the firmware raises Overheating Error, which is in the factory Shutdown mask: the torque
 goes off and stays off until a Reboot, as on an XM430. A reading at a rail (NTC open or shorted)
@@ -101,7 +101,10 @@ current limit of the supply.
 compare value at or below the period minus the window (`sample_window_ticks`) and lowers
 its voltage limit by the same 9.6 %, keeping the direction of the voltage vector. Before
 the trigger the window covers the dead time (1.2 µs) and about 1 µs of settling, after it
-the sampling phases of U, VBUS and W (about 1.5 µs). With it the same Torque Enable at 1.5 A
+the sampling phases: four samples of U on ADC1 and of V on ADC2 (0 to 1.5 µs), then W on
+ADC1 and VBUS on ADC2 (to about 2.1 µs). The coil currents are the means of the four
+samples, which have about 40 % less noise than one
+([Measurements](measurements.md#four-samples-per-phase-current)). With it the same Torque Enable at 1.5 A
 and moves up to 46 rpm ran without a fault at 12 V.
 
 `current-slew-ma-per-ms` (30 mA/ms) also lets the current rise after Torque Enable instead

@@ -10,6 +10,19 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ### Changed
 
+- **Four samples per phase current on the B-G431B-ESC1**
+  (`drivers/power_stage/power_stage_stm32.c`): ADC1 converts U and ADC2 converts V four
+  times in a row after the trigger (four injected ranks, 0 to 1.5 µs) and the fast loop
+  gets the means; the samples are nearly independent, so the mean has about 40 % less
+  noise. At hold, 24 V, 0.5 A: current noise 32/33 mA → 20 mA rms, commanded voltage
+  noise −4.2 dB (A) and −4.6 dB (B), which the motor hears as humming at rest. W, VBUS
+  and the NTC moved to the regular groups on the same trigger: W on ADC1 right after the
+  injected sequence (still in the sampling window), VBUS on ADC2 (`vbus-channel` must now
+  be an input shared by ADC1 and ADC2; 12.5 cycles, same reading as 24.5), the NTC after
+  W. The fast loop starts about 0.6 µs later. Not the hardware oversampler: JOVSE would
+  take every injected rank four times, VBUS included, and leave the window
+  ([Measurements](docs/measurements.md#four-samples-per-phase-current)).
+
 - **DXL2-C v2.0.0 and DYNAMIXEL X430 emulator v1.2.0** (were v1.0.0 and v1.1.0,
   `west.yml`): DXL2-C decodes a packet in place, in its receive buffer, instead of copying
   the parameters, and X430 holds one default of the packet size per build system. With

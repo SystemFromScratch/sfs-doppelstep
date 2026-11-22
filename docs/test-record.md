@@ -108,6 +108,7 @@ After the release: the bench build with `CONFIG_SSTEP_MOTOR_MCUVIEWER`, read wit
 | Effective dead time, two slow moves at 1.5 A | 24 V: 1.05 µs (set 1.2 µs), 0.50 V per leg. 12 V: 1.4 µs (1.25 and 1.51 µs per move), 0.34 V per leg. At each voltage the same above 250 mA |
 | Phase circuit resistance from the same fit | 2.79 Ω at 24 V, 2.74 Ω at 12 V, more than the 1.6 Ω of the motor data: open |
 | Dead-time compensation, Stepper-C 1.5.0, 1050 ns, 250 mA | Voltage drive, 12 V, 0.5 A reference: commanded voltage of phase A 798 → 1303 mV (+2 Vd), of phase B 0 → 253 mV (+Vd), current of phase A 174 → 256 mA. Current drive, 24 V: commanded voltage over current and current at rest unchanged, current shape at the zero crossings below the resolution |
+| Four samples per phase current (ADC1 U ×4, ADC2 V ×4), 24 V | Diagnostic build, phase V: one sample 34.5 mA rms at hold, mean of four 20.0 mA rms (−42 %), samples nearly independent, mean 1.0 count above the first sample with the torque off and at hold, independent of the duty cycle. Closed loop A B A B at 0.5 A: current noise A 32.1 → 19.7 mA rms, B 33.1 → 19.6 mA rms, commanded voltage −4.2 and −4.6 dB; no overrun, no late regular conversion; VBUS with 12.5 cycles reads as with 24.5 cycles (< 1 count). Mean commanded voltage 30 to 100 mV higher: open |
 
 ### Problems found by these tests
 

@@ -83,7 +83,9 @@ properties:
   vbus-channel:
     type: int
     required: true
-    description: adc-master channel of the bus voltage divider.
+    description: |
+      Channel of the bus voltage divider, converted by adc-slave: one of the
+      inputs shared by ADC1 and ADC2 (1, 2, 6 to 9, 14; RM0440 21.4.4).
 
   temperature-channel:
     type: int
@@ -91,7 +93,8 @@ properties:
       adc-master channel of the NTC divider (power stage temperature); none = no
       sensor, power_stage_get_temperature() then returns -ENOSYS. The divider is
       the NTC from the ADC reference to the input and ntc-bottom-ohm from the
-      input to ground. Converted every PWM period, as the fourth injected rank.
+      input to ground. Converted every PWM period, as the second regular rank
+      of adc-master after the shared leg W.
 
   ntc-r25-ohm:
     type: int

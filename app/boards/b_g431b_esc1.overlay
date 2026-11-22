@@ -46,7 +46,8 @@
 
 		/* Low-side time around the top of the counter for the samples: before
 		 * the ADC trigger the dead time (1.2 us) and about 1 us of settling,
-		 * after it the sampling phases of U, VBUS and W (about 1.5 us). Without
+		 * after it the sampling phases: U x4 (ADC1) and V x4 (ADC2) to 1.5 us,
+		 * then W (ADC1) and VBUS (ADC2) to about 2.1 us. Without
 		 * it a duty cycle near 100 % (a 1 A current step at 12 V) corrupted the
 		 * VBUS sample and tripped the undervoltage protection on the board.
 		 * 2400 ns = 408 of 4250 ticks: the voltage limit drops by 9.6 %.
@@ -54,7 +55,7 @@
 		sample-window-ns = <2400>;
 
 		/* OP1_OUT PA2 = ADC1_IN3, OP2_OUT PA6 = ADC2_IN3,
-		 * OP3_OUT PB1 = ADC1_IN12, VBUS PA0 = ADC1_IN1
+		 * OP3_OUT PB1 = ADC1_IN12, VBUS PA0 = ADC12_IN1 (converted by ADC2)
 		 */
 		phase-u-channel = <3>;
 		phase-v-channel = <3>;

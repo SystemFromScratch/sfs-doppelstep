@@ -10,11 +10,20 @@
  *
  *   CNT  0 ........ ARR-1  ARR  ARR-1 ........ 0
  *   OC4REF          _______________                (PWM mode 2, CCR4 = ARR - 1)
- *   TRGO2 ---------^  injected conversions of ADC1 (U, VBUS, W) and ADC2 (V)
+ *   TRGO2 ---------^  ADC1: injected U x4, then regular W (and the NTC)
+ *                     ADC2: injected V x4, then regular VBUS
  *
  * At the top of the counter all legs are on their low-side switch (PWM mode 1:
  * high side while CNT < CCRx), the only moment the low-side shunts carry the
- * phase currents. The end of the ADC1 injected sequence runs the fast loop.
+ * phase currents. Each coil current is the mean of four back-to-back samples
+ * (0 .. 1.5 us after the trigger), as the hardware oversampler with OVSR 4x would
+ * take them; four injected ranks of one channel instead, because JOVSE would
+ * oversample every injected rank of the ADC, VBUS included, and the sequence would
+ * leave the sampling window. The samples are nearly uncorrelated: the mean of four
+ * has 42 % less noise than one sample (docs/measurements.md). W only feeds the
+ * leg-sum and leg-trip checks and is converted once, right after the injected
+ * sequence and still in the window. The end of the ADC1 injected sequence runs the
+ * fast loop; it waits for W and VBUS of the same period.
  *
  * Optional hardware trips (hw-trip-current-milliamp, hw-trip-vbus-mv): comparators
  * of the Zephyr comparator driver watch the OPAMP inputs and the bus divider against
@@ -77,7 +86,16 @@ BUILD_ASSERT(DT_PROP_LEN(PS_NODE, vbus_divider) == 2, "vbus-divider = <R_low R_h
 #define CH_W __LL_ADC_DECIMAL_NB_TO_CHANNEL(DT_PROP(PS_NODE, phase_w_channel))
 #define CH_VBUS __LL_ADC_DECIMAL_NB_TO_CHANNEL(DT_PROP(PS_NODE, vbus_channel))
 
-/* Optional NTC (temperature-channel): fourth injected rank of the master ADC */
+/* VBUS (divider, about 16 kOhm): regular conversion of ADC2 right after the four V
+ * ranks; its sampling phase must end inside the sampling window.
+ */
+#define VBUS_SAMPLING_TIME LL_ADC_SAMPLINGTIME_12CYCLES_5
+#define VBUS_NB DT_PROP(PS_NODE, vbus_channel)
+BUILD_ASSERT((VBUS_NB == 1) || (VBUS_NB == 2) || ((VBUS_NB >= 6) && (VBUS_NB <= 9)) ||
+		     (VBUS_NB == 14),
+	     "vbus-channel must be an ADC12_INx pin: the slave ADC converts it (RM0440 21.4.4)");
+
+/* Optional NTC (temperature-channel): second regular rank of the master ADC */
 #define HAS_NTC DT_NODE_HAS_PROP(PS_NODE, temperature_channel)
 #if HAS_NTC
 BUILD_ASSERT(DT_NODE_HAS_PROP(PS_NODE, ntc_r25_ohm) && DT_NODE_HAS_PROP(PS_NODE, ntc_beta) &&
@@ -135,6 +153,10 @@ static volatile bool offsets_valid;     /* the W trip means nothing before calib
 static volatile uint16_t leg_trip_counts; /* 0 = disabled */
 static volatile uint32_t isr_count;
 static volatile uint16_t raw_temp; /* last NTC reading, 0 = none yet */
+/* Regular conversions of the last period (kept when one is late) */
+static volatile uint16_t raw_w_last = ADC_MID;
+static volatile uint16_t raw_vbus_last;
+static volatile uint32_t regular_late; /* a regular conversion missed its wait */
 static volatile uint32_t fast_cycles_max;
 static volatile bool hw_trip_latched; /* a break input fired: outputs off until reset */
 
@@ -160,20 +182,70 @@ static uint16_t recentre(uint16_t raw, uint16_t offset)
 	return (v > (int32_t)ADC_FULL) ? (uint16_t)ADC_FULL : (uint16_t)v;
 }
 
+/* Mean of the four injected ranks (one channel), rounded: 12-bit counts as the
+ * hardware oversampler gives them with OVSR 4x and OVSS 2.
+ */
+static uint16_t inj_mean4(ADC_TypeDef *adc)
+{
+	const uint32_t sum = (uint32_t)LL_ADC_INJ_ReadConversionData12(adc, LL_ADC_INJ_RANK_1) +
+			     (uint32_t)LL_ADC_INJ_ReadConversionData12(adc, LL_ADC_INJ_RANK_2) +
+			     (uint32_t)LL_ADC_INJ_ReadConversionData12(adc, LL_ADC_INJ_RANK_3) +
+			     (uint32_t)LL_ADC_INJ_ReadConversionData12(adc, LL_ADC_INJ_RANK_4);
+
+	return (uint16_t)((sum + 2U) >> 2);
+}
+
+/* Wait for a flag of a conversion that runs now (< 1 us); bounded to about 3 us */
+static bool adc_wait_flag(const ADC_TypeDef *adc, uint32_t mask)
+{
+	for (uint32_t i = 0U; i < 100U; i++) {
+		if ((adc->ISR & mask) != 0U) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* The next regular conversion of @p adc, or @p last if it did not come in time */
+static uint16_t regular_read(ADC_TypeDef *adc, uint16_t last)
+{
+	if (!adc_wait_flag(adc, ADC_ISR_EOC)) {
+		regular_late++;
+		return last;
+	}
+	return (uint16_t)LL_ADC_REG_ReadConversionData12(adc); /* clears EOC */
+}
+
 ISR_DIRECT_DECLARE(power_stage_adc_isr)
 {
 	if (LL_ADC_IsActiveFlag_JEOS(ADC_M) != 0U) {
-		const uint16_t raw_u = LL_ADC_INJ_ReadConversionData12(ADC_M, LL_ADC_INJ_RANK_1);
-		const uint16_t raw_vbus = LL_ADC_INJ_ReadConversionData12(ADC_M, LL_ADC_INJ_RANK_2);
-		const uint16_t raw_w = LL_ADC_INJ_ReadConversionData12(ADC_M, LL_ADC_INJ_RANK_3);
-		const uint16_t raw_v = LL_ADC_INJ_ReadConversionData12(ADC_S, LL_ADC_INJ_RANK_1);
-#if HAS_NTC
-		raw_temp = LL_ADC_INJ_ReadConversionData12(ADC_M, LL_ADC_INJ_RANK_4);
-#endif
-		const power_stage_fast_cb_t fn = fast_fn;
+		/* The regular conversions of this period start after the injected ones:
+		 * an end-of-conversion flag set now is old (a late NTC), not W or VBUS.
+		 */
+		LL_ADC_ClearFlag_EOC(ADC_M);
+		LL_ADC_ClearFlag_EOS(ADC_M);
+		LL_ADC_ClearFlag_EOC(ADC_S);
+		LL_ADC_ClearFlag_EOS(ADC_S);
+
+		const uint16_t raw_u = inj_mean4(ADC_M);
+
+		/* Same sequence on both ADCs, same trigger: the slave ends with the master */
+		if (!adc_wait_flag(ADC_S, ADC_ISR_JEOS)) {
+			regular_late++;
+		}
+		const uint16_t raw_v = inj_mean4(ADC_S);
 
 		LL_ADC_ClearFlag_JEOS(ADC_M);
 		LL_ADC_ClearFlag_JEOS(ADC_S);
+
+		const uint16_t raw_w = regular_read(ADC_M, raw_w_last);
+		const uint16_t raw_vbus = regular_read(ADC_S, raw_vbus_last);
+
+		raw_w_last = raw_w;
+		raw_vbus_last = raw_vbus;
+
+		const power_stage_fast_cb_t fn = fast_fn;
+
 		isr_count++;
 
 		if (cal_remaining > 0U) {
@@ -235,6 +307,14 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 				overrun_pending = true;
 			}
 		}
+#if HAS_NTC
+		/* Second regular rank after W, about 0.9 us later: done after the
+		 * callback; waited for only in the short calibration periods.
+		 */
+		if (adc_wait_flag(ADC_M, ADC_ISR_EOC)) {
+			raw_temp = (uint16_t)LL_ADC_REG_ReadConversionData12(ADC_M);
+		}
+#endif
 	}
 
 	return 0; /* zero-latency interrupt: no rescheduling */
@@ -419,26 +499,47 @@ static int adcs_init(void)
 		return ret;
 	}
 
-	/* Amplifier outputs are low impedance; the divider (~16 kOhm) needs more */
+	/* Amplifier outputs are low impedance: 6.5 cycles, 447 ns a conversion. Four
+	 * ranks of U (ADC1) and of V (ADC2) sample from 0 to 1.5 us after the
+	 * trigger, the means of four go to the fast loop.
+	 */
 	LL_ADC_SetChannelSamplingTime(ADC_M, CH_U, LL_ADC_SAMPLINGTIME_6CYCLES_5);
-	LL_ADC_SetChannelSamplingTime(ADC_M, CH_VBUS, LL_ADC_SAMPLINGTIME_24CYCLES_5);
 	LL_ADC_SetChannelSamplingTime(ADC_M, CH_W, LL_ADC_SAMPLINGTIME_6CYCLES_5);
 	LL_ADC_SetChannelSamplingTime(ADC_S, CH_V, LL_ADC_SAMPLINGTIME_6CYCLES_5);
-
-#if HAS_NTC
-	/* After the currents: about 0.9 us more before the fast loop starts */
-	LL_ADC_SetChannelSamplingTime(ADC_M, CH_TEMP, LL_ADC_SAMPLINGTIME_24CYCLES_5);
 	LL_ADC_INJ_ConfigQueueContext(ADC_M, LL_ADC_INJ_TRIG_EXT_TIM1_TRGO2,
 				      LL_ADC_INJ_TRIG_EXT_RISING, LL_ADC_INJ_SEQ_SCAN_ENABLE_4RANKS,
-				      CH_U, CH_VBUS, CH_W, CH_TEMP);
-#else
-	LL_ADC_INJ_ConfigQueueContext(ADC_M, LL_ADC_INJ_TRIG_EXT_TIM1_TRGO2,
-				      LL_ADC_INJ_TRIG_EXT_RISING, LL_ADC_INJ_SEQ_SCAN_ENABLE_3RANKS,
-				      CH_U, CH_VBUS, CH_W, CH_U);
-#endif
+				      CH_U, CH_U, CH_U, CH_U);
 	LL_ADC_INJ_ConfigQueueContext(ADC_S, LL_ADC_INJ_TRIG_EXT_TIM1_TRGO2,
-				      LL_ADC_INJ_TRIG_EXT_RISING, LL_ADC_INJ_SEQ_SCAN_DISABLE, CH_V,
-				      CH_V, CH_V, CH_V);
+				      LL_ADC_INJ_TRIG_EXT_RISING, LL_ADC_INJ_SEQ_SCAN_ENABLE_4RANKS,
+				      CH_V, CH_V, CH_V, CH_V);
+
+	/* Regular group on the same trigger: it waits for the injected sequence and
+	 * converts once per period. ADC1: W (sampled 1.8 .. 1.95 us, still in the
+	 * window), then the NTC. ADC2: VBUS on the pin shared by ADC1 and ADC2.
+	 */
+	LL_ADC_SetChannelSamplingTime(ADC_S, CH_VBUS, VBUS_SAMPLING_TIME);
+	LL_ADC_REG_SetSequencerRanks(ADC_M, LL_ADC_REG_RANK_1, CH_W);
+#if HAS_NTC
+	LL_ADC_SetChannelSamplingTime(ADC_M, CH_TEMP, LL_ADC_SAMPLINGTIME_24CYCLES_5);
+	LL_ADC_REG_SetSequencerRanks(ADC_M, LL_ADC_REG_RANK_2, CH_TEMP);
+	LL_ADC_REG_SetSequencerLength(ADC_M, LL_ADC_REG_SEQ_SCAN_ENABLE_2RANKS);
+#else
+	LL_ADC_REG_SetSequencerLength(ADC_M, LL_ADC_REG_SEQ_SCAN_DISABLE);
+#endif
+	LL_ADC_REG_SetSequencerRanks(ADC_S, LL_ADC_REG_RANK_1, CH_VBUS);
+	LL_ADC_REG_SetSequencerLength(ADC_S, LL_ADC_REG_SEQ_SCAN_DISABLE);
+	for (size_t i = 0; i < 2U; i++) {
+		ADC_TypeDef *const adc = (i == 0U) ? ADC_M : ADC_S;
+
+		LL_ADC_REG_SetContinuousMode(adc, LL_ADC_REG_CONV_SINGLE);
+		LL_ADC_REG_SetOverrun(adc, LL_ADC_REG_OVR_DATA_OVERWRITTEN);
+		LL_ADC_REG_SetTriggerSource(adc, LL_ADC_REG_TRIG_EXT_TIM1_TRGO2);
+		LL_ADC_REG_SetTriggerEdge(adc, LL_ADC_REG_TRIG_EXT_RISING);
+		LL_ADC_ClearFlag_EOC(adc);
+		LL_ADC_ClearFlag_EOS(adc);
+		LL_ADC_ClearFlag_OVR(adc);
+		LL_ADC_REG_StartConversion(adc);
+	}
 
 	LL_ADC_ClearFlag_JEOS(ADC_M);
 	LL_ADC_ClearFlag_JEOS(ADC_S);

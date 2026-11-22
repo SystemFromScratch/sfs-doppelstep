@@ -313,3 +313,50 @@ phase A at a full step, 12 V:
   Stepper-C it drops from 16 to 3 mA with a band equal to the model's 50 mA transition,
   and to 13 mA with 250 mA.
 - The current at rest is unchanged (30.8 and 33.2 mA rms at 24 V).
+
+### Four samples per phase current
+
+The noise of about 31 mA rms at rest is the measurement, not the coil: it is the same with
+the torque off. The current controller turns it into voltage, about Kp · noise, so the
+motor hums at rest. A diagnostic build converted phase V four times in a row on ADC2
+(injected ranks 1 to 4, samples 0, 447, 894 and 1341 ns after the trigger, the instants of
+the hardware oversampler with OVSR 4x) and recorded each rank, 24 V, 8 captures of
+512 periods:
+
+| Phase V | One sample | Mean of 2 | Mean of 4 |
+|---|---|---|---|
+| Torque off | 31.6 mA rms | 22.7 (−28 %) | 17.5 (−45 %) |
+| Hold, 0.5 A reference | 34.5 mA rms | 26.0 (−25 %) | 20.0 (−42 %) |
+
+- The samples are nearly independent (correlation 0.05 to 0.24 between ranks), so the
+  mean of four comes close to the −50 % of white noise.
+- Ranks 2 to 4 read 0.8 to 1.9 counts above rank 1, the mean of four 1.0 count above. The
+  same with the torque off and at hold, and over the whole range of duty cycles of the
+  captures (compare 1460 to 2140 of 4250, slope 0): the offset calibration, which takes
+  the same mean, removes it. Why the first rank reads lower is open.
+- The hardware oversampler would take the same samples, but JOVSE oversamples every
+  injected rank of an ADC, VBUS (871 ns a conversion) included, and the sequence would
+  leave the sampling window. The firmware therefore programs four injected ranks of one
+  channel and averages them in the interrupt: U on ADC1, V on ADC2, both ending 1.8 µs
+  after the trigger. W (leg-sum and leg-trip checks only), VBUS and the NTC moved to the
+  regular groups on the same trigger, which start after the injected sequence: W is
+  sampled 1.8 to 1.95 µs after the trigger, still in the window, VBUS on ADC2 with
+  12.5 cycles (the same reading as with 24.5 cycles: 2873.8 and 2873.0 counts with the
+  torque off).
+
+Closed loop, release firmware against the same firmware with four samples, both bench
+builds, alternating twice (A B A B), hold at 0.5 A, 24 V, 4 × 1024 periods each:
+
+| Hold, 24 V | One sample | Mean of four |
+|---|---|---|
+| Current A | 32.1 mA rms | 19.7 mA rms (−39 %) |
+| Current B | 33.1 mA rms | 19.6 mA rms (−41 %) |
+| Commanded voltage A | 595 mV rms | 365 mV rms (−4.2 dB) |
+| Commanded voltage B | 616 mV rms | 363 mV rms (−4.6 dB) |
+
+The voltage noise is what the coils turn into force ripple. The fast loop takes the same
+time (3085 against 3095 cycles of the callback) and starts about 0.6 µs later, after W and
+VBUS. The mean commanded voltage was 60 to 100 mV higher on A and 30 to 60 mV on B in both
+pairs, about one count of current at 2.75 Ω: the two builds hold slightly different
+currents, and which one is nearer the true current needs a current measurement in series
+with the coil (open, with the resistance question of the test record).
