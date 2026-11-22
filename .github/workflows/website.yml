@@ -1,0 +1,26 @@
+name: Website card
+
+# Keeps the card of this repository on https://systemfromscratch.com up to date.
+# Details: docs/library-integration.md in SystemFromScratch/SystemFromScratch.github.io
+
+on:
+  # Releases created by the "Release" workflow (gh release create with GITHUB_TOKEN).
+  # Such a release does not start "release" workflows, so the card follows the
+  # end of that workflow instead.
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  # Releases created by hand on GitHub.
+  release:
+    types: [published]
+  # Checks site.yml before it is merged.
+  pull_request:
+    paths: [site.yml]
+  workflow_dispatch:
+
+jobs:
+  website:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    uses: SystemFromScratch/SystemFromScratch.github.io/.github/workflows/library-release.yml@main
+    secrets:
+      SITE_DISPATCH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}

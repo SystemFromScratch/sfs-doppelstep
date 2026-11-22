@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/SystemFromScratch/SystemFromScratch.github.io/main/tools/site.schema.json
+#
+# Card of this repository on https://systemfromscratch.com/projects.html
+# The website reads this file from the tag of the latest release, so a change
+# made here appears on the website with the next release.
+# Version, Stable/Pre-release and the release link come from GitHub Releases;
+# featured, home page section and card order are set by the website.
+# Format: docs/library-integration.md in SystemFromScratch/SystemFromScratch.github.io
+
+title: "Doppelstep"
+
+summary: >-
+  Zephyr RTOS firmware that turns a two-phase stepper motor and a small STM32
+  motor-control board into a DYNAMIXEL XM430-W350 smart servo: ROS 2, DynamixelSDK and
+  DYNAMIXEL Wizard control it without changes.
+
+# Shown on the Projects page only (max. 8).
+features:
+  - "Full XM430-W350 (model 1020) Control Table over Protocol 2.0; checked with DYNAMIXEL Wizard 2.0, and a ros2_control loop at 100 Hz tested with the official DynamixelSDK"
+  - "Drives a real 17HS19-2004S1 stepper on the B-G431B-ESC1 at 12 V and 24 V: all 20 bench test scenarios, the hardware comparators and two minutes of moves at 1.5 A"
+  - "Closed-loop microstepping current control (Stepper-C) in a 20 kHz interrupt; comparators switch the gates off within 0.5 µs, a self-test checks the bridge and the wiring before the first Torque Enable, plus an overheating trip"
+  - "Simulated motor and power stage on the board or on a PC (native_sim), so motion and protocol are tested on every change before they reach the hardware"
+  - "MCUboot checks an RSA-2048 signature at every start and accepts new firmware over the DYNAMIXEL bus"
+
+# Up to three measured numbers.
+highlights:
+  - { value: "20 kHz", label: "current loop" }
+  - { value: "157", label: "tests per CI run" }
+  - { value: "75.5 KiB", label: "application flash" }
+
+# Filters on the Projects page.
+categories: ["Robotics", "RTOS"]
+
+tags: ["Zephyr", "STM32", "DYNAMIXEL", "ROS 2", "MCUboot", "Apache-2.0"]
+
+# Built-in illustration: robot, container, can, chip, bus, stepper, scope,
+# halfbridge, servo, planner. Or a photo from this repository instead:
+# image: docs/assets/card.webp
+art: servo
+
+links:
+  docs: https://systemfromscratch.github.io/sfs-doppelstep/
+  manual: https://systemfromscratch.github.io/sfs-doppelstep/Doppelstep.pdf
