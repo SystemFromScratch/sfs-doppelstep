@@ -127,7 +127,11 @@ phase B: mean     -0.3 mA  min    -89  max    117  p-p   206 mA  rms   30.3 mA  
 5. Capture once with the torque off. The noise of the ADC alone gives the floor: a ripple
    at rest that is not larger than this floor is below the resolution.
 
-![MCUViewer, group Current ripple: phase A holds 500 mA and phase B 0 mA at a full step. Both currents jump between neighbouring ADC steps of 29.4 mA, mostly within ±2 steps, with no regular pattern](assets/images/mcuviewer/current-ripple.png)
+![MCUViewer, group Current ripple: phase A holds 500 mA and phase B 0 mA at a full step. Both currents jump between neighbouring ADC steps of 29.4 mA, mostly within ±1 step and now and then ±2, with no regular pattern](assets/images/mcuviewer/current-ripple.png)
+
+The screenshots on this page show the firmware with four samples per phase current
+([below](#four-samples-per-phase-current)): about 20 mA rms at rest instead of the 31 mA of
+the captures in the text and the tables, which were taken before.
 
 The model predicted a toggle by one ADC step, 29.4 mA peak-to-peak, around 125 Hz. The
 largest line of a 5 kHz capture would show it. Check 16, vibration and noise at the same
@@ -207,7 +211,8 @@ speed, back-EMF and inductive voltage are about 30 mV each, much less than the w
 the loop.
 
 The residual of 657 mV is the noise of the commanded voltage. The current loop answers
-the noise of the ADC, which gives about 570 mV rms at rest as well. It does not bias the
+the noise of the ADC, which gave about 570 mV rms at rest as well (about 365 mV with four
+samples per phase current). It does not bias the
 fit: 3600 samples average it down to about 11 mV.
 
 ## Results on the B-G431B-ESC1
@@ -215,7 +220,7 @@ fit: 3600 samples average it down to about 11 mV.
 Bench build on the board of the [test record](test-record.md), 17HS19-2004S1, 24 V and
 12 V, hold current 0.5 A, run current 1.5 A.
 
-![MCUViewer, group Live values, at rest at a full step: i_a_avg_ma 499, i_a_pp_ma 235, i_b_avg_ma 0, i_b_pp_ma 206, outputs_on 1, v_a_avg_mv 1802, v_b_avg_mv −235, vbus_mv 24119](assets/images/mcuviewer/live-values.png)
+![MCUViewer, group Live values, at rest at a full step, four samples per phase current: i_a_avg_ma 500, i_a_pp_ma 147, i_b_avg_ma 0, i_b_pp_ma 147, outputs_on 1, v_a_avg_mv 2220, v_b_avg_mv 139, vbus_mv 24094](assets/images/mcuviewer/live-values.png)
 
 ### Current at rest
 

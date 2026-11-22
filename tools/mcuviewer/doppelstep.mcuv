@@ -50,97 +50,97 @@
   "variables": [
     {
       "name": "mcuv.capture_arm",
-      "address": "0x20002028",
+      "address": "0x20001D18",
       "type": "u32",
       "color": "#99E6CDCB"
     },
     {
       "name": "mcuv.capture_count",
-      "address": "0x20002030",
+      "address": "0x20001D20",
       "type": "u32",
       "color": "#1B892FA6"
     },
     {
       "name": "mcuv.capture_divider",
-      "address": "0x2000202C",
+      "address": "0x20001D1C",
       "type": "u32",
       "color": "#709BE32C"
     },
     {
       "name": "mcuv.i_a_avg_ma",
-      "address": "0x2000200C",
+      "address": "0x20001CFC",
       "type": "i32",
       "color": "#4FA3FFFF"
     },
     {
       "name": "mcuv.i_a_ma",
-      "address": "0x20001FF0",
+      "address": "0x20001CE0",
       "type": "i32",
       "color": "#4FA3FFFF"
     },
     {
       "name": "mcuv.i_a_pp_ma",
-      "address": "0x20002020",
+      "address": "0x20001D10",
       "type": "i32",
       "color": "#4FA3FFFF"
     },
     {
       "name": "mcuv.i_b_avg_ma",
-      "address": "0x20002010",
+      "address": "0x20001D00",
       "type": "i32",
       "color": "#FF9F43FF"
     },
     {
       "name": "mcuv.i_b_ma",
-      "address": "0x20001FF4",
+      "address": "0x20001CE4",
       "type": "i32",
       "color": "#FF9F43FF"
     },
     {
       "name": "mcuv.i_b_pp_ma",
-      "address": "0x20002024",
+      "address": "0x20001D14",
       "type": "i32",
       "color": "#FF9F43FF"
     },
     {
       "name": "mcuv.i_w_ma",
-      "address": "0x20001FF8",
+      "address": "0x20001CE8",
       "type": "i32",
       "color": "#E0E0E0FF"
     },
     {
       "name": "mcuv.outputs_on",
-      "address": "0x20002008",
+      "address": "0x20001CF8",
       "type": "u32",
       "color": "#694A9190"
     },
     {
       "name": "mcuv.v_a_avg_mv",
-      "address": "0x20002014",
+      "address": "0x20001D04",
       "type": "i32",
       "color": "#B38CFFFF"
     },
     {
       "name": "mcuv.v_a_mv",
-      "address": "0x20001FFC",
+      "address": "0x20001CEC",
       "type": "i32",
       "color": "#B38CFFFF"
     },
     {
       "name": "mcuv.v_b_avg_mv",
-      "address": "0x20002018",
+      "address": "0x20001D08",
       "type": "i32",
       "color": "#2ED3B7FF"
     },
     {
       "name": "mcuv.v_b_mv",
-      "address": "0x20002000",
+      "address": "0x20001CF0",
       "type": "i32",
       "color": "#2ED3B7FF"
     },
     {
       "name": "mcuv.vbus_mv",
-      "address": "0x20002004",
+      "address": "0x20001CF4",
       "type": "i32",
       "color": "#FFD166FF"
     }
