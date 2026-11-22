@@ -78,12 +78,12 @@ Measured on this version with the CI build (`scripts/ci.sh`), unless noted.
 |---|---|
 | Microcontroller | STM32G431CB: Arm Cortex-M4F, 170 MHz, 128 KiB flash, 32 KiB RAM |
 | RTOS | Zephyr RTOS v4.5.0, with sysbuild and MCUboot |
-| Application size | 77 352 B flash of the 87 712 B slot, 20 828 B of 32 KiB RAM; with the simulated motor 84 020 B |
+| Application size | B-G431B-ESC1: 73 808 B flash of the 87 712 B slot, 17 768 B of 32 KiB RAM; with the simulated motor 75 780 B. Full-bridge board: 76 676 B flash, 18 152 B RAM |
 | Bootloader size | MCUboot, 37 148 B flash of its 38 KiB partition |
 | Control rates | Current loop 20 kHz (PWM rate), motion loop 1 kHz, bus status every 10 ms |
 | Motor resolution | 3200 microsteps per revolution (200 steps × 16) |
 | Bus | DYNAMIXEL Protocol 2.0, 57600 bps (factory value, as an XM430) up to 4.5 Mbps, XM430-W350, model number 1020 |
-| Automated tests | 115 ztest cases in 7 configurations, 32 SIL and integration tests, 10 motion tests on the fixed-point backend: 157 per CI run, plus 45 host tests of the GUI |
+| Automated tests | 211 ztest cases in 13 configurations, 37 SIL and integration tests, 10 motion tests on the fixed-point backend: 258 per CI run, plus 45 host tests of the GUI |
 | Toolchain | Zephyr SDK 1.0.1 in a pinned Docker image |
 | License | Apache License 2.0 |
 

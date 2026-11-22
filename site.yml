@@ -25,8 +25,8 @@ features:
 # Up to three measured numbers.
 highlights:
   - { value: "20 kHz", label: "current loop" }
-  - { value: "157", label: "tests per CI run" }
-  - { value: "75.5 KiB", label: "application flash" }
+  - { value: "258", label: "tests per CI run" }
+  - { value: "72.1 KiB", label: "application flash" }
 
 # Filters on the Projects page.
 categories: ["Robotics", "RTOS"]

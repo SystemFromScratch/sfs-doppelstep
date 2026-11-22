@@ -8,81 +8,7 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ## [Unreleased]
 
-### Fixed
-
-- **Electrical Shock Error after an EEPROM write with the torque off**
-  (`drivers/power_stage/power_stage_stm32*.c`): the leg trip
-  (`POWER_STAGE_TRIP_AUX`) also checked the samples while the outputs were off. A flash
-  write of the EEPROM area (for example Operating Mode 1 → 3 from the GUI) stalls the CPU,
-  and the sample after it can be far off the offset; the trip latched
-  `SSTEP_FAULT_EXTERNAL`, Hardware Error Status showed Electrical Shock until a Reboot, and
-  further EEPROM writes were refused. On the bench the second Operating Mode write tripped it.
-  The leg trip is now checked only while the outputs are on, as the FAULT pin of the
-  full-bridge board already was. Bench: 12 Operating Mode writes and 4 cycles of velocity
-  run, torque off, Operating Mode 3, with no error.
-
-### Changed
-
-- **Four samples per phase current on the B-G431B-ESC1**
-  (`drivers/power_stage/power_stage_stm32.c`): ADC1 converts U and ADC2 converts V four
-  times in a row after the trigger (four injected ranks, 0 to 1.5 µs) and the fast loop
-  gets the means; the samples are nearly independent, so the mean has about 40 % less
-  noise. At hold, 24 V, 0.5 A: current noise 32/33 mA → 20 mA rms, commanded voltage
-  noise −4.2 dB (A) and −4.6 dB (B), which the motor hears as humming at rest. W, VBUS
-  and the NTC moved to the regular groups on the same trigger: W on ADC1 right after the
-  injected sequence (still in the sampling window), VBUS on ADC2 (`vbus-channel` must now
-  be an input shared by ADC1 and ADC2; 12.5 cycles, same reading as 24.5), the NTC after
-  W. The fast loop starts about 0.6 µs later. Not the hardware oversampler: JOVSE would
-  take every injected rank four times, VBUS included, and leave the window
-  ([Measurements](docs/measurements.md#four-samples-per-phase-current)).
-
-- **DXL2-C v2.0.0 and DYNAMIXEL X430 emulator v1.2.0** (were v1.0.0 and v1.1.0,
-  `west.yml`): DXL2-C decodes a packet in place, in its receive buffer, instead of copying
-  the parameters, and X430 holds one default of the packet size per build system. With
-  768-byte packets `x430_servo_data` drops from 3,824 B to 3,064 B: RAM 18,152 B on the
-  full-bridge board (was 18,920 B), 17,768 B on the B-G431B-ESC1 (was 18,536 B). Flash
-  about 90 B less.
-
-- **Stepper-C topology from the devicetree** (`modules/stepper-c/Kconfig`): a topology is
-  built when an enabled power stage node uses it (`sfs,stm32-full-bridge-power-stage`: full
-  bridge; `sfs,stm32-shared-leg-power-stage` and `sfs,sim-power-stage`: shared leg), instead
-  of `CONFIG_SSTEP_TOPOLOGY_*` in `app/prj.conf` and the board configuration. A build with
-  another power stage driver sets the options itself (tests/drivers/sstep_motor: both).
-
-- **Smaller logging on every board** (`app/prj.conf`): `CONFIG_LOG_MODE_MINIMAL=y` (printk in
-  the caller, no log thread, buffer or backends), `CONFIG_CBPRINTF_NANO=y` and
-  `CONFIG_BOOT_BANNER=n` (the line `Doppelstep <version> on <board>` names the image). The
-  full-bridge image drops from 87,268 B to 76,684 B of flash (11,028 B to spare in the slot)
-  and from 21,224 B to 18,920 B of RAM; the B-G431B-ESC1 from 83,996 B to 73,552 B. Log
-  lines have no timestamp; with a debugger attached and the RTT buffer full the console drops
-  characters instead of waiting (`CONFIG_RTT_TX_RETRY_CNT=0` in both board configurations),
-  as minimal logging also prints from the control task. native_sim keeps its immediate mode.
-
-- **Hardware trips through Zephyr drivers:** the comparators (`st,stm32g4-comp`) and the DACs
-  of their levels are devicetree nodes of the Zephyr comparator and DAC drivers; the power
-  stage node lists them in the new properties `hw-trip-current-comparators` and
-  `hw-trip-vbus-comparator`, and the negative input of each comparator names its DAC channel.
-  The backend keeps the break routing of TIM1 and the high-frequency mode of the DAC (not set
-  by the Zephyr DAC driver). Same levels and behaviour on the B-G431B-ESC1; the startup log now
-  reads `DAC levels U …, V …, W …`. About 5.3 KB more flash, most of it the shared interrupt
-  table of COMP1..3.
-- STM32 timer, ADC and break building blocks in `drivers/power_stage/stm32_pwm_adc.c`, for
-  the shared-leg backend and the coming full-bridge backend; `hw_trip_oc_dac()` takes the
-  amplifier gain x1000 (new optional property `hw-trip-current-input-gain-milli` for an
-  external amplifier).
-- The application runs on a board without the `led0` alias (no STATUS LED), and MCUboot
-  finds the UART of serial recovery by the label `sfs_dxl_uart` of the board devicetree
-  instead of `&usart2`.
-
-- DYNAMIXEL X430 emulator v1.1.0 (was v1.0.0): several drives on one bus. Sync Read and
-  Bulk Read take turns (a drive answers after the status packet of the ID before it, and
-  stays silent if it does not come within 100 ms); a Fast Sync/Bulk Read that lists other
-  IDs as well stays unanswered, so the ROS 2 hardware interface falls back to Sync Read.
-  The bus instance is 16 B larger (2,376 B on Cortex-M4 with one device). Checked with six `native_sim` drives on
-  one virtual bus behind the SmartManipulator-X Robot PC.
-- Stepper-C v1.5.0 (was v1.4.0): dead-time compensation (`dead_time_comp_ns`,
-  `dead_time_comp_band_ma` of `struct sstep_stage_cfg`); the instance is 8 B larger on
-  Cortex-M4.
+## [0.4.0] - 2026-11-22
 
 ### Added
 
@@ -144,13 +70,121 @@ All notable changes to Doppelstep are listed here. The format follows
   phase B by 253 mV as configured, the current of phase A from 174 to 256 mA
   ([Measurements](docs/measurements.md#dead-time-compensation)).
 
+### Changed
+
+- **Four samples per phase current on the B-G431B-ESC1**
+  (`drivers/power_stage/power_stage_stm32.c`): ADC1 converts U and ADC2 converts V four
+  times in a row after the trigger (four injected ranks, 0 to 1.5 µs) and the fast loop
+  gets the means; the samples are nearly independent, so the mean has about 40 % less
+  noise. At hold, 24 V, 0.5 A: current noise 32/33 mA → 20 mA rms, commanded voltage
+  noise −4.2 dB (A) and −4.6 dB (B), which the motor hears as humming at rest. W, VBUS
+  and the NTC moved to the regular groups on the same trigger: W on ADC1 right after the
+  injected sequence (still in the sampling window), VBUS on ADC2 (`vbus-channel` must now
+  be an input shared by ADC1 and ADC2; 12.5 cycles, same reading as 24.5), the NTC after
+  W. The fast loop starts about 0.6 µs later. Not the hardware oversampler: JOVSE would
+  take every injected rank four times, VBUS included, and leave the window
+  ([Measurements](docs/measurements.md#four-samples-per-phase-current)).
+
+- **DYNAMIXEL X430 emulator v1.2.0 and DXL2-C v2.0.0** (both v1.0.0 in 0.3.0, `west.yml`):
+  - Several drives on one bus (emulator v1.1.0). Sync Read and Bulk Read take turns (a
+    drive answers after the status packet of the ID before it, and stays silent if it does
+    not come within 100 ms); a Fast Sync/Bulk Read that lists other IDs as well stays
+    unanswered, so the ROS 2 hardware interface falls back to Sync Read. Checked with six
+    `native_sim` drives on one virtual bus behind the SmartManipulator-X Robot PC.
+  - Packets decoded in place (DXL2-C v2.0.0, emulator v1.2.0): DXL2-C decodes a packet in
+    its receive buffer instead of copying the parameters, and X430 holds one default of the
+    packet size per build system. With 768-byte packets `x430_servo_data` drops from
+    3,824 B (emulator v1.1.0) to 3,064 B: RAM 18,152 B on the full-bridge board (was
+    18,920 B), 17,768 B on the B-G431B-ESC1 (was 18,536 B). Flash about 90 B less.
+
+- **Stepper-C topology from the devicetree** (`modules/stepper-c/Kconfig`): a topology is
+  built when an enabled power stage node uses it (`sfs,stm32-full-bridge-power-stage`: full
+  bridge; `sfs,stm32-shared-leg-power-stage` and `sfs,sim-power-stage`: shared leg), instead
+  of `CONFIG_SSTEP_TOPOLOGY_*` in `app/prj.conf` and the board configuration. A build with
+  another power stage driver sets the options itself (tests/drivers/sstep_motor: both).
+
+- **Smaller logging on every board** (`app/prj.conf`): `CONFIG_LOG_MODE_MINIMAL=y` (printk in
+  the caller, no log thread, buffer or backends), `CONFIG_CBPRINTF_NANO=y` and
+  `CONFIG_BOOT_BANNER=n` (the line `Doppelstep <version> on <board>` names the image). The
+  full-bridge image drops from 87,268 B to 76,684 B of flash (11,028 B to spare in the slot)
+  and from 21,224 B to 18,920 B of RAM; the B-G431B-ESC1 from 83,996 B to 73,552 B. Log
+  lines have no timestamp; with a debugger attached and the RTT buffer full the console drops
+  characters instead of waiting (`CONFIG_RTT_TX_RETRY_CNT=0` in both board configurations),
+  as minimal logging also prints from the control task. native_sim keeps its immediate mode.
+
+- **Hardware trips through Zephyr drivers:** the comparators (`st,stm32g4-comp`) and the DACs
+  of their levels are devicetree nodes of the Zephyr comparator and DAC drivers; the power
+  stage node lists them in the new properties `hw-trip-current-comparators` and
+  `hw-trip-vbus-comparator`, and the negative input of each comparator names its DAC channel.
+  The backend keeps the break routing of TIM1 and the high-frequency mode of the DAC (not set
+  by the Zephyr DAC driver). Same levels and behaviour on the B-G431B-ESC1; the startup log now
+  reads `DAC levels U …, V …, W …`. About 5.3 KB more flash, most of it the shared interrupt
+  table of COMP1..3.
+- STM32 timer, ADC and break building blocks in `drivers/power_stage/stm32_pwm_adc.c`, for
+  the shared-leg and the full-bridge backends; `hw_trip_oc_dac()` takes the
+  amplifier gain x1000 (new optional property `hw-trip-current-input-gain-milli` for an
+  external amplifier).
+- The application runs on a board without the `led0` alias (no STATUS LED), and MCUboot
+  finds the UART of serial recovery by the label `sfs_dxl_uart` of the board devicetree
+  instead of `&usart2`.
+
+- Stepper-C v1.5.0 (was v1.4.0): dead-time compensation (`dead_time_comp_ns`,
+  `dead_time_comp_band_ma` of `struct sstep_stage_cfg`); the instance is 8 B larger on
+  Cortex-M4.
+
 ### Fixed
+
+- **MA730: a register read is no longer split by another thread** (`drivers/ma730/ma730.c`):
+  the answer to a read command comes in the next SPI frame, whoever sends it, and the bus
+  was free between the two frames. An angle read from another thread in between got the
+  register value, and the register read got the angle. A mutex of the driver now holds the
+  frames of one access together, so every function may be called from any thread, as
+  `ma730.h` says. The application was not affected: it reads the field flags at startup,
+  before the control task runs. ztest case
+  `test_register_read_is_not_split_by_another_thread`, with a frame hook in the emulator.
+- **Electrical Shock Error after an EEPROM write with the torque off**
+  (`drivers/power_stage/power_stage_stm32*.c`): the leg trip
+  (`POWER_STAGE_TRIP_AUX`) also checked the samples while the outputs were off. A flash
+  write of the EEPROM area (for example Operating Mode 1 → 3 from the GUI) stalls the CPU,
+  and the sample after it can be far off the offset; the trip latched
+  `SSTEP_FAULT_EXTERNAL`, Hardware Error Status showed Electrical Shock until a Reboot, and
+  further EEPROM writes were refused. On the bench the second Operating Mode write tripped it.
+  The leg trip is now checked only while the outputs are on, as the FAULT pin of the
+  full-bridge board already was. Bench: 12 Operating Mode writes and 4 cycles of velocity
+  run, torque off, Operating Mode 3, with no error.
 
 - **MCUboot of the full-bridge board fits again:** the MA730 driver selected the sensor API
   and SPI, so the node in the board devicetree pulled them into the bootloader (about 3 KB),
   1,236 B over its 38 KiB partition. The driver now depends on `CONFIG_SENSOR`, as the sensor
   drivers of Zephyr, and the full-bridge application sets `CONFIG_SENSOR=y`: MCUboot takes
   37,148 B.
+
+### Upgrading from 0.3.0
+
+- **Own board overlays of the shared-leg backend** (`sfs,stm32-shared-leg-power-stage`):
+  - The hardware trips need devicetree nodes: the comparators (`st,stm32g4-comp`) and the
+    DACs of their levels, status `"okay"`, listed in `hw-trip-current-comparators`
+    (required with `hw-trip-current-milliamp`) and `hw-trip-vbus-comparator` (required
+    with `hw-trip-vbus-mv`); the negative input of each comparator names its DAC channel.
+    `app/boards/b_g431b_esc1.overlay` is the example.
+  - `vbus-channel` must be an input shared by ADC1 and ADC2 (1, 2, 6 to 9, 14): VBUS is now
+    converted by ADC2.
+- **`CONFIG_SSTEP_TOPOLOGY_*` is no longer needed** in `prj.conf` or a board configuration:
+  the power stage node of the devicetree selects the topology. Builds with another power
+  stage driver (a fake stage in a test) still set it themselves.
+- **Log lines have no timestamps** (`CONFIG_LOG_MODE_MINIMAL=y`): scripts that parse the
+  console of the board must not expect them.
+- **Code built on `app/src/`:** the status queue carries `struct app_status` (motor and
+  encoder) instead of `struct sstep_motor_status`.
+
+### Known limits
+
+- The full-bridge board (`sfs_doppelstep_full_bridge`) and the single-wire bus
+  (`app/single-wire.overlay`) are built and tested in CI, not yet run on hardware.
+- PWM Limit (36) is stored but not applied (a duty limit in Stepper-C is planned); of the
+  controller gains only Position P Gain (84) is applied, with an encoder.
+- The dead time is not yet checked with an oscilloscope on the gates, and check 16 of the
+  [hardware checklist](docs/hardware-checklist.md) (vibration at rest) is open.
 
 ## [0.3.0] - 2026-11-14
 
@@ -470,7 +504,8 @@ outputs off (see *Known limits*).
 - The X430 emulator, Stepper-Lab and sfs-stepper-power-spice have no releases yet: `west.yml`
   pins them to the tested commits.
 
-[Unreleased]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/SystemFromScratch/sfs-doppelstep/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/SystemFromScratch/sfs-doppelstep/releases/tag/v0.1.0

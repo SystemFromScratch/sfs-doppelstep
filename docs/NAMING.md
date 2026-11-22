@@ -61,9 +61,11 @@ On 1 November 2026 both finalists were searched on the web:
 
 Doppelstep was clearly the cleaner and more distinctive of the two.
 
-Not checked yet, to be done before the first public release: the GitHub
-organisation name, the `.dev` / `.io` / `.com` domains, and trademark
-registers (EUIPO / TMview for the EU, classes 7, 9 and 42; USPTO).
+The project is published under the SystemFromScratch organisation on GitHub
+(`SystemFromScratch/sfs-doppelstep`), with its website on
+`systemfromscratch.github.io`. Still open: the `.dev` / `.io` / `.com` domains,
+and trademark registers (EUIPO / TMview for the EU, classes 7, 9 and 42;
+USPTO).
 
 ## The meaning
 

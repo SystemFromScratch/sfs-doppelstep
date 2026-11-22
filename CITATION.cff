@@ -3,10 +3,13 @@ message: "If you use Doppelstep in your work, please cite it as below."
 title: "Doppelstep: Zephyr RTOS stepper motor controller seen as a DYNAMIXEL smart servo"
 abstract: >-
   Open-source Zephyr RTOS firmware that drives a two-phase stepper motor in closed-loop
-  microstepping current control on the STMicroelectronics B-G431B-ESC1 and answers on the
-  bus as a DYNAMIXEL XM430-W350 (Protocol 2.0), with an MCUboot bootloader, a simulated
-  motor for software-in-the-loop tests, and a bench GUI.
+  microstepping current control and answers on the bus as a DYNAMIXEL XM430-W350
+  (Protocol 2.0). Boards: the STMicroelectronics B-G431B-ESC1 (three half-bridges) and a
+  board with two full H-bridges (TI DRV8412) and an MA730 shaft encoder. With an MCUboot
+  bootloader, a simulated motor for software-in-the-loop tests, and a bench GUI.
 type: software
+version: "0.4.0"
+date-released: "2026-11-22"
 authors:
   - family-names: Vynohradov
     given-names: Anton
