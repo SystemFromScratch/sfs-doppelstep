@@ -75,7 +75,9 @@ struct power_stage_stats {
  * The current of a leg exceeds the trip level of power_stage_set_aux_trip(); every
  * leg is checked, also in voltage drive, where Stepper-C does not check the current.
  * Never set until power_stage_calibrate() has succeeded: without the sensor offset
- * the level means nothing, and a fault would latch.
+ * the level means nothing, and a fault would latch. Set only while the outputs are
+ * on: with them off the stage drives no current, and a disturbed sample would latch
+ * a fault for nothing.
  */
 #define POWER_STAGE_TRIP_AUX BIT(0)
 /**
@@ -84,6 +86,13 @@ struct power_stage_stats {
  * from its interrupt. Without this check, a callback that always overruns keeps the
  * interrupt busy forever and no thread runs again, also not the one that would
  * switch the motor off over the bus.
+ *
+ * Reported whether the outputs are on or not, unlike POWER_STAGE_TRIP_AUX: an overrun
+ * is a fact about time, and whether it matters is known only to the owner of the
+ * outputs. The motor driver ignores it with its outputs off (a flash write of the
+ * EEPROM area stalls the CPU); the simulation stage, which uses a real stage only as
+ * its timebase and never switches that stage's outputs on, forwards it to its
+ * controller.
  */
 #define POWER_STAGE_TRIP_OVERRUN BIT(1)
 /**

@@ -8,6 +8,19 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Electrical Shock Error after an EEPROM write with the torque off**
+  (`drivers/power_stage/power_stage_stm32*.c`): the leg trip
+  (`POWER_STAGE_TRIP_AUX`) also checked the samples while the outputs were off. A flash
+  write of the EEPROM area (for example Operating Mode 1 → 3 from the GUI) stalls the CPU,
+  and the sample after it can be far off the offset; the trip latched
+  `SSTEP_FAULT_EXTERNAL`, Hardware Error Status showed Electrical Shock until a Reboot, and
+  further EEPROM writes were refused. On the bench the second Operating Mode write tripped it.
+  The leg trip is now checked only while the outputs are on, as the FAULT pin of the
+  full-bridge board already was. Bench: 12 Operating Mode writes and 4 cycles of velocity
+  run, torque off, Operating Mode 3, with no error.
+
 ### Changed
 
 - **Four samples per phase current on the B-G431B-ESC1**

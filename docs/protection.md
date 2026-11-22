@@ -13,7 +13,7 @@ The values are those of the B-G431B-ESC1 with the 17HS19-2004S1
 | Layer | Detects | Reaction time | Reaction | Hardware Error Status |
 |---|---|---|---|---|
 | Hardware comparators (STM32 backend) | Leg current above 10 A in a low-side switch; bus above 30 V | Break filter, about 0.5 µs | TIM1 break: gates off without software, latched until reset | Electrical Shock (0x10); Input Voltage (0x01) |
-| Leg trip (STM32 backend, interrupt) | \|iU\|, \|iV\| or \|iW\| above 3.5 A, in current and voltage drive | Next PWM period, at most 50 µs | Outputs off, fault latched | Electrical Shock (0x10) |
+| Leg trip (STM32 backend, interrupt) | \|iU\|, \|iV\| or \|iW\| above 3.5 A, in current and voltage drive, while the outputs are on | Next PWM period, at most 50 µs | Outputs off, fault latched | Electrical Shock (0x10) |
 | Fast-loop overrun (STM32 backend) | The fast loop did not finish within its period | One period | Outputs off in the interrupt, fault latched | Electrical Shock (0x10) |
 | Stepper-C fast loop | Phase current or the current of the shared leg (\|iA + iB\|) above 3.5 A (current drive); bus below 10 V or above 28 V | Same period | Outputs off, fault latched | Electrical Shock (0x10); Input Voltage (0x01) |
 | Stepper-C stall detection | The rotor does not follow the commanded angle | `stall_time_ms` | Outputs off, fault latched | Not enabled in Doppelstep |

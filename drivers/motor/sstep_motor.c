@@ -273,6 +273,9 @@ static void fast_loop(const struct power_stage_sample *s, uint32_t trips, void *
 	/* The stage has switched the outputs off already; the fault keeps them off. With
 	 * the outputs off a late period is harmless, for example while a flash write of
 	 * the EEPROM area (allowed only with the torque off) stalls the CPU: no fault.
+	 * Decided here and not in the stage: the stage reports every overrun, because
+	 * the simulation stage needs them from a timebase stage whose outputs stay off
+	 * (power_stage.h, POWER_STAGE_TRIP_OVERRUN).
 	 */
 	if (((trips & POWER_STAGE_TRIP_OVERRUN) != 0U) &&
 	    (atomic_get(&CONTAINER_OF(drv, struct sstep_motor_data, drv)->outputs_on) != 0)) {

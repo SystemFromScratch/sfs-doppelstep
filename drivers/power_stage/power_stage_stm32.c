@@ -264,8 +264,12 @@ ISR_DIRECT_DECLARE(power_stage_adc_isr)
 			const int32_t trip = (int32_t)leg_trip_counts;
 			uint32_t trips = 0U;
 
-			/* Every leg, also in voltage drive where Stepper-C does not check */
-			if ((trip != 0) && offsets_valid &&
+			/* Every leg, also in voltage drive where Stepper-C does not check.
+			 * Only while the outputs are on (MOE): with them off the stage drives
+			 * no current, and a disturbed sample (the CPU stalled by a flash write
+			 * of the EEPROM area) would latch a fault for nothing.
+			 */
+			if ((trip != 0) && offsets_valid && (LL_TIM_IsEnabledAllOutputs(TIMx) != 0U) &&
 			    ((abs((int32_t)raw_u - (int32_t)offset_u) > trip) ||
 			     (abs((int32_t)raw_v - (int32_t)offset_v) > trip) ||
 			     (abs((int32_t)raw_w - (int32_t)offset_w) > trip))) {
