@@ -59,22 +59,23 @@ manifest:
       revision: v1.5.0
       path: modules/lib/stepper-c
 
-    # Release v1.1.0: several drives on one wire (Sync/Bulk Read take turns, Fast
-    # read of several buses stays silent); application overrides of the model
-    # (CONFIG_X430_MODEL_OVERRIDES, app/x430_overrides.yaml). Keep dxl2-c at
+    # Release v1.2.0: 760 B less RAM per bus with DXL2-C 2.0.0 (packets decoded in
+    # place); since v1.1.0 several drives on one wire (Sync/Bulk Read take turns,
+    # Fast read of several buses stays silent) and application overrides of the
+    # model (CONFIG_X430_MODEL_OVERRIDES, app/x430_overrides.yaml). Keep dxl2-c at
     # the tag this release expects.
     - name: dynamixel-x430
       remote: antonvynohradov
       repo-path: DYNAMIXEL-X430-Control-Table-Emulator
-      revision: v1.1.0
+      revision: v1.2.0
       path: modules/lib/dynamixel-x430
 
-    # Must match X430_DXL2_GIT_TAG of x430.cmake (v1.0.0 in the emulator's
-    # release v1.0.0). The X430 module glue warns on a mismatch.
+    # Must match X430_DXL2_GIT_TAG of x430.cmake (v2.0.0 in the emulator's
+    # release v1.2.0). The X430 module glue warns on a mismatch.
     - name: dxl2-c
       remote: antonvynohradov
       repo-path: DXL2-C
-      revision: v1.0.0
+      revision: v2.0.0
       path: modules/lib/dxl2-c
 
     # Simulated motor (docs/simulation.md). No releases yet: both pinned to the

@@ -77,7 +77,7 @@ MCUboot serial recovery ([Firmware update](firmware-update.md)). Flash with the 
 | 17 | Startup log after the probe flash | The application starts, so MCUboot accepted the signature |
 | 18 | VS Code configuration **Debug: OpenOCD on host** | Stops at `main` of the application |
 | 19 | Write a test value to Homing Offset (20), read it back | The value |
-| 20 | Reboot, then an SMP request repeated until answered, then `image upload` and `os reset` of an image with another boot banner | Upload completes, the new banner in the RTT log |
+| 20 | Reboot, then an SMP request repeated until answered, then `image upload` and `os reset` of an image with another version | Upload completes, the new version in the line `Doppelstep <version> on <board>` of the RTT log |
 | 21 | Baud Rate 3 (1 Mbps), Reboot | Complete status packet without error; the application answers again at 1 Mbps after about 0.5 s plus startup. Set it back to 1 afterwards |
 | 22 | Upload interrupted halfway (unplug USB), power on | The application does not start; a second upload succeeds and the application starts |
 | 23 | Read Homing Offset (20) | The value of check 19: the storage partition survived |

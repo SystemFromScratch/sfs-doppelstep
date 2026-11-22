@@ -28,17 +28,26 @@ config SSTEP_MATH_FLOAT
 
 endchoice
 
+# Each topology is built when an enabled power stage node of the devicetree uses
+# it, so a board builds only its own. Stepper-C can hold both (the motor takes
+# the topology from the power stage at run time): a build with another power
+# stage driver (for example the fake stage of tests/drivers) sets them itself.
+# With neither, sstep_config.h stops the build.
+
 config SSTEP_TOPOLOGY_FULL_BRIDGE
 	bool "Two full H-bridges (4 legs)"
-	default y
+	default y if DT_HAS_SFS_STM32_FULL_BRIDGE_POWER_STAGE_ENABLED
 	help
-	  SSTEP_CFG_TOPOLOGY_FULL_BRIDGE.
+	  SSTEP_CFG_TOPOLOGY_FULL_BRIDGE, for example the full-bridge board
+	  (DRV8412).
 
 config SSTEP_TOPOLOGY_SHARED_LEG
 	bool "Three half-bridges with a shared leg (3 legs)"
-	default y
+	default y if DT_HAS_SFS_STM32_SHARED_LEG_POWER_STAGE_ENABLED
+	default y if DT_HAS_SFS_SIM_POWER_STAGE_ENABLED
 	help
-	  SSTEP_CFG_TOPOLOGY_SHARED_LEG, for example B-G431B-ESC1.
+	  SSTEP_CFG_TOPOLOGY_SHARED_LEG, for example B-G431B-ESC1 and the
+	  simulated power stage.
 
 config SSTEP_MICROSTEPS_MAX
 	int "Largest microstep division"

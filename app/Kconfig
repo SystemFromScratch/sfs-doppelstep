@@ -69,8 +69,11 @@ config SFS_COMM_THREAD_STACK_SIZE
 	int "Communication task stack size"
 	default 3584
 	help
-	  The status answer puts two buffers of CONFIG_X430_DXL2_MAX_PACKET_SIZE
-	  on this stack (parameters and the encoded packet, DXL2-C link).
+	  Sized for the X430 emulator 1.0.0, whose status answer put two
+	  buffers of CONFIG_X430_DXL2_MAX_PACKET_SIZE on this stack (DXL2-C
+	  link). Since 1.1.0 the emulator builds the status packet in place, in
+	  its bus instance (x430_servo_data), not on the stack. The size stays
+	  until the stack usage is measured on the bench.
 
 endmenu
 

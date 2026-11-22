@@ -4,11 +4,15 @@ config MA730
 	bool "MPS MA730 magnetic angle sensor"
 	default y
 	depends on DT_HAS_SFS_MA730_ENABLED
+	depends on SENSOR
 	select SPI
-	select SENSOR
 	help
 	  Angle and field flags of an MA730 on SPI, through the sensor API
-	  (SENSOR_CHAN_ROTATION) and <doppelstep/drivers/ma730.h>.
+	  (SENSOR_CHAN_ROTATION) and <doppelstep/drivers/ma730.h>. As the
+	  sensor drivers of Zephyr, it is built when the application turns the
+	  sensor API on (CONFIG_SENSOR=y): an image that does not read the
+	  encoder (MCUboot) leaves it out, although the node is in the board
+	  devicetree.
 
 if MA730
 

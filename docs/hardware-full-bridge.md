@@ -181,10 +181,33 @@ allows LL calls in this one file. The bit stream (`ws2812_encode.h`) is tested o
 | = Full-bridge board | 92.4 KB clang, about 86.4 KB with GCC, of the 87.7 KB slot |
 | (with `worldsemi,ws2812-uart` instead) | (+10.4 KB: does not fit) |
 
-The margin is small, about 1.3 KB by this estimate. Read the real figure from the `FLASH:`
-line of `build-ci/full-bridge.log`. If it does not fit, `CONFIG_LOG_MODE_MINIMAL=y` in
-`app/boards/sfs_doppelstep_full_bridge.conf` saves about 6.6 KB: logs are then printed at
-once in the caller, without the deferred log thread.
+With the deferred log of Zephyr the GCC build took 87,268 B of the 87,712 B the slot leaves
+for the image: 444 B to spare. `app/prj.conf` therefore builds every board with smaller
+logging:
+
+| Option (`app/prj.conf`) | Flash | RAM |
+|---|---|---|
+| `CONFIG_LOG_MODE_MINIMAL=y`: printk in the caller, no log thread, buffer or backends | − 9.8 KB | − 2.3 KB |
+| `CONFIG_CBPRINTF_NANO=y`: small printf core (`%d %u %ld %x %c %s`, width) | − 0.7 KB | |
+| `CONFIG_BOOT_BANNER=n`: `main.c` logs `Doppelstep <version> on <board>` instead | − 1.2 KB | |
+| = Full-bridge board, GCC | 76,684 B, **11,028 B to spare** | 18,920 B of 32 KiB |
+| with DXL2-C 2.0.0 and X430 1.2.0 (packets decoded in place) | 76,596 B, **11,116 B to spare** | 18,152 B of 32 KiB |
+
+Minimal logging prints in the context of the caller, also in the control task. With a
+debugger attached and the RTT buffer full, the RTT console waits up to
+`CONFIG_RTT_TX_RETRY_CNT` x `CONFIG_RTT_TX_RETRY_DELAY_MS` for the host; both board
+configurations set `CONFIG_RTT_TX_RETRY_CNT=0`, so the console drops the characters instead.
+Log lines have no timestamp.
+
+MCUboot does not read the encoder. The MA730 driver, as the sensor drivers of Zephyr, is built
+only when the image turns the sensor API on (`CONFIG_SENSOR=y` in
+`app/boards/sfs_doppelstep_full_bridge.conf`); MCUboot does not, although the node is in the
+board devicetree. Pulled in, SPI and the sensor API (about 3 KB) did not fit in its 38 KiB
+partition; without them MCUboot takes 37,148 B.
+
+Reserve for later: `CONFIG_LTO=y` with `CONFIG_ISR_TABLES_LOCAL_DECLARATION=y` saves about
+6.3 KB more, at the cost of harder debugging (inlined functions, renamed static symbols).
+Read the real figures from the `FLASH:` lines of `build-ci/full-bridge.log`.
 
 ## Current and voltage scaling
 

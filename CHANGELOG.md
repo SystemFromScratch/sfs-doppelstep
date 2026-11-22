@@ -10,6 +10,28 @@ All notable changes to Doppelstep are listed here. The format follows
 
 ### Changed
 
+- **DXL2-C v2.0.0 and DYNAMIXEL X430 emulator v1.2.0** (were v1.0.0 and v1.1.0,
+  `west.yml`): DXL2-C decodes a packet in place, in its receive buffer, instead of copying
+  the parameters, and X430 holds one default of the packet size per build system. With
+  768-byte packets `x430_servo_data` drops from 3,824 B to 3,064 B: RAM 18,152 B on the
+  full-bridge board (was 18,920 B), 17,768 B on the B-G431B-ESC1 (was 18,536 B). Flash
+  about 90 B less.
+
+- **Stepper-C topology from the devicetree** (`modules/stepper-c/Kconfig`): a topology is
+  built when an enabled power stage node uses it (`sfs,stm32-full-bridge-power-stage`: full
+  bridge; `sfs,stm32-shared-leg-power-stage` and `sfs,sim-power-stage`: shared leg), instead
+  of `CONFIG_SSTEP_TOPOLOGY_*` in `app/prj.conf` and the board configuration. A build with
+  another power stage driver sets the options itself (tests/drivers/sstep_motor: both).
+
+- **Smaller logging on every board** (`app/prj.conf`): `CONFIG_LOG_MODE_MINIMAL=y` (printk in
+  the caller, no log thread, buffer or backends), `CONFIG_CBPRINTF_NANO=y` and
+  `CONFIG_BOOT_BANNER=n` (the line `Doppelstep <version> on <board>` names the image). The
+  full-bridge image drops from 87,268 B to 76,684 B of flash (11,028 B to spare in the slot)
+  and from 21,224 B to 18,920 B of RAM; the B-G431B-ESC1 from 83,996 B to 73,552 B. Log
+  lines have no timestamp; with a debugger attached and the RTT buffer full the console drops
+  characters instead of waiting (`CONFIG_RTT_TX_RETRY_CNT=0` in both board configurations),
+  as minimal logging also prints from the control task. native_sim keeps its immediate mode.
+
 - **Hardware trips through Zephyr drivers:** the comparators (`st,stm32g4-comp`) and the DACs
   of their levels are devicetree nodes of the Zephyr comparator and DAC drivers; the power
   stage node lists them in the new properties `hw-trip-current-comparators` and
@@ -95,6 +117,14 @@ All notable changes to Doppelstep are listed here. The format follows
   at 12 V, 0.5 A reference: the commanded voltage of phase A rises by 505 mV and that of
   phase B by 253 mV as configured, the current of phase A from 174 to 256 mA
   ([Measurements](docs/measurements.md#dead-time-compensation)).
+
+### Fixed
+
+- **MCUboot of the full-bridge board fits again:** the MA730 driver selected the sensor API
+  and SPI, so the node in the board devicetree pulled them into the bootloader (about 3 KB),
+  1,236 B over its 38 KiB partition. The driver now depends on `CONFIG_SENSOR`, as the sensor
+  drivers of Zephyr, and the full-bridge application sets `CONFIG_SENSOR=y`: MCUboot takes
+  37,148 B.
 
 ## [0.3.0] - 2026-11-14
 
