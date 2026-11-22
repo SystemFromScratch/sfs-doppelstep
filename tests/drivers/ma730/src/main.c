@@ -2,7 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * MA730 driver against its emulator: angle frames, register reads, field flags, the
- * sensor API, reverse and zero offset, and no write to the non-volatile memory.
+ * sensor API, reverse and zero offset, no write to the non-volatile memory, and the two
+ * frames of a register read kept together against another thread.
  */
 
 #include <zephyr/drivers/emul.h>
@@ -24,6 +25,7 @@ static void before_each(void *fixture)
 	ma730_emul_set_angle(emul, 0U);
 	ma730_emul_set_angle(emul_rev, 0U);
 	ma730_emul_set_reg(emul, MA730_REG_FIELD, 0U);
+	ma730_emul_set_frame_hook(emul, NULL, NULL);
 }
 
 ZTEST(ma730, test_devices_are_ready)
@@ -129,6 +131,60 @@ ZTEST(ma730, test_the_driver_never_writes_the_nvm)
 	zassert_ok(ma730_read_reg(enc, 0x00U, &value));
 	zassert_equal(ma730_emul_writes(emul), 0U);
 	zassert_equal(ma730_emul_writes(emul_rev), 0U);
+}
+
+/* A register read in a thread of lower priority than the test. Right after its read
+ * command frame the emulator hook wakes the test thread, which preempts it and reads the
+ * angle before the second frame of the register read.
+ */
+#define READER_STACK_SIZE 2048
+K_THREAD_STACK_DEFINE(reader_stack, READER_STACK_SIZE);
+static struct k_thread reader_thread;
+static K_SEM_DEFINE(command_sent, 0, 1);
+static uint8_t reader_value;
+static int reader_ret;
+
+static void wake_test_after_read_command(uint16_t tx, void *ctx)
+{
+	ARG_UNUSED(ctx);
+	if ((tx >> 13) == 0x2U) { /* 010: read command */
+		ma730_emul_set_frame_hook(emul, NULL, NULL);
+		k_sem_give(&command_sent);
+	}
+}
+
+static void reader(void *p1, void *p2, void *p3)
+{
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+	reader_ret = ma730_read_reg(enc, MA730_REG_FIELD, &reader_value);
+}
+
+ZTEST(ma730, test_register_read_is_not_split_by_another_thread)
+{
+	const int prio = k_thread_priority_get(k_current_get());
+	uint16_t angle = 0U;
+
+	ma730_emul_set_angle(emul, 0x04D2U);
+	ma730_emul_set_reg(emul, MA730_REG_FIELD, MA730_FIELD_HIGH | MA730_FIELD_LOW);
+	ma730_emul_set_frame_hook(emul, wake_test_after_read_command, NULL);
+	k_sem_reset(&command_sent);
+	reader_value = 0U;
+	reader_ret = -1;
+
+	k_thread_create(&reader_thread, reader_stack, K_THREAD_STACK_SIZEOF(reader_stack),
+			reader, NULL, NULL, NULL, prio + 1, 0, K_NO_WAIT);
+	zassert_ok(k_sem_take(&command_sent, K_SECONDS(1)), "no read command");
+
+	/* The reader is between its two frames */
+	zassert_ok(ma730_read_angle(enc, &angle));
+	zassert_ok(k_thread_join(&reader_thread, K_SECONDS(1)));
+
+	zassert_equal(angle, 0x04D2U, "the angle frame took the register answer");
+	zassert_ok(reader_ret);
+	zassert_equal(reader_value, MA730_FIELD_HIGH | MA730_FIELD_LOW,
+		      "the register read took the angle");
 }
 
 ZTEST_SUITE(ma730, NULL, NULL, before_each, NULL, NULL);

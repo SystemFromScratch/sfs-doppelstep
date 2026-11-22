@@ -31,12 +31,15 @@ extern "C" {
  */
 int ma730_read_angle(const struct device *dev, uint16_t *angle);
 
-/** Read a register (two SPI frames). Read-only access: the driver has no write. */
+/**
+ * Read a register (two SPI frames, kept together against other threads). Any thread.
+ * Read-only access: the driver has no write.
+ */
 int ma730_read_reg(const struct device *dev, uint8_t reg, uint8_t *value);
 
 /**
  * Magnetic field flags: @p high above the MGHT threshold, @p low below MGLT. Both
- * false: the magnet is in range.
+ * false: the magnet is in range. Any thread.
  */
 int ma730_read_field(const struct device *dev, bool *high, bool *low);
 

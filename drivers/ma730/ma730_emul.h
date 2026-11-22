@@ -20,4 +20,10 @@ uint32_t ma730_emul_frames(const struct emul *target);
 /** Write commands seen so far (the driver must send none). */
 uint32_t ma730_emul_writes(const struct emul *target);
 
+/** Called after every frame with the frame the driver sent, in the caller's thread. */
+typedef void (*ma730_emul_frame_hook_t)(uint16_t tx, void *ctx);
+/** Install a frame hook (tests of the frame order between threads); NULL removes it. */
+void ma730_emul_set_frame_hook(const struct emul *target, ma730_emul_frame_hook_t hook,
+			       void *ctx);
+
 #endif /* DOPPELSTEP_DRIVERS_MA730_EMUL_H_ */

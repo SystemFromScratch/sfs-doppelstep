@@ -25,6 +25,8 @@ struct ma730_emul_data {
 	uint32_t frames;
 	uint32_t writes;
 	uint16_t last_tx;
+	ma730_emul_frame_hook_t hook;
+	void *hook_ctx;
 };
 
 void ma730_emul_set_angle(const struct emul *target, uint16_t raw)
@@ -53,6 +55,15 @@ uint32_t ma730_emul_writes(const struct emul *target)
 	const struct ma730_emul_data *data = target->data;
 
 	return data->writes;
+}
+
+void ma730_emul_set_frame_hook(const struct emul *target, ma730_emul_frame_hook_t hook,
+			       void *ctx)
+{
+	struct ma730_emul_data *data = target->data;
+
+	data->hook = hook;
+	data->hook_ctx = ctx;
 }
 
 static int ma730_emul_io(const struct emul *target, const struct spi_config *config,
@@ -89,6 +100,9 @@ static int ma730_emul_io(const struct emul *target, const struct spi_config *con
 	}
 	if ((rx_bufs != NULL) && (rx_bufs->count == 1U) && (rx_bufs->buffers[0].len == 2U)) {
 		sys_put_be16(rx, rx_bufs->buffers[0].buf);
+	}
+	if (data->hook != NULL) {
+		data->hook(tx, data->hook_ctx);
 	}
 	return 0;
 }

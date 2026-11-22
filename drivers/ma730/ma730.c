@@ -8,6 +8,9 @@
  *              the upper byte; at least 750 ns idle before and after frame 2
  *
  * Writes go to non-volatile memory (1000 cycles, 20 ms each): this driver does none.
+ *
+ * The answer to a read command comes in the next frame, whoever sends it: a mutex keeps
+ * the two frames of a register read together, so any thread may call any function.
  */
 
 #define DT_DRV_COMPAT sfs_ma730
@@ -38,7 +41,8 @@ struct ma730_config {
 };
 
 struct ma730_data {
-	uint16_t angle; /* last sample_fetch, reverse and offset applied */
+	struct k_mutex lock; /* the frames of one access, see the top of the file */
+	uint16_t angle;      /* last sample_fetch, reverse and offset applied */
 };
 
 /* One 16-bit frame: @p tx out, the answer into @p rx */
@@ -70,9 +74,13 @@ static uint16_t to_angle(const struct ma730_config *cfg, uint16_t raw)
 int ma730_read_angle(const struct device *dev, uint16_t *angle)
 {
 	const struct ma730_config *cfg = dev->config;
+	struct ma730_data *data = dev->data;
 	uint16_t raw;
-	int ret = frame(cfg, 0x0000U, &raw);
+	int ret;
 
+	(void)k_mutex_lock(&data->lock, K_FOREVER);
+	ret = frame(cfg, 0x0000U, &raw);
+	(void)k_mutex_unlock(&data->lock);
 	if (ret == 0) {
 		*angle = to_angle(cfg, raw);
 	}
@@ -82,19 +90,21 @@ int ma730_read_angle(const struct device *dev, uint16_t *angle)
 int ma730_read_reg(const struct device *dev, uint8_t reg, uint8_t *value)
 {
 	const struct ma730_config *cfg = dev->config;
+	struct ma730_data *data = dev->data;
 	uint16_t rx;
 	int ret;
 
 	if (reg > 0x1FU) {
 		return -EINVAL;
 	}
+	(void)k_mutex_lock(&data->lock, K_FOREVER);
 	ret = frame(cfg, MA730_CMD_READ | ((uint16_t)reg << 8), &rx);
-	if (ret != 0) {
-		return ret;
+	if (ret == 0) {
+		k_busy_wait(MA730_IDLE_US);
+		ret = frame(cfg, 0x0000U, &rx);
+		k_busy_wait(MA730_IDLE_US);
 	}
-	k_busy_wait(MA730_IDLE_US);
-	ret = frame(cfg, 0x0000U, &rx);
-	k_busy_wait(MA730_IDLE_US);
+	(void)k_mutex_unlock(&data->lock);
 	if (ret == 0) {
 		*value = (uint8_t)(rx >> 8);
 	}
@@ -149,7 +159,9 @@ static DEVICE_API(sensor, ma730_api) = {
 static int ma730_init(const struct device *dev)
 {
 	const struct ma730_config *cfg = dev->config;
+	struct ma730_data *data = dev->data;
 
+	k_mutex_init(&data->lock);
 	if (!spi_is_ready_dt(&cfg->bus)) {
 		LOG_ERR("SPI bus not ready");
 		return -ENODEV;
