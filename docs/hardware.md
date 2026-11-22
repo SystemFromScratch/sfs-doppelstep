@@ -17,7 +17,7 @@ its own page, [Full-bridge board (DRV8412)](hardware-full-bridge.md).
 | Power stage | L6387 gate drivers, STL180N6F7 MOSFETs, three half-bridges (legs U, V, W) |
 | Current sensing | Three 3 mΩ low-side shunts, amplified by the internal OPAMPs of the MCU |
 | Debugger | ST-LINK/V2-1 on a detachable part of the board, with a Virtual COM Port |
-| Pinout | UM2516 Rev 4, Table 4 (`boards/st/b_g431b_esc1/doc/index.rst`) |
+| Pinout | UM2516 Rev 4, Table 4: [Board reference](boards/b_g431b_esc1.md) |
 
 The board definition is part of this repository (`boards/st/b_g431b_esc1/`), because Zephyr
 4.5 does not include it: 170 MHz from the 8 MHz crystal, the pinout of the user manual, and

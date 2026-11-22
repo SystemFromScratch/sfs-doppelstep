@@ -42,7 +42,8 @@ ready, nothing is built at the start ([Development environment](development.md#c
 | Understand what Doppelstep is, in plain words | [Introduction](overview.md) |
 | See which technologies and libraries it is built on, and why | [Technology stack](technology.md) |
 | Build it, run it on a PC, flash the board | [Getting started](getting-started.md) |
-| Wire the board and the motor, bring it up safely | [Hardware and bring-up](hardware.md) |
+| Choose a board and see what each one carries | [Supported boards](boards/index.md) |
+| Wire the board and the motor, bring it up safely | [B-G431B-ESC1](hardware.md), [Full-bridge board](hardware-full-bridge.md) |
 | Connect ROS 2, DynamixelSDK or DYNAMIXEL Wizard | [DYNAMIXEL emulation](dynamixel.md) |
 | Change the motor, the limits, the ID or the baud rate | [Configuration](configuration.md) |
 | Read the code: layers, threads, the path of a command | [Architecture](architecture.md) |

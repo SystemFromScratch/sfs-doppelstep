@@ -1,4 +1,4 @@
-# Hardware checklist after the driver refactor
+# Hardware checklist
 
 CI runs on `native_sim`, so it cannot see the real interrupt, timer, ADC or UART. Run these checks
 on a B-G431B-ESC1 after a change to the drivers or the tasks, and write down the results. They need

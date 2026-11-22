@@ -70,8 +70,9 @@ The README of Awesome-SMT-Machine names the MA732, while the schematic and the b
 diagram show the MA730. Doppelstep follows the schematic. Check the part on your board,
 and read the datasheet before you fit an MA732.
 
-The board definition is in `boards/sfs/sfs_doppelstep_full_bridge/`, the application nodes
-(power stage, motor, servo) in `app/boards/sfs_doppelstep_full_bridge.overlay`.
+The board definition is in `boards/sfs/sfs_doppelstep_full_bridge/` (pinout, flash layout
+and debugging: [Board reference](boards/sfs_doppelstep_full_bridge.md)), the application
+nodes (power stage, motor, servo) in `app/boards/sfs_doppelstep_full_bridge.overlay`.
 
 ```bash
 west build --sysbuild -b sfs_doppelstep_full_bridge -s app

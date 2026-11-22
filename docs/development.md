@@ -382,3 +382,12 @@ change.
 
 New pages go into `docs/` and into `nav` of `mkdocs.yml`; the build is strict,
 so broken links fail it.
+
+The board reference pages (`boards/<board>.md` on the website) have no file in `docs/`:
+`tools/docs/boards.py` converts the Zephyr board documentation
+`boards/<vendor>/<board>/doc/index.rst` with docutils at every build, for the website (hook
+`on_files` of `tools/docs/hooks.py`; `mkdocs serve` also watches the `.rst` files) and for the
+PDF manual. Edit the `.rst`. A construct the converter does not support stops the build
+with the file and line; `python tools/docs/boards.py` prints the generated pages. A new
+board gets its page from its `doc/index.rst`; add it to `nav` under **Boards** and to the
+table of [Supported boards](boards/index.md).

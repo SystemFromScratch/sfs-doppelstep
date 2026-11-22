@@ -31,6 +31,8 @@ smpmgr==0.19.1
 # system used by the theme.
 mkdocs>=1.6,<2
 mkdocs-material>=9.5,<10
+# Board reference pages from boards/*/*/doc/index.rst (tools/docs/boards.py)
+docutils>=0.21
 # PDF manual (tools/docs/build_manual.py). WeasyPrint needs the Pango library:
 # Linux: apt install libpango-1.0-0 libpangoft2-1.0-0; Windows: MSYS2
 # mingw-w64-x86_64-pango (found in C:\msys64\mingw64\bin automatically).

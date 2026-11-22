@@ -283,6 +283,16 @@ def on_page_markdown(text: str) -> str:
     return hook(text)
 
 
+def generated_pages() -> Dict[str, str]:
+    """Pages that exist only in the build: the board reference pages (tools/docs/boards.py)."""
+    try:
+        import boards
+    except ImportError:
+        return {}
+    config = load_mkdocs()
+    return boards.generated_pages(config.get("repo_url") or "")
+
+
 def build_chapters(pages: List[str], manual: dict, site_url: str) -> List[Chapter]:
     appendices = list(manual.get("appendices", ["changelog.md", "LICENSE.md"]))
     unnumbered = list(manual.get("unnumbered", ["about.md"]))
@@ -293,10 +303,14 @@ def build_chapters(pages: List[str], manual: dict, site_url: str) -> List[Chapte
     slugs = {page: slug_of(page) for page, _ in ordered}
 
     md = markdown_converter()
+    generated = generated_pages()
     chapters: List[Chapter] = []
     for page, label in ordered:
-        with open(os.path.join(DOCS, page), encoding="utf-8") as f:
-            text = strip_front_matter(f.read())
+        if page in generated:
+            text = generated[page]
+        else:
+            with open(os.path.join(DOCS, page), encoding="utf-8") as f:
+                text = strip_front_matter(f.read())
         md.reset()
         text = on_page_markdown(text)
         chapter = Chapter(page, label)

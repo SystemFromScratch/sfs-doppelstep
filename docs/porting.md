@@ -10,7 +10,8 @@ already has a backend, only the devicetree and the board configuration change.
 |---|---|
 | A backend of the `power_stage` class, with its binding | `drivers/power_stage/`, `dts/bindings/sfs/` |
 | The board, unless Zephyr already has it | `boards/` |
-| The nodes of the stage, the motor and the servo | `app/boards/<board>.overlay` |
+| The nodes of the stage, the motor and the servo, and the `chosen` nodes `sfs,motor` and `sfs,servo` ([Configuration](configuration.md#chosen-nodes)) | `app/boards/<board>.overlay` |
+| The node label `sfs_dxl_uart` on the UART of the bus, for MCUboot serial recovery | Board devicetree |
 | Zephyr options of the board: FPU or not, console, flash writes | `app/boards/<board>.conf` |
 
 Copy `drivers/power_stage/power_stage_stm32.c` as the starting point (within STM32, reuse the timer

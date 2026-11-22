@@ -17,8 +17,9 @@ site_name: Doppelstep
 site_description: >-
   Open-source Zephyr RTOS firmware that drives a two-phase stepper motor in
   closed-loop microstepping current control on the STMicroelectronics
-  B-G431B-ESC1 and answers on the bus as a DYNAMIXEL XM430-W350 smart servo
-  (Protocol 2.0), tested on the PC with a simulated motor.
+  B-G431B-ESC1 or a TI DRV8412 full-bridge board and answers on the bus as a
+  DYNAMIXEL XM430-W350 smart servo (Protocol 2.0), tested on the PC with a
+  simulated motor.
 site_author: Anton Vynohradov
 site_url: https://systemfromscratch.github.io/sfs-doppelstep/
 repo_url: https://github.com/SystemFromScratch/sfs-doppelstep
@@ -41,30 +42,40 @@ exclude_docs: |
 
 nav:
   - Home: index.md
+  # Guide: what a user needs to run and use Doppelstep, in reading order
   - Guide:
       - Introduction: overview.md
-      - Technology stack: technology.md
       - Getting started: getting-started.md
-      - Hardware and bring-up: hardware.md
-      - Full-bridge board (DRV8412): hardware-full-bridge.md
-      - Encoder of the joint: encoder.md
-      - Dead time of the power stage: dead-time.md
-      - Measurements with MCUViewer: measurements.md
-      - Protection: protection.md
-      - DYNAMIXEL emulation: dynamixel.md
       - Configuration: configuration.md
+      - DYNAMIXEL emulation: dynamixel.md
+      - Encoder of the joint: encoder.md
+      - Firmware update: firmware-update.md
+      - Bench GUI: gui/index.md
+  # Boards: one section per board, its guide page and its reference page, generated
+  # from boards/<vendor>/<board>/doc/index.rst (tools/docs/boards.py)
+  - Boards:
+      - Supported boards: boards/index.md
+      - B-G431B-ESC1:
+          - Hardware and bring-up: hardware.md
+          - Board reference: boards/b_g431b_esc1.md
+      - Full-bridge board (DRV8412):
+          - Hardware and bring-up: hardware-full-bridge.md
+          - Board reference: boards/sfs_doppelstep_full_bridge.md
+      - Bring-up and measurements:
+          - Hardware checklist: hardware-checklist.md
+          - Dead time of the power stage: dead-time.md
+          - Measurements with MCUViewer: measurements.md
+      - Porting to a new MCU family: porting.md
+      - Hardware development: hardware-development.md
   - How It Works:
       - Architecture: architecture.md
+      - Technology stack: technology.md
+      - Protection: protection.md
       - Simulated motor: simulation.md
-      - Firmware update: firmware-update.md
-      - Porting to a new MCU family: porting.md
   - Development:
       - Development environment: development.md
       - Tests and CI: testing.md
-      - Hardware checklist: hardware-checklist.md
-      - Hardware development: hardware-development.md
       - Test record: test-record.md
-      - GUI: gui/index.md
   - About:
       - Author & Company: about.md
       - Naming: NAMING.md
@@ -209,7 +220,7 @@ extra:
           title: Hardware is slow and costly to test on
           text: >-
             The same firmware runs on a PC with a physical model of the motor and the power
-            stage. 114 automated tests run on every CI build in a pinned Docker image.
+            stage. 258 automated tests run on every CI build in a pinned Docker image.
           tags: [native_sim, Software-in-the-loop, GitHub Actions]
     offer:
       eyebrow: What you get
@@ -264,10 +275,10 @@ extra:
           tags: [Docker, Dev Container, Codespaces]
           link: development/
     stats:                                   # measured values only (CI build of this version)
-      - {value: "114", label: automated tests per CI run}
+      - {value: "258", label: automated tests per CI run}
       - {value: "20 kHz", label: current control loop}
-      - {value: "75.6 KiB", label: application flash}
-      - {value: "18.7 KiB", label: application RAM}
+      - {value: "72.1 KiB", label: application flash}
+      - {value: "17.4 KiB", label: application RAM}
     portfolio:
       title: Part of an open-source embedded portfolio
       text: >-

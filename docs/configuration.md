@@ -25,6 +25,34 @@ change at run time, such as the ID or the baud rate, are servo registers
 
 Open the Kconfig menu of a build with `west build -d build -t menuconfig`.
 
+## Chosen nodes
+
+The application finds its devices through `chosen` nodes of the devicetree, never by a
+node label or a compatible. A new board sets them in `app/boards/<board>.overlay`:
+
+| Chosen | Points to | Required | Effect |
+|---|---|---|---|
+| `sfs,motor` | The motor node (`sfs,sstep-motor`) with its children `driver` and `ctrl` | Yes | The power stage is its `power-stage` phandle |
+| `sfs,servo` | The servo node (`sfs,x430-servo`), a child of the UART of the bus | Yes | |
+| `sfs,encoder` | Any sensor with `SENSOR_CHAN_ROTATION`, on the motor shaft | No | Measured Present Position, lost steps, position regulator ([Encoder of the joint](encoder.md)); with an `sfs,ma730` the field is also checked at startup |
+| `sfs,status-led-strip` | An LED strip (`led_strip` class) | No | The first pixel is the STATUS LED. The GPIO LED of alias `led0` shows the same, with or without a strip; a board with neither has no STATUS LED |
+
+From `app/boards/sfs_doppelstep_full_bridge.overlay`:
+
+```dts
+/ {
+	chosen {
+		sfs,servo = &servo;
+		sfs,motor = &motor;
+		sfs,encoder = &encoder;            /* MA730 on SPI2 */
+		sfs,status-led-strip = &leds;      /* WS2812B chain on PB3 */
+	};
+};
+```
+
+MCUboot finds the UART of serial recovery by the node label `sfs_dxl_uart` of the board
+devicetree ([Firmware update](firmware-update.md#configuration)).
+
 ## The motor node
 
 The values for the 17HS19-2004S1 motor and the B-G431B-ESC1, from
@@ -53,6 +81,8 @@ The values for the 17HS19-2004S1 motor and the B-G431B-ESC1, from
 
 ## The power stage node
 
+The B-G431B-ESC1 (`sfs,stm32-shared-leg-power-stage`, `app/boards/b_g431b_esc1.overlay`):
+
 | Property | Value | Meaning |
 |---|---|---|
 | `pwm-frequency` | 20000 | PWM and fast-loop rate, Hz |
@@ -68,6 +98,27 @@ The values for the 17HS19-2004S1 motor and the B-G431B-ESC1, from
 
 Shunt, amplifier gain and the ADC channels are in the same node; their values and the
 resulting full scale are in [Hardware and bring-up](hardware.md#current-and-voltage-scaling).
+
+### Full-bridge board
+
+The full-bridge board (`sfs,stm32-full-bridge-power-stage`,
+`app/boards/sfs_doppelstep_full_bridge.overlay`) shares the scaling properties above and
+differs where its gate driver does:
+
+| Property | Value | Meaning |
+|---|---|---|
+| `dead-time-ns` | 0 | The DRV8412 inserts its own dead time and has none to set; the effective dead time goes into `dead-time-comp-ns` of the motor after the bring-up |
+| `sample-window-ns` | 2000 | Estimate until measured: 340 of 4250 ticks |
+| `adc-trigger-channel` | 6 | Internal TIM1 channel that triggers the ADCs (CH1..CH4 drive the legs) |
+| `phase-a-channel`, `phase-b-channel`, `vbus-channel` | 3, 3, 1 | OPAMP1 on ADC1, OPAMP2 on ADC2, VBUS on ADC1 |
+| `shunt-micro-ohms`, `current-sense-gain-milli` | 10000, 25500 | 10 mΩ shunts, gain 25.5 of the board amplifiers: 6.47 A full scale |
+| `current-sense-invert`, `phase-b-sense-invert` | set, set | The shunt of A is in leg A+, that of B in leg B-: both inverted, B back again |
+| `reset-gpios` | PC6, PA12 | RESET_AB, RESET_CD: outputs off means both bridges at high impedance |
+| `fault-gpios`, `otw-gpios` | PB11, PB0 | DRV8412 FAULT (trip `POWER_STAGE_TRIP_DRIVER`, latched) and OTW, reported as `otw-temperature-celsius` (125) |
+| `hw-trip-vbus-mv`, `hw-trip-vbus-comparator` | 30000, `&comp3` | Hardware overvoltage trip only: the DRV8412 limits the current itself ([Protection](protection.md#one-comparator-on-the-full-bridge-board)) |
+| `current-offset-min-counts`, `current-offset-max-counts` | 1850, 2250 | 2048 expected, ±10 % |
+
+Every property with its description: `dts/bindings/sfs/`.
 
 ## The servo node
 
@@ -102,6 +153,8 @@ The ranges of the registers are those of the XM430 except the voltage limits (9.
 | Variant | Command |
 |---|---|
 | Board, real motor | `west build -p always --sysbuild -b b_g431b_esc1 -s app -d build` |
+| Full-bridge board | `west build -p always --sysbuild -b sfs_doppelstep_full_bridge -s app -d build-fb` |
+| Single-wire bus (B-G431B-ESC1) | add `-- -DEXTRA_DTC_OVERLAY_FILE=single-wire.overlay` |
 | Board, simulated motor | add `-- -DEXTRA_DTC_OVERLAY_FILE=sim.overlay` |
 | PC (`native_sim`) | `west build -b native_sim/native/64 -s app -d build-native` |
 | Fixed-point Stepper-C backend | add `-- -DCONFIG_SSTEP_MATH_FIXED=y` |
